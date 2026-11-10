@@ -1411,17 +1411,17 @@ class CameraPreset {
     required this.timeOfDay,
     this.visionState = MagistrateVisionState.hidden,
     this.verticalFovDegrees = defaultVerticalFovDegrees,
-    this.nearMeters = 4,
-    this.farMeters = 240,
+    this.nearMeters = 6,
+    this.farMeters = 300,
   });
 
-  static const double defaultVerticalFovDegrees = 25;
+  static const double defaultVerticalFovDegrees = 19;
   static const double defaultPitchDegrees = 38;
 
   static const CameraPreset duskOverview = CameraPreset(
     id: 'dusk_overview',
     label: 'Golden Dusk Crossing',
-    eye: Vec3(-35, 38.5, -35),
+    eye: Vec3(-45.5, 51.6, -45.5),
     target: Vec3(0, 1.4, 0),
     timeOfDay: TimeOfDayRig.goldenDusk,
   );
@@ -1429,7 +1429,7 @@ class CameraPreset {
   static const CameraPreset nightMarket = CameraPreset(
     id: 'night_market',
     label: 'Blue Hour Lantern Market',
-    eye: Vec3(30.5, 33.5, -31.5),
+    eye: Vec3(39.8, 46.3, -41.7),
     target: Vec3(1.5, 1.8, 0.5),
     timeOfDay: TimeOfDayRig.blueHourNight,
   );
@@ -1437,7 +1437,7 @@ class CameraPreset {
   static const CameraPreset magistrateWatchtower = CameraPreset(
     id: 'magistrate_watchtower',
     label: "Magistrate's Eye Watch",
-    eye: Vec3(-29.5, 36, 32.5),
+    eye: Vec3(-39.4, 48.6, 43.1),
     target: Vec3(1.5, 2, -0.5),
     timeOfDay: TimeOfDayRig.blueHourNight,
     visionState: MagistrateVisionState.fullOverlay,
@@ -1446,7 +1446,7 @@ class CameraPreset {
   static const CameraPreset motionOffset = CameraPreset(
     id: 'motion_offset',
     label: 'Telephoto Motion Probe',
-    eye: Vec3(-24.2, 36, 36.2),
+    eye: Vec3(-34.1, 48.6, 46.8),
     target: Vec3(6.8, 2, 3.2),
     timeOfDay: TimeOfDayRig.blueHourNight,
     visionState: MagistrateVisionState.fullOverlay,

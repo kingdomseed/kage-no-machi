@@ -13,8 +13,8 @@ class TacticalCameraRig {
     _syncSphericalFromEye(initialPreset.eye.toVector3());
   }
 
-  static const double minDistanceMeters = 24;
-  static const double maxDistanceMeters = 88;
+  static const double minDistanceMeters = 28;
+  static const double maxDistanceMeters = 115;
   static const double panBoundsMeters = 32;
   static const double keyPanSpeedMetersPerSec = 18;
 
@@ -119,7 +119,7 @@ class TacticalCameraRig {
     final ray = Ray.originDirection(rawRay.origin, dir);
 
     const stepMeters = 1.5;
-    const maxDistance = 210.0;
+    const maxDistance = 280.0;
     var prevT = 0.0;
     final prevPoint = ray.at(prevT);
     var prevHeightDiff = prevPoint.y - sampleGroundY(prevPoint.x, prevPoint.z);

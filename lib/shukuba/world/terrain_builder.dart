@@ -485,7 +485,7 @@ class TerrainBuilder {
       final nStart = Vector3(-along.x, 0, -along.z);
       final nEnd = Vector3(along.x, 0, along.z);
 
-      final chunks = math.max(1, (segLen / 7.5).ceil());
+      final chunks = math.max(1, (segLen / 4.5).ceil());
       for (var k = 0; k < chunks; k++) {
         final cA = Vec3.lerp(spanA, spanB, k / chunks);
         final cB = Vec3.lerp(spanA, spanB, (k + 1) / chunks);
