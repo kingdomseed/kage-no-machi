@@ -28,6 +28,11 @@ fragment {
       discard;
     }
 
+    float verticalMask = 1.0 - smoothstep(0.14, 0.24, local.y);
+    if (verticalMask <= 0.002) {
+      discard;
+    }
+
     float rangeNorm = max(material_params.cone_range_norm, 0.001);
     vec2 apex = vec2(0.0, -0.5 * rangeNorm);
     vec2 rel = local.xz - apex;
@@ -61,7 +66,9 @@ fragment {
 
     vec3 rgb = tint.rgb + vec3(0.35, 0.35, 0.35) * boundaryStroke;
     float alpha = clamp(
-      (tint.a * fillWeight + boundaryStroke * 0.45) * material_params.decal_fade,
+      (tint.a * fillWeight + boundaryStroke * 0.45) *
+        material_params.decal_fade *
+        verticalMask,
       0.0,
       1.0
     );

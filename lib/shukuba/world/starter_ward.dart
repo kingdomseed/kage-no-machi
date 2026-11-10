@@ -37,17 +37,17 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     TerraceCourse.validated(
       id: EntityId.validated('terrace_lower_east'),
       crestPoints: [
-        Vec3(4.8, sampleGroundY(4.8, -24), -24),
-        Vec3(4.8, sampleGroundY(4.8, 24), 24),
+        Vec3(6, sampleGroundY(6, -24), -24),
+        Vec3(6, sampleGroundY(6, 24), 24),
       ],
       topElevation: 1.80,
-      depthMeters: 8.50,
+      depthMeters: 9,
     ),
     TerraceCourse.validated(
       id: EntityId.validated('terrace_upper_east'),
       crestPoints: [
-        Vec3(13.5, sampleGroundY(13.5, -20), -20),
-        Vec3(13.5, sampleGroundY(13.5, 20), 20),
+        Vec3(15, sampleGroundY(15, -20), -20),
+        Vec3(15, sampleGroundY(15, 20), 20),
       ],
       topElevation: 3.40,
       depthMeters: 10,
@@ -80,47 +80,47 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('machiya_east_s1'),
       kind: StructureKind.machiya,
-      position: Vec3(10.5, sampleGroundY(10.5, -4.8), -4.8),
+      position: Vec3(11.4, sampleGroundY(11.4, -4.8), -4.8),
     ),
     PlacedStructure(
       id: EntityId.validated('machiya_east_n1'),
       kind: StructureKind.machiya,
-      position: Vec3(10.5, sampleGroundY(10.5, 4.8), 4.8),
+      position: Vec3(11.4, sampleGroundY(11.4, 4.8), 4.8),
       yawRadians: math.pi,
     ),
     PlacedStructure(
       id: EntityId.validated('machiya_east_s2'),
       kind: StructureKind.machiya,
-      position: Vec3(16.5, sampleGroundY(16.5, -4.8), -4.8),
+      position: Vec3(19.4, sampleGroundY(19.4, -4.8), -4.8),
     ),
     PlacedStructure(
       id: EntityId.validated('machiya_east_n2'),
       kind: StructureKind.machiya,
-      position: Vec3(16.5, sampleGroundY(16.5, 4.8), 4.8),
+      position: Vec3(19.4, sampleGroundY(19.4, 4.8), 4.8),
       yawRadians: math.pi,
     ),
     PlacedStructure(
       id: EntityId.validated('market_s1'),
       kind: StructureKind.marketStall,
-      position: Vec3(6.2, sampleGroundY(6.2, -2.6), -2.6),
+      position: Vec3(7, sampleGroundY(7, -2.35), -2.35),
     ),
     PlacedStructure(
       id: EntityId.validated('market_n1'),
       kind: StructureKind.marketStall,
-      position: Vec3(6.2, sampleGroundY(6.2, 2.6), 2.6),
+      position: Vec3(7, sampleGroundY(7, 2.35), 2.35),
       yawRadians: math.pi,
     ),
     PlacedStructure(
       id: EntityId.validated('tower_west'),
       kind: StructureKind.yaguraTower,
-      position: Vec3(-7.5, sampleGroundY(-7.5, 5), 5),
-      yawRadians: -2.35,
+      position: Vec3(-6.2, sampleGroundY(-6.2, 8.8), 8.8),
+      yawRadians: 2.55,
     ),
     PlacedStructure(
       id: EntityId.validated('tower_east'),
       kind: StructureKind.yaguraTower,
-      position: Vec3(14.5, sampleGroundY(14.5, -5.5), -5.5),
-      yawRadians: 0.85,
+      position: Vec3(9.8, sampleGroundY(9.8, -10.6), -10.6),
+      yawRadians: -0.65,
     ),
     PlacedStructure(
       id: EntityId.validated('maple_1'),
@@ -131,13 +131,13 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('maple_2'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(4.5, sampleGroundY(4.5, -4), -4),
+      position: Vec3(5, sampleGroundY(5, -4.8), -4.8),
       yawRadians: -0.65,
     ),
     PlacedStructure(
       id: EntityId.validated('maple_3'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(12, sampleGroundY(12, 7.5), 7.5),
+      position: Vec3(9.6, sampleGroundY(9.6, 10.2), 10.2),
       yawRadians: 1.10,
     ),
     PlacedStructure(
@@ -155,7 +155,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('bamboo_3'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(16, sampleGroundY(16, -9), -9),
+      position: Vec3(18.5, sampleGroundY(18.5, -9.5), -9.5),
       yawRadians: 0.75,
     ),
   ];

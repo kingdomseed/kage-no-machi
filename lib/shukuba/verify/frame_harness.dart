@@ -132,10 +132,7 @@ class PresetVerificationResult {
 
 @immutable
 class HarnessSummary {
-  const new({
-    required this.outputDir,
-    required this.results,
-  });
+  const new({required this.outputDir, required this.results});
 
   final String outputDir;
   final List<PresetVerificationResult> results;
@@ -173,13 +170,35 @@ class ShukubaFrameHarness {
   final int settleFrames;
   final double capturePixelRatio;
 
+  static Future<Directory> _prepareOutputDir(String requestedDir) async {
+    final direct = Directory(requestedDir);
+    try {
+      await direct.create(recursive: true);
+      final probe = File('${direct.path}/.write_probe');
+      await probe.writeAsString('ok', flush: true);
+      await probe.delete();
+      return direct;
+    } on FileSystemException catch (_) {
+      final parts = requestedDir
+          .split(RegExp(r'[/\\]'))
+          .where((segment) => segment.isNotEmpty)
+          .toList();
+      final leaf = parts.isEmpty ? 'captures' : parts.last;
+      final fallback = Directory(
+        '${Directory.systemTemp.path}/shukuba_captures/$leaf',
+      );
+      await fallback.create(recursive: true);
+      return fallback;
+    }
+  }
+
   Future<HarnessSummary> runCaptureSuite({
     required String outputDir,
+    required bool autoExit,
     List<CameraPreset> presets = CameraPreset.verificationPresets,
-    bool autoExit = false,
   }) async {
-    final directory = Directory(outputDir);
-    await directory.create(recursive: true);
+    final directory = await _prepareOutputDir(outputDir);
+    stdout.writeln('SHUKUBA_CAPTURE_OUT:${directory.path}');
 
     await Scene.initializeStaticResources();
     await Scene.preload();
@@ -268,9 +287,8 @@ class ShukubaFrameHarness {
 
     final summary = HarnessSummary(outputDir: directory.path, results: results);
     final summaryFile = File('${directory.path}/summary.json');
-    final encoded = const JsonEncoder.withIndent('  ').convert(
-      summary.toJson(),
-    );
+    final encoded = const JsonEncoder.withIndent('  ')
+        .convert(summary.toJson());
     await summaryFile.writeAsString('$encoded\n', flush: true);
 
     stdout

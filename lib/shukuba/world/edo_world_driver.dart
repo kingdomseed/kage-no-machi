@@ -199,7 +199,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _scene!.add(_worldRoot!);
 
     initSimulation(initialGraph: initialGraph);
-    applyGraph(_graph);
+    _rebuildGraphNodes();
   }
 
   void initSimulation({ShukubaGraph? initialGraph}) {
@@ -256,13 +256,20 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   }
 
   void _rebuildAgentNodes() {
+    if (_scene == null) {
+      return;
+    }
     _agentsNode.children.clear();
     _agentNodes.clear();
 
     for (final agent in _simAgents) {
-      final node = Node()
-        ..position = agent.position.toVector3()
-        ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
+      final node =
+          _kitBuilder.buildStreetAgentNode(agent.role, _resolveMaterial)
+            ..position = agent.position.toVector3()
+            ..rotation = Quaternion.axisAngle(
+              Vector3(0, 1, 0),
+              agent.yawRadians,
+            );
 
       _agentNodes[agent.id] = node;
       _agentsNode.add(node);
@@ -271,11 +278,18 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
   @override
   void applyGraph(ShukubaGraph nextGraph) {
-    if (identical(_graph, nextGraph) && _graph != ShukubaGraph.empty) {
+    if (identical(_graph, nextGraph) && _roadsNode.children.isNotEmpty) {
       return;
     }
 
     _graph = nextGraph;
+    _rebuildGraphNodes();
+  }
+
+  void _rebuildGraphNodes() {
+    if (_scene == null) {
+      return;
+    }
 
     _roadsNode.children.clear();
     for (final road in _graph.roads) {

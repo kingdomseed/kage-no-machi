@@ -22,10 +22,7 @@ void main() {
       expect(PentatonicScale.yo.frequencyHzAt(3), closeTo(440, 1e-6));
       expect(PentatonicScale.inSen.frequencyHzAt(1), closeTo(311.127, 1e-3));
       expect(PentatonicScale.inSen.frequencyHzAt(4), closeTo(523.251, 1e-3));
-      expect(
-        PentatonicScale.yo.frequencyHzAt(5),
-        closeTo(293.6648 * 2, 1e-3),
-      );
+      expect(PentatonicScale.yo.frequencyHzAt(5), closeTo(293.6648 * 2, 1e-3));
     });
   });
 
@@ -87,14 +84,8 @@ void main() {
       final spans = LanternSpan.deriveAll(const [stallA, stallB, stallC]);
       final seenHooks = <(EntityId, int)>{};
       for (final span in spans) {
-        final hookA = (
-          span.endpointA.structureId,
-          span.endpointA.anchorIndex,
-        );
-        final hookB = (
-          span.endpointB.structureId,
-          span.endpointB.anchorIndex,
-        );
+        final hookA = (span.endpointA.structureId, span.endpointA.anchorIndex);
+        final hookB = (span.endpointB.structureId, span.endpointB.anchorIndex);
         expect(seenHooks.add(hookA), isTrue);
         expect(seenHooks.add(hookB), isTrue);
       }
@@ -103,37 +94,38 @@ void main() {
     test(
       'putRoad, putTerrace, putStructure, and removeEntity are idempotent',
       () {
-      final road = RoadSpline.validated(
-        id: EntityId.validated('main_kaido'),
-        controlPoints: const [Vec3(-12, 0, 0), Vec3(12, 0, 0)],
-      );
-      final terrace = TerraceCourse.validated(
-        id: EntityId.validated('north_terrace'),
-        crestPoints: const [Vec3(-10, 1.8, -4), Vec3(10, 1.8, -4)],
-        topElevation: 1.8,
-      );
-      const tower = PlacedStructure(
-        id: EntityId('yagura_1'),
-        kind: StructureKind.yaguraTower,
-        position: Vec3(0, 1.8, -7),
-      );
+        final road = RoadSpline.validated(
+          id: EntityId.validated('main_kaido'),
+          controlPoints: const [Vec3(-12, 0, 0), Vec3(12, 0, 0)],
+        );
+        final terrace = TerraceCourse.validated(
+          id: EntityId.validated('north_terrace'),
+          crestPoints: const [Vec3(-10, 1.8, -4), Vec3(10, 1.8, -4)],
+          topElevation: 1.8,
+        );
+        const tower = PlacedStructure(
+          id: EntityId('yagura_1'),
+          kind: StructureKind.yaguraTower,
+          position: Vec3(0, 1.8, -7),
+        );
 
-      final once = ShukubaGraph.empty
-          .putRoad(road)
-          .putTerrace(terrace)
-          .putStructure(tower);
-      final twice = once
-          .putRoad(road)
-          .putTerrace(terrace)
-          .putStructure(tower);
+        final once = ShukubaGraph.empty
+            .putRoad(road)
+            .putTerrace(terrace)
+            .putStructure(tower);
+        final twice = once
+            .putRoad(road)
+            .putTerrace(terrace)
+            .putStructure(tower);
 
-      expect(twice, equals(once));
-      expect(twice.structuralSightcones, hasLength(1));
-      expect(
-        twice.removeEntity(tower.id).removeEntity(tower.id).structures,
-        isEmpty,
-      );
-    });
+        expect(twice, equals(once));
+        expect(twice.structuralSightcones, hasLength(1));
+        expect(
+          twice.removeEntity(tower.id).removeEntity(tower.id).structures,
+          isEmpty,
+        );
+      },
+    );
 
     test('snapStructure aligns facade to road kerb and samples terrace Y', () {
       final graph = ShukubaGraph.empty
@@ -146,7 +138,7 @@ void main() {
           .putTerrace(
             TerraceCourse.validated(
               id: const EntityId('terrace_1'),
-              crestPoints: const [Vec3(10, 2.2, -3.5), Vec3(-10, 2.2, -3.5)],
+              crestPoints: const [Vec3(-10, 2.2, -3.5), Vec3(10, 2.2, -3.5)],
               topElevation: 2.2,
               depthMeters: 8,
             ),

@@ -3,7 +3,8 @@ import 'dart:ui' show Offset, Size;
 
 import 'package:flutter_scene/scene.dart' show PerspectiveCamera;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
-import 'package:vector_math/vector_math.dart' show Vector3, degrees2Radians;
+import 'package:vector_math/vector_math.dart'
+    show Ray, Vector3, degrees2Radians;
 
 class TacticalCameraRig {
   new({CameraPreset initialPreset = CameraPreset.duskOverview})
@@ -113,24 +114,20 @@ class TacticalCameraRig {
     if (viewSize.width <= 0 || viewSize.height <= 0) {
       return null;
     }
-    final ray = _camera.screenPointToRay(screenPosition, viewSize);
-    final dir = ray.direction.normalized();
+    final rawRay = _camera.screenPointToRay(screenPosition, viewSize);
+    final dir = rawRay.direction.normalized();
     if (dir.y >= -1e-4) {
       return null;
     }
+    final ray = Ray.originDirection(rawRay.origin, dir);
 
     const stepMeters = 1.5;
     const maxDistance = 210.0;
-    var prevT = _camera.fovNear;
+    var prevT = 0.0;
     final prevPoint = ray.at(prevT);
-    var prevHeightDiff =
-        prevPoint.y - sampleGroundY(prevPoint.x, prevPoint.z);
+    var prevHeightDiff = prevPoint.y - sampleGroundY(prevPoint.x, prevPoint.z);
 
-    for (
-      var t = prevT + stepMeters;
-      t <= maxDistance;
-      t += stepMeters
-    ) {
+    for (var t = prevT + stepMeters; t <= maxDistance; t += stepMeters) {
       final point = ray.at(t);
       final groundY = sampleGroundY(point.x, point.z);
       final diff = point.y - groundY;
@@ -140,8 +137,7 @@ class TacticalCameraRig {
         for (var iter = 0; iter < 12; iter++) {
           final mid = (lo + hi) * 0.5;
           final midPoint = ray.at(mid);
-          final midDiff =
-              midPoint.y - sampleGroundY(midPoint.x, midPoint.z);
+          final midDiff = midPoint.y - sampleGroundY(midPoint.x, midPoint.z);
           if (midDiff > 0) {
             lo = mid;
           } else {

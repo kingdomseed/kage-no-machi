@@ -1,7 +1,5 @@
 #version 460 core
 
-#include <octahedral.glsl>
-
 uniform sampler2D input_color;
 uniform sampler2D scene_depth_linear;
 
@@ -22,6 +20,16 @@ layout(std140) uniform SumiInkParams {
 in vec2 v_uv;
 out vec4 frag_color;
 
+vec3 DecodeDepthPrepassNormal(vec2 e) {
+  vec3 n = vec3(e.x, e.y, 1.0 - abs(e.x) - abs(e.y));
+  if (n.z < 0.0) {
+    vec2 s = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+    n.xy = (1.0 - abs(n.yx)) * s;
+  }
+  float len = length(n);
+  return len > 1e-5 ? (n / len) : vec3(0.0, 0.0, -1.0);
+}
+
 void main() {
   vec4 base = texture(input_color, v_uv);
   vec4 centerSample = texture(scene_depth_linear, v_uv);
@@ -36,35 +44,27 @@ void main() {
   vec4 sBottom = texture(scene_depth_linear, v_uv - vec2(0.0, d.y));
   vec4 sTop = texture(scene_depth_linear, v_uv + vec2(0.0, d.y));
 
-  float denom = max(centerDepth, 0.5);
-  float depthDiffH = (sRight.r - sLeft.r) / denom;
-  float depthDiffV = (sTop.r - sBottom.r) / denom;
-  float depthGrad = sqrt(depthDiffH * depthDiffH + depthDiffV * depthDiffV);
-  float maxDepthStep = max(
-    max(abs(sLeft.r - centerDepth), abs(sRight.r - centerDepth)),
-    max(abs(sTop.r - centerDepth), abs(sBottom.r - centerDepth))
-  ) / denom;
-  float depthEdge = clamp(
-    max(depthGrad, maxDepthStep * 1.5) * ink_params.weights.x * 3.5,
-    0.0,
-    1.0
-  );
+  float denom = max(centerDepth, 1.2);
+  float lapH = abs(sLeft.r + sRight.r - 2.0 * centerDepth) / denom;
+  float lapV = abs(sTop.r + sBottom.r - 2.0 * centerDepth) / denom;
+  float laplacian = (lapH + lapV) * ink_params.weights.x;
+  float depthEdge = smoothstep(0.012, 0.050, laplacian) * skyFade;
 
-  vec3 nCenter = OctDecode(centerSample.gb);
-  vec3 nLeft = OctDecode(sLeft.gb);
-  vec3 nRight = OctDecode(sRight.gb);
-  vec3 nBottom = OctDecode(sBottom.gb);
-  vec3 nTop = OctDecode(sTop.gb);
+  vec3 nCenter = DecodeDepthPrepassNormal(centerSample.gb);
+  vec3 nLeft = DecodeDepthPrepassNormal(sLeft.gb);
+  vec3 nRight = DecodeDepthPrepassNormal(sRight.gb);
+  vec3 nBottom = DecodeDepthPrepassNormal(sBottom.gb);
+  vec3 nTop = DecodeDepthPrepassNormal(sTop.gb);
 
-  float creaseTerm =
+  float creaseRaw =
       (1.0 - dot(nCenter, nLeft)) +
       (1.0 - dot(nCenter, nRight)) +
       (1.0 - dot(nCenter, nBottom)) +
       (1.0 - dot(nCenter, nTop));
   float normalCrease =
-      clamp(creaseTerm * 0.25 * ink_params.weights.y * 2.2, 0.0, 1.0) * skyFade;
+      smoothstep(0.24, 0.72, creaseRaw * ink_params.weights.y * 0.55) * skyFade;
 
-  float edge = clamp(max(depthEdge, normalCrease), 0.0, 1.0);
+  float edge = clamp(max(depthEdge, normalCrease * 0.72), 0.0, 1.0);
   vec3 inkModulated = mix(
     base.rgb,
     base.rgb * ink_params.ink_color.rgb,

@@ -41,10 +41,12 @@ class ShukubaController extends ChangeNotifier {
 
   ShukubaGraph get graph => world.graph;
 
-  Future<void> initialize(Scene scene) async {
-    await look.attach(scene);
-    await world.attach(scene, resolveMaterial: look.materialFor);
-    await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
+  Future<void> initialize([Scene? scene]) async {
+    if (scene != null) {
+      await look.attach(scene);
+      await world.attach(scene, resolveMaterial: look.materialFor);
+      await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
+    }
     look.syncFrame(
       rig: _timeOfDay,
       vision: effectiveVision,

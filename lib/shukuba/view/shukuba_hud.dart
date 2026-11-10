@@ -36,23 +36,27 @@ class ShukubaHud extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _WardPlaque(
-                      structureCount: graph.structures.length,
-                      lanternSpanCount: graph.lanternSpans.length,
-                      scaleLabel: rig.scale.label,
-                      onSelectPreset: onSelectPreset,
-                    ),
-                    _AtmospherePanel(
-                      rig: rig,
-                      visionActive: visionActive,
-                      onChangedTime: controller.setTimeOfDay,
-                      onToggleVision: controller.toggleMagistrateEye,
-                    ),
-                  ],
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.spaceBetween,
+                    children: [
+                      _WardPlaque(
+                        structureCount: graph.structures.length,
+                        lanternSpanCount: graph.lanternSpans.length,
+                        scaleLabel: rig.scale.label,
+                        onSelectPreset: onSelectPreset,
+                      ),
+                      _AtmospherePanel(
+                        rig: rig,
+                        visionActive: visionActive,
+                        onChangedTime: controller.setTimeOfDay,
+                        onToggleVision: controller.toggleMagistrateEye,
+                      ),
+                    ],
+                  ),
                 ),
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -223,10 +227,7 @@ class _AtmospherePanel extends StatelessWidget {
                   inactiveTrackColor: const Color(0x44F2E8D5),
                   thumbColor: ShukubaHud._washiInk,
                 ),
-                child: Slider(
-                  value: rig.value,
-                  onChanged: onChangedTime,
-                ),
+                child: Slider(value: rig.value, onChanged: onChangedTime),
               ),
             ),
           ],
@@ -264,10 +265,7 @@ class _StrokeBanner extends StatelessWidget {
           children: [
             Text(
               '$pointCount stroke anchor${pointCount == 1 ? '' : 's'} placed',
-              style: const TextStyle(
-                color: ShukubaHud._washiInk,
-                fontSize: 11,
-              ),
+              style: const TextStyle(color: ShukubaHud._washiInk, fontSize: 11),
             ),
             const SizedBox(width: 10),
             if (canCommit)
@@ -382,9 +380,7 @@ class _CompactChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: active ? accent.withValues(alpha: 0.24) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: active ? accent : ShukubaHud._borderStroke,
-          ),
+          border: Border.all(color: active ? accent : ShukubaHud._borderStroke),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),

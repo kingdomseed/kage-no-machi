@@ -1,8 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show Color;
 
-import 'package:flutter/foundation.dart'
-    show immutable, listEquals, mapEquals;
+import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 import 'package:flutter_scene/scene.dart'
     show
         Material,
@@ -39,11 +38,8 @@ class Vec3 {
 
   factory fromVector3(Vector3 v) => Vec3(v.x, v.y, v.z);
 
-  factory lerp(Vec3 a, Vec3 b, double t) => Vec3(
-    a.x + (b.x - a.x) * t,
-    a.y + (b.y - a.y) * t,
-    a.z + (b.z - a.z) * t,
-  );
+  factory lerp(Vec3 a, Vec3 b, double t) =>
+      Vec3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
 
   static const Vec3 zero = Vec3(0, 0, 0);
   static const Vec3 up = Vec3(0, 1, 0);
@@ -75,8 +71,7 @@ class Vec3 {
 
   double distanceTo(Vec3 other) => (this - other).length;
 
-  double horizontalDistanceTo(Vec3 other) =>
-      (this - other).horizontalLength;
+  double horizontalDistanceTo(Vec3 other) => (this - other).horizontalLength;
 
   Vec3 normalized() {
     final len = length;
@@ -118,18 +113,9 @@ extension Vector3ShukubaX on Vector3 {
   Vec3 toVec3() => Vec3(x, y, z);
 }
 
-enum EdoInstrument {
-  koto,
-  shakuhachi,
-  hyoshigi,
-  bonsho,
-}
+enum EdoInstrument { koto, shakuhachi, hyoshigi, bonsho }
 
-enum AmbientLoopKind {
-  riverMurmur,
-  bambooWind,
-  nightCrickets,
-}
+enum AmbientLoopKind { riverMurmur, bambooWind, nightCrickets }
 
 /// Five-note Edo scales rooted on concert `D4` (`293.665` Hz).
 enum PentatonicScale {
@@ -193,7 +179,11 @@ enum PentatonicScale {
     final count = pitchRatios.length;
     final mod = degree % count;
     final octave = (degree - mod) ~/ count;
-    final clampedOctave = octave < -1 ? -1 : octave > 2 ? 2 : octave;
+    final clampedOctave = octave < -1
+        ? -1
+        : octave > 2
+        ? 2
+        : octave;
     final base = pitchRatios[mod];
     if (clampedOctave == 0) {
       return base;
@@ -222,10 +212,7 @@ enum StructureKind {
 
 @immutable
 class EaveAnchor {
-  const new({
-    required this.localOffset,
-    required this.localOutwardNormal,
-  });
+  const new({required this.localOffset, required this.localOutwardNormal});
 
   final Vec3 localOffset;
   final Vec3 localOutwardNormal;
@@ -435,11 +422,9 @@ final class DrawLaneTool extends PlacementTool {
 }
 
 final class BuildTerraceTool extends PlacementTool {
-  const new({
-    this.riseMeters = 1.6,
-    this.depthMeters = 5.5,
-  }) : assert(riseMeters > 0, 'riseMeters must be positive.'),
-       assert(depthMeters > 0, 'depthMeters must be positive.');
+  const new({this.riseMeters = 1.6, this.depthMeters = 5.5})
+    : assert(riseMeters > 0, 'riseMeters must be positive.'),
+      assert(depthMeters > 0, 'depthMeters must be positive.');
 
   final double riseMeters;
   final double depthMeters;
@@ -456,10 +441,7 @@ final class BuildTerraceTool extends PlacementTool {
 }
 
 final class StampStructureTool extends PlacementTool {
-  const new({
-    required this.kind,
-    this.yawOffsetRadians = 0,
-  });
+  const new({required this.kind, this.yawOffsetRadians = 0});
 
   final StructureKind kind;
   final double yawOffsetRadians;
@@ -565,7 +547,11 @@ class RoadSpline {
       final rawT = segLenSq <= 1e-12
           ? 0.0
           : ((query.x - a.x) * abX + (query.z - a.z) * abZ) / segLenSq;
-      final t = rawT >= 1 ? 1.0 : rawT > 0 ? rawT : 0.0;
+      final t = rawT >= 1
+          ? 1.0
+          : rawT > 0
+          ? rawT
+          : 0.0;
       final proj = Vec3.lerp(a, b, t);
       final dx = query.x - proj.x;
       final dz = query.z - proj.z;
@@ -911,7 +897,11 @@ class LanternSpan {
   int get lanternCount => math.max(2, (lengthMeters / 1.15).floor());
 
   Vec3 sampleCatenary(double t) {
-    final clamped = t >= 1 ? 1.0 : t > 0 ? t : 0.0;
+    final clamped = t >= 1
+        ? 1.0
+        : t > 0
+        ? t
+        : 0.0;
     final chord = Vec3.lerp(startWorld, endWorld, clamped);
     final drop = 4 * sagMeters * clamped * (1 - clamped);
     return Vec3(chord.x, chord.y - drop, chord.z);
@@ -939,9 +929,7 @@ class LanternSpan {
         if (rawA.structureId == rawB.structureId) {
           continue;
         }
-        final ordered = rawA.compareTo(rawB) <= 0
-            ? (rawA, rawB)
-            : (rawB, rawA);
+        final ordered = rawA.compareTo(rawB) <= 0 ? (rawA, rawB) : (rawB, rawA);
         final a = ordered.$1;
         final b = ordered.$2;
         final delta = b.worldPosition - a.worldPosition;
@@ -1350,8 +1338,7 @@ class TimeOfDayRig {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TimeOfDayRig && other.value == value;
+      identical(this, other) || other is TimeOfDayRig && other.value == value;
 
   @override
   int get hashCode => value.hashCode;
@@ -1371,13 +1358,13 @@ class CameraPreset {
     this.farMeters = 240,
   });
 
-  static const double defaultVerticalFovDegrees = 19;
+  static const double defaultVerticalFovDegrees = 25;
   static const double defaultPitchDegrees = 38;
 
   static const CameraPreset duskOverview = CameraPreset(
     id: 'dusk_overview',
     label: 'Golden Dusk Crossing',
-    eye: Vec3(-31.2, 35.8, -31.2),
+    eye: Vec3(-35, 38.5, -35),
     target: Vec3(0, 1.4, 0),
     timeOfDay: TimeOfDayRig.goldenDusk,
   );
@@ -1385,16 +1372,16 @@ class CameraPreset {
   static const CameraPreset nightMarket = CameraPreset(
     id: 'night_market',
     label: 'Blue Hour Lantern Market',
-    eye: Vec3(26.4, 30.6, -28.8),
-    target: Vec3(2.5, 1.8, 1.5),
+    eye: Vec3(30.5, 33.5, -31.5),
+    target: Vec3(1.5, 1.8, 0.5),
     timeOfDay: TimeOfDayRig.blueHourNight,
   );
 
   static const CameraPreset magistrateWatchtower = CameraPreset(
     id: 'magistrate_watchtower',
     label: "Magistrate's Eye Watch",
-    eye: Vec3(-24.8, 33.4, 29.6),
-    target: Vec3(1.2, 2, -1.5),
+    eye: Vec3(-29.5, 36, 32.5),
+    target: Vec3(1.5, 2, -0.5),
     timeOfDay: TimeOfDayRig.blueHourNight,
     visionState: MagistrateVisionState.fullOverlay,
   );
@@ -1402,8 +1389,8 @@ class CameraPreset {
   static const CameraPreset motionOffset = CameraPreset(
     id: 'motion_offset',
     label: 'Telephoto Motion Probe',
-    eye: Vec3(-19.4, 33.4, 33.8),
-    target: Vec3(6.6, 2, 2.7),
+    eye: Vec3(-24.2, 36, 36.2),
+    target: Vec3(6.8, 2, 3.2),
     timeOfDay: TimeOfDayRig.blueHourNight,
     visionState: MagistrateVisionState.fullOverlay,
   );
@@ -1541,12 +1528,8 @@ enum ShukubaSurfaceRole {
   final double defaultRoughness;
   final Color previewColor;
 
-  Vector4 toLinearRgba() => Vector4(
-    previewColor.r,
-    previewColor.g,
-    previewColor.b,
-    previewColor.a,
-  );
+  Vector4 toLinearRgba() =>
+      Vector4(previewColor.r, previewColor.g, previewColor.b, previewColor.a);
 }
 
 Material defaultShukubaMaterial(ShukubaSurfaceRole role) =>
@@ -1556,11 +1539,7 @@ Material defaultShukubaMaterial(ShukubaSurfaceRole role) =>
       ..roughnessFactor = role.defaultRoughness
       ..depthLayer = role.depthLayer;
 
-enum StreetAgentRole {
-  townsfolk,
-  lanternWatchman,
-  nightSmuggler,
-}
+enum StreetAgentRole { townsfolk, lanternWatchman, nightSmuggler }
 
 @immutable
 class StreetAgentSnapshot {

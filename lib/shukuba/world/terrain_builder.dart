@@ -10,7 +10,9 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         ShukubaSurfaceRole,
         TerraceCourse,
         Vec3;
-import 'package:vector_math/vector_math.dart' show Vector2, Vector3;
+import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
+    show EdoKitBuilder;
+import 'package:vector_math/vector_math.dart' show Vector2, Vector3, Vector4;
 
 class TerrainConfig {
   const new();
@@ -31,11 +33,11 @@ class TerrainConfig {
 
   static const double riverBedElevation = -1.85;
   static const double waterSurfaceElevation = -0.55;
-  static const double riverBankHalfWidth = 2.80;
-  static const double riverTransitionWidth = 2.40;
+  static const double riverBankHalfWidth = 2.25;
+  static const double riverTransitionWidth = 1.25;
 
   static double riverCenterX(double z) =>
-      1.80 * math.sin(z * 0.09) + 0.40 * math.sin(z * 0.22);
+      1.05 * math.sin(z * 0.09) + 0.25 * math.sin(z * 0.22);
 
   static double bridgeDeckHeightAt(double x) {
     final t = (x - bridgeMinX) / (bridgeMaxX - bridgeMinX);
@@ -59,7 +61,9 @@ class TerrainBuilder {
     final dist = (x - rivX).abs();
 
     final westFlat = 0.40 + 0.12 * math.sin(x * 0.12) * math.cos(z * 0.14);
-    final eastTerrace = x < 13.5 ? 1.80 : 3.40;
+    final kaidoRamp = 1.0 - ((z.abs() - 2.0) / 1.2).clamp(0.0, 1.0);
+    final eastForeshore = 0.05 + (1.80 - 0.05) * kaidoRamp;
+    final eastTerrace = x < 6.50 ? eastForeshore : (x < 15.5 ? 1.80 : 3.40);
 
     if (dist <= TerrainConfig.riverBankHalfWidth) {
       final shoal = 0.08 * math.sin(z * 0.35) * math.cos(x * 0.45);
@@ -116,7 +120,26 @@ class TerrainBuilder {
         final x = minX + c * step;
         final u = (x - minX) / (maxX - minX);
         final y = sampleRawTerrain(x, z);
+        final rivX = TerrainConfig.riverCenterX(z);
+        final rivDist = (x - rivX).abs();
+        final roadCorridor = 1.0 - (z.abs() - 1.8).clamp(0.0, 5.5) / 5.5;
+        final bankWet = 1.0 - ((rivDist - 2.6) / 2.6).clamp(0.0, 1.0);
+        final patch =
+            0.5 + 0.5 * math.sin(x * 0.24 + z * 0.19) * math.cos(z * 0.31);
+        final mossR = 0.58 + 0.22 * patch;
+        final mossG = 0.86 + 0.18 * patch;
+        final mossB = 0.44 + 0.14 * patch;
+        final earthR =
+            mossR * (1 - roadCorridor * 0.65) + 1.08 * roadCorridor * 0.65;
+        final earthG =
+            mossG * (1 - roadCorridor * 0.65) + 0.88 * roadCorridor * 0.65;
+        final earthB =
+            mossB * (1 - roadCorridor * 0.65) + 0.68 * roadCorridor * 0.65;
+        final finalR = earthR * (1 - bankWet * 0.55) + 0.36 * bankWet * 0.55;
+        final finalG = earthG * (1 - bankWet * 0.55) + 0.44 * bankWet * 0.55;
+        final finalB = earthB * (1 - bankWet * 0.55) + 0.52 * bankWet * 0.55;
         builder
+          ..color(Vector4(finalR, finalG, finalB, 1))
           ..texCoord(Vector2(u * 16.0, v * 16.0))
           ..addVertex(Vector3(x, y, z));
       }
@@ -435,89 +458,139 @@ class TerrainBuilder {
     TerraceCourse terrace,
     ShukubaMaterialResolver resolveMaterial,
   ) {
-    final builder = GeometryBuilder();
-    const copingLift = 0.06;
-    const copingThickness = 0.10;
-    const copingWidth = 0.35;
+    final root = Node();
+    final stoneMaterial = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    const copingProud = 0.14;
+    const frontLip = 0.20;
+    const backSetback = 1.15;
 
+    void emitWallSpan(Vec3 spanA, Vec3 spanB) {
+      final delta = spanB - spanA;
+      final segLen = delta.horizontalLength;
+      if (segLen <= 1e-4) {
+        return;
+      }
+      final along = Vec3(delta.x / segLen, 0, delta.z / segLen);
+      final candNormal = Vec3(-along.z, 0, along.x);
+      final mid = Vec3.lerp(spanA, spanB, 0.5);
+      final hPos = sampleRawTerrain(
+        mid.x + candNormal.x * 1.6,
+        mid.z + candNormal.z * 1.6,
+      );
+      final hNeg = sampleRawTerrain(
+        mid.x - candNormal.x * 1.6,
+        mid.z - candNormal.z * 1.6,
+      );
+      final dropNormal = hPos <= hNeg ? candNormal : candNormal * -1;
+
+      final topY = terrace.topElevation;
+      final copTopY = topY + copingProud;
+      final baseY = topY - terrace.riseMeters - 0.45;
+      final backBaseY = topY - 0.35;
+      final batter = (copTopY - baseY) * 0.22;
+
+      final nFront = Vector3(dropNormal.x, 0.22, dropNormal.z);
+      final nBack = Vector3(-dropNormal.x, 0, -dropNormal.z);
+      final nTop = Vector3(0, 1, 0);
+      final nStart = Vector3(-along.x, 0, -along.z);
+      final nEnd = Vector3(along.x, 0, along.z);
+
+      final chunks = math.max(1, (segLen / 7.5).ceil());
+      for (var k = 0; k < chunks; k++) {
+        final cA = Vec3.lerp(spanA, spanB, k / chunks);
+        final cB = Vec3.lerp(spanA, spanB, (k + 1) / chunks);
+        final builder = GeometryBuilder();
+
+        final fbA = (Vec3(cA.x, baseY, cA.z) + dropNormal * (frontLip + batter))
+            .toVector3();
+        final fbB = (Vec3(cB.x, baseY, cB.z) + dropNormal * (frontLip + batter))
+            .toVector3();
+        final fcA = (Vec3(cA.x, copTopY, cA.z) + dropNormal * frontLip)
+            .toVector3();
+        final fcB = (Vec3(cB.x, copTopY, cB.z) + dropNormal * frontLip)
+            .toVector3();
+        final bcA = (Vec3(cA.x, copTopY, cA.z) - dropNormal * backSetback)
+            .toVector3();
+        final bcB = (Vec3(cB.x, copTopY, cB.z) - dropNormal * backSetback)
+            .toVector3();
+        final bbA = (Vec3(cA.x, backBaseY, cA.z) - dropNormal * backSetback)
+            .toVector3();
+        final bbB = (Vec3(cB.x, backBaseY, cB.z) - dropNormal * backSetback)
+            .toVector3();
+
+        EdoKitBuilder.addQuadOutward(
+          builder,
+          fbA,
+          fbB,
+          fcB,
+          fcA,
+          nFront,
+          uvScale: 0.45,
+        );
+        EdoKitBuilder.addQuadOutward(
+          builder,
+          fcA,
+          fcB,
+          bcB,
+          bcA,
+          nTop,
+          uvScale: 0.45,
+        );
+        EdoKitBuilder.addQuadOutward(
+          builder,
+          bbA,
+          bbB,
+          bcB,
+          bcA,
+          nBack,
+          uvScale: 0.45,
+        );
+        if (k == 0) {
+          EdoKitBuilder.addQuadOutward(
+            builder,
+            fbA,
+            fcA,
+            bcA,
+            bbA,
+            nStart,
+            uvScale: 0.45,
+          );
+        }
+        if (k == chunks - 1) {
+          EdoKitBuilder.addQuadOutward(
+            builder,
+            fbB,
+            fcB,
+            bcB,
+            bbB,
+            nEnd,
+            uvScale: 0.45,
+          );
+        }
+        root.add(Node(mesh: Mesh(builder.build(), stoneMaterial)));
+      }
+    }
+
+    const gapHalfZ = 3.60;
     for (var i = 0; i < terrace.crestPoints.length - 1; i++) {
       final pA = terrace.crestPoints[i];
       final pB = terrace.crestPoints[i + 1];
-      final delta = pB - pA;
-      final segLen = delta.horizontalLength;
-      if (segLen <= 1e-6) continue;
-
-      final tx = delta.x / segLen;
-      final tz = delta.z / segLen;
-      final dropNormal = Vec3(-tz, 0, tx);
-
-      final topElevation = terrace.topElevation;
-      final baseElevation = topElevation - terrace.riseMeters;
-      final batterOffset = terrace.riseMeters * 0.35;
-
-      final wallTopA = Vec3(pA.x, topElevation, pA.z);
-      final wallTopB = Vec3(pB.x, topElevation, pB.z);
-      final wallBaseA =
-          wallTopA +
-          dropNormal * batterOffset +
-          Vec3(0, baseElevation - topElevation, 0);
-      final wallBaseB =
-          wallTopB +
-          dropNormal * batterOffset +
-          Vec3(0, baseElevation - topElevation, 0);
-
-      final w0 = builder.addVertex(wallBaseA.toVector3());
-      final w1 = builder.addVertex(wallBaseB.toVector3());
-      final w2 = builder.addVertex(wallTopB.toVector3());
-      final w3 = builder.addVertex(wallTopA.toVector3());
-
-      builder
-        ..addTriangle(w0, w1, w2)
-        ..addTriangle(w0, w2, w3);
-
-      final copTopA =
-          wallTopA + const Vec3(0, copingLift, 0) + dropNormal * 0.08;
-      final copTopB =
-          wallTopB + const Vec3(0, copingLift, 0) + dropNormal * 0.08;
-      final copInA = copTopA - dropNormal * copingWidth;
-      final copInB = copTopB - dropNormal * copingWidth;
-      final copBotA = copTopA - const Vec3(0, copingThickness, 0);
-      final copBotB = copTopB - const Vec3(0, copingThickness, 0);
-      final copBotInA = copInA - const Vec3(0, copingThickness, 0);
-      final copBotInB = copInB - const Vec3(0, copingThickness, 0);
-
-      final ct0 = builder.addVertex(copTopA.toVector3());
-      final ct1 = builder.addVertex(copTopB.toVector3());
-      final ct2 = builder.addVertex(copInB.toVector3());
-      final ct3 = builder.addVertex(copInA.toVector3());
-
-      builder
-        ..addTriangle(ct0, ct1, ct2)
-        ..addTriangle(ct0, ct2, ct3);
-
-      final cf0 = builder.addVertex(copBotA.toVector3());
-      final cf1 = builder.addVertex(copBotB.toVector3());
-      final cf2 = builder.addVertex(copTopB.toVector3());
-      final cf3 = builder.addVertex(copTopA.toVector3());
-
-      builder
-        ..addTriangle(cf0, cf1, cf2)
-        ..addTriangle(cf0, cf2, cf3);
-
-      final ci0 = builder.addVertex(copInA.toVector3());
-      final ci1 = builder.addVertex(copInB.toVector3());
-      final ci2 = builder.addVertex(copBotInB.toVector3());
-      final ci3 = builder.addVertex(copBotInA.toVector3());
-
-      builder
-        ..addTriangle(ci0, ci1, ci2)
-        ..addTriangle(ci0, ci2, ci3);
+      final crossesKaidoCorridor =
+          (pA.x.abs() < 16 && pB.x.abs() < 16) &&
+          ((pA.z < -gapHalfZ && pB.z > gapHalfZ) ||
+              (pB.z < -gapHalfZ && pA.z > gapHalfZ));
+      if (!crossesKaidoCorridor) {
+        emitWallSpan(pA, pB);
+        continue;
+      }
+      final tNeg = (-gapHalfZ - pA.z) / (pB.z - pA.z);
+      final tPos = (gapHalfZ - pA.z) / (pB.z - pA.z);
+      final tFirst = math.min(tNeg, tPos).clamp(0.0, 1.0);
+      final tSecond = math.max(tNeg, tPos).clamp(0.0, 1.0);
+      emitWallSpan(pA, Vec3.lerp(pA, pB, tFirst));
+      emitWallSpan(Vec3.lerp(pA, pB, tSecond), pB);
     }
 
-    final mesh = Mesh(
-      builder.build(),
-      resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
-    );
-    return Node(mesh: mesh);
+    return root;
   }
 }

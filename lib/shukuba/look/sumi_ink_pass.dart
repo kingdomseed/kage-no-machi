@@ -103,10 +103,7 @@ class SumiInkPass extends CustomRenderPass {
     context.applyShader(
       shader,
       textures: {'scene_depth_linear': depthTex},
-      uniforms: {
-        'PostCameraInfo': context.cameraInfo,
-        'SumiInkParams': params.packStd140(),
-      },
+      uniforms: {'SumiInkParams': params.packStd140()},
       frameInfo: true,
     );
   }

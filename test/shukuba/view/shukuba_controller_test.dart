@@ -115,7 +115,7 @@ void main() {
           world: world,
           audio: audio,
         );
-        await controller.initialize(Scene());
+        await controller.initialize();
 
         controller
           ..selectTool(const DrawLaneTool())
