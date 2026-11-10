@@ -119,3 +119,5 @@ lib/l10n/gen/
 docs/references/shadow-tactics/
 # Archived pre-reset experiments and assets
 _archive/
+# Local audit and arena scratch files
+.audit/
