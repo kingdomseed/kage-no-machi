@@ -3,6 +3,7 @@ include:
   - package:bloc_lint/recommended.yaml
 analyzer:
   exclude:
+    - _archive/**
     - lib/l10n/gen/*
     - build/**
     - macos/**

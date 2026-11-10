@@ -1,15 +1,12 @@
-// Ignore for testing purposes
-// ignore_for_file: prefer_const_constructors
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/app/app.dart';
-import 'package:kage_no_machi/counter/counter.dart';
+import 'package:kage_no_machi/shukuba/view/shukuba_page.dart';
 
 void main() {
   group('App', () {
-    testWidgets('renders CounterPage', (tester) async {
-      await tester.pumpWidget(App());
-      expect(find.byType(CounterPage), findsOneWidget);
+    testWidgets('renders ShukubaPage', (tester) async {
+      await tester.pumpWidget(const App());
+      expect(find.byType(ShukubaPage), findsOneWidget);
     });
   });
 }

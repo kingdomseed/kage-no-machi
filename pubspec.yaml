@@ -12,12 +12,15 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
+  flutter_gpu_shaders: ^0.5.2
   flutter_localizations:
     sdk: flutter
   flutter_scene: ^0.24.3
+  flutter_scene_soloud: ^0.2.0
   hooks: ^2.2.0
   intl: ^0.20.2
   material_ui: ^1.1.1
+  vector_math: ^2.2.0
 
 dev_dependencies:
   bloc_lint: ^0.4.2
