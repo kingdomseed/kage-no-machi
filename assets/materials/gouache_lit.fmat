@@ -1,0 +1,56 @@
+material {
+  name: "GouacheLit",
+  shading_model: lit,
+  blending: opaque,
+  culling: back,
+  parameters: [
+    { type: vec4, name: base_tint, hint: source_color, default: [0.85, 0.78, 0.68, 1.0] },
+    { type: vec4, name: warm_tint, hint: source_color, default: [0.95, 0.82, 0.65, 1.0] },
+    { type: float, name: roughness_val, default: 0.85 },
+    { type: float, name: grain_scale, default: 8.0 },
+    { type: float, name: weathering, default: 0.25 }
+  ]
+}
+
+fragment {
+  #include <noise.glsl>
+
+  void Surface(inout MaterialInputs material) {
+    vec3 worldPos = GetWorldPosition();
+    float pigmentFbm = NoiseFbm3(
+      worldPos * (material_params.grain_scale * 0.25),
+      1337,
+      3,
+      2.0,
+      0.5
+    );
+    float pigment = clamp(0.5 + 0.5 * pigmentFbm, 0.0, 1.0);
+
+    float dripNoise = NoiseSimplex2(
+      vec2(worldPos.x * 1.5 + worldPos.z * 1.5, worldPos.y * 3.0),
+      42
+    );
+    float drip = clamp(0.5 + 0.5 * dripNoise, 0.0, 1.0) * material_params.weathering;
+
+    vec3 mixedTint = mix(
+      material_params.base_tint.rgb,
+      material_params.warm_tint.rgb,
+      pigment * 0.35
+    );
+    vec3 weathered = mix(mixedTint, mixedTint * 0.74, drip * 0.4);
+
+    vec4 vColor = GetVertexColor();
+    material.base_color = vec4(
+      weathered * vColor.rgb,
+      material_params.base_tint.a * vColor.a
+    );
+    material.metallic = 0.0;
+    material.roughness = clamp(
+      material_params.roughness_val + (pigment - 0.5) * 0.1,
+      0.05,
+      1.0
+    );
+
+    PrepareMaterial(material);
+  }
+}

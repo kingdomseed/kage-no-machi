@@ -1,0 +1,61 @@
+material {
+  name: "RiverWater",
+  shading_model: lit,
+  blending: alpha,
+  culling: back,
+  depth_write: false,
+  engine_inputs: [scene_depth],
+  parameters: [
+    { type: vec4, name: shallow_color, hint: source_color, default: [0.18, 0.55, 0.52, 0.68] },
+    { type: vec4, name: deep_color, hint: source_color, default: [0.08, 0.22, 0.38, 0.95] },
+    { type: vec4, name: foam_color, hint: source_color, default: [0.92, 0.96, 0.95, 0.85] },
+    { type: float, name: flow_speed, default: 0.85 },
+    { type: float, name: time_sec, default: 0.0 }
+  ]
+}
+
+fragment {
+  #include <noise.glsl>
+
+  void Surface(inout MaterialInputs material) {
+    float sceneDepth = GetSceneDepth(vec2(0.0));
+    float fragDepth = GetFragmentViewDepth();
+    float thickness = max(0.0, sceneDepth - fragDepth);
+
+    float depthT = clamp(thickness / 2.2, 0.0, 1.0);
+    vec4 waterColor = mix(
+      material_params.shallow_color,
+      material_params.deep_color,
+      depthT
+    );
+
+    float t = material_params.time_sec > 0.0 ? material_params.time_sec : GetTime();
+    vec3 worldPos = GetWorldPosition();
+    vec2 flowUv = vec2(
+      worldPos.x * 0.35 + t * material_params.flow_speed * 0.25,
+      worldPos.z * 0.35
+    );
+    float foamNoise = NoiseFbm2(flowUv * 2.8, 202, 3, 2.0, 0.5);
+
+    float shoreBand = clamp(1.0 - thickness / 0.45, 0.0, 1.0);
+    float foamFactor = smoothstep(0.18, 0.58, shoreBand + foamNoise * 0.35);
+    vec4 finalColor = mix(waterColor, material_params.foam_color, foamFactor * 0.72);
+
+    float wave = NoiseSimplex2(
+      vec2(worldPos.x * 1.8 + t * 1.1, worldPos.z * 1.8 - t * 0.7),
+      303
+    );
+    vec3 geomNormal = GetWorldNormal();
+    vec3 rippledNormal = normalize(
+      geomNormal + vec3(wave * 0.07, 0.0, wave * 0.05)
+    );
+
+    material.base_color = finalColor;
+    material.normal = rippledNormal;
+    material.metallic = 0.02;
+    material.roughness = 0.14;
+    material.specular = 0.85;
+
+    PrepareMaterial(material);
+  }
+}

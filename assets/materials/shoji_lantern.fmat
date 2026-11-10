@@ -1,0 +1,48 @@
+material {
+  name: "ShojiLantern",
+  shading_model: lit,
+  blending: opaque,
+  culling: back,
+  parameters: [
+    { type: vec4, name: paper_color, hint: source_color, default: [0.96, 0.88, 0.72, 1.0] },
+    { type: vec4, name: glow_color, hint: source_color, default: [1.0, 0.62, 0.24, 1.0] },
+    { type: float, name: emissive_gain, default: 1.0 },
+    { type: float, name: rib_freq, default: 16.0 },
+    { type: float, name: time_sec, default: 0.0 }
+  ]
+}
+
+fragment {
+  #include <noise.glsl>
+
+  void Surface(inout MaterialInputs material) {
+    vec2 uv = GetUV0();
+    float ribX = abs(fract(uv.x * material_params.rib_freq) - 0.5);
+    float ribY = abs(fract(uv.y * (material_params.rib_freq * 0.65)) - 0.5);
+    float rib = smoothstep(0.40, 0.48, max(ribX, ribY));
+
+    float t = material_params.time_sec > 0.0 ? material_params.time_sec : GetTime();
+    float flickerNoise = NoiseSimplex2(vec2(t * 6.5, 0.5), 101);
+    float flicker = 0.90 + 0.10 * flickerNoise;
+
+    vec3 cellGlow = material_params.glow_color.rgb *
+        (material_params.emissive_gain * flicker * (1.0 - 0.78 * rib));
+
+    vec4 vColor = GetVertexColor();
+    vec3 baseColor = mix(
+      material_params.paper_color.rgb,
+      vec3(0.22, 0.16, 0.11),
+      rib * 0.85
+    );
+
+    material.base_color = vec4(
+      baseColor * vColor.rgb,
+      material_params.paper_color.a * vColor.a
+    );
+    material.emissive = cellGlow * vColor.rgb;
+    material.metallic = 0.0;
+    material.roughness = mix(0.74, 0.86, rib);
+
+    PrepareMaterial(material);
+  }
+}

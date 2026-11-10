@@ -1,0 +1,6 @@
+{
+  "SumiInkFragment": {
+    "type": "fragment",
+    "file": "shaders/sumi_ink.frag"
+  }
+}
