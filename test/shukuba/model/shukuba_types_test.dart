@@ -189,10 +189,40 @@ void main() {
         );
 
         expect(cone.alertLevel, 0);
+        expect(cone.coneRangeNormalized, closeTo(10 / cone.decalBoxSize, 1e-9));
         expect(cone.containsPoint(const Vec3(6, 0.5, 0)), isTrue);
         expect(cone.containsPoint(const Vec3(0, 0, 6)), isFalse);
         expect(cone.containsPoint(const Vec3(12, 0, 0)), isFalse);
       },
     );
+
+    test('alignedToTerrain faces uphill for reversed strokes', () {
+      double slopeGround(double x, double z) => x * 0.25;
+      final southToNorth = TerraceCourse.alignedToTerrain(
+        id: const EntityId('t_fwd'),
+        crestPoints: const [Vec3(6, 2, -12), Vec3(6, 2, 12)],
+        topElevation: 2,
+        depthMeters: 8,
+        sampleGroundY: slopeGround,
+      );
+      final northToSouth = TerraceCourse.alignedToTerrain(
+        id: const EntityId('t_rev'),
+        crestPoints: const [Vec3(6, 2, 12), Vec3(6, 2, -12)],
+        topElevation: 2,
+        depthMeters: 8,
+        sampleGroundY: slopeGround,
+      );
+
+      expect(southToNorth.samplePlatformElevation(const Vec3(10, 0, 0)), 2);
+      expect(northToSouth.samplePlatformElevation(const Vec3(10, 0, 0)), 2);
+      expect(southToNorth.samplePlatformElevation(const Vec3(3, 0, 0)), isNull);
+      expect(northToSouth.samplePlatformElevation(const Vec3(3, 0, 0)), isNull);
+      expect(
+        TimeOfDayRig.goldenDusk.celestialRayDirection.dot(
+          TimeOfDayRig.goldenDusk.celestialSkyDirection,
+        ),
+        closeTo(-1, 1e-9),
+      );
+    });
   });
 }

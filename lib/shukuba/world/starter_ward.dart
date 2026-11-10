@@ -34,7 +34,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
   ];
 
   final terraces = <TerraceCourse>[
-    TerraceCourse.validated(
+    TerraceCourse.alignedToTerrain(
       id: EntityId.validated('terrace_lower_east'),
       crestPoints: [
         Vec3(6, sampleGroundY(6, -24), -24),
@@ -42,8 +42,9 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       ],
       topElevation: 1.80,
       depthMeters: 9,
+      sampleGroundY: sampleGroundY,
     ),
-    TerraceCourse.validated(
+    TerraceCourse.alignedToTerrain(
       id: EntityId.validated('terrace_upper_east'),
       crestPoints: [
         Vec3(15, sampleGroundY(15, -20), -20),
@@ -51,6 +52,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       ],
       topElevation: 3.40,
       depthMeters: 10,
+      sampleGroundY: sampleGroundY,
     ),
   ];
 

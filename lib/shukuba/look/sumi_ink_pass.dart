@@ -76,8 +76,6 @@ class SumiInkParams {
   );
 }
 
-/// Post-processing render pass applying depth-normalized silhouettes, normal
-/// creases, charcoal-umber ink wash, and washi paper grain.
 class SumiInkPass extends CustomRenderPass {
   new(this.shader, {SumiInkParams? params})
     : params = params ?? SumiInkParams();

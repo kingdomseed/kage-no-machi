@@ -30,8 +30,6 @@ extension type const EntityId(String value) implements Object {
   int compareTo(EntityId other) => value.compareTo(other.value);
 }
 
-/// Immutable 3D coordinate in left-handed world meters (`+X` right, `+Y` up,
-/// `+Z` forward).
 @immutable
 class Vec3 {
   const new(this.x, this.y, this.z);
@@ -117,7 +115,6 @@ enum EdoInstrument { koto, shakuhachi, hyoshigi, bonsho }
 
 enum AmbientLoopKind { riverMurmur, bambooWind, nightCrickets }
 
-/// Five-note Edo scales rooted on concert `D4` (`293.665` Hz).
 enum PentatonicScale {
   yo(
     label: 'Yo (D E G A B)',
@@ -163,7 +160,6 @@ enum PentatonicScale {
     required this.frequenciesHz,
   });
 
-  /// Selects [yo] below `0.55` and [inSen] at or above `0.55`.
   factory forTimeOfDay(double timeOfDay) =>
       timeOfDay < nightThreshold ? yo : inSen;
 
@@ -483,7 +479,6 @@ class RoadSample {
   final double arcMeters;
 }
 
-/// Dirt lane polyline rendered at `depthLayer = 1` over ground terrain.
 @immutable
 class RoadSpline {
   const new({
@@ -592,9 +587,6 @@ class RoadSpline {
   );
 }
 
-/// Looking along [crestPoints] from start to end, the level platform extends
-/// [depthMeters] to the right (`(tz, 0, -tx)`) at [topElevation], and the
-/// battered *ishigaki* wall drops [riseMeters] to the left.
 @immutable
 class TerraceCourse {
   const new({
@@ -603,6 +595,7 @@ class TerraceCourse {
     required this.topElevation,
     this.riseMeters = 1.6,
     this.depthMeters = 5.5,
+    this.platformOnRight = true,
   }) : assert(crestPoints.length >= 2, 'TerraceCourse requires >= 2 points.'),
        assert(riseMeters > 0, 'riseMeters must be positive.'),
        assert(depthMeters > 0, 'depthMeters must be positive.');
@@ -613,6 +606,7 @@ class TerraceCourse {
     required double topElevation,
     double riseMeters = 1.6,
     double depthMeters = 5.5,
+    bool platformOnRight = true,
   }) {
     if (!id.isValid) {
       throw ArgumentError.value(id, 'id', 'TerraceCourse id must be valid.');
@@ -634,6 +628,56 @@ class TerraceCourse {
       topElevation: topElevation,
       riseMeters: riseMeters,
       depthMeters: depthMeters,
+      platformOnRight: platformOnRight,
+    );
+  }
+
+  factory alignedToTerrain({
+    required EntityId id,
+    required Iterable<Vec3> crestPoints,
+    required double topElevation,
+    required GroundHeightSampler sampleGroundY,
+    double riseMeters = 1.6,
+    double depthMeters = 5.5,
+  }) {
+    final frozen = List<Vec3>.unmodifiable(crestPoints);
+    if (frozen.length < 2) {
+      throw ArgumentError.value(
+        frozen.length,
+        'crestPoints',
+        'TerraceCourse requires at least 2 crest points.',
+      );
+    }
+    var rightScore = 0.0;
+    for (var i = 0; i < frozen.length - 1; i++) {
+      final a = frozen[i];
+      final b = frozen[i + 1];
+      final delta = b - a;
+      final segLen = delta.horizontalLength;
+      if (segLen <= 1e-6) {
+        continue;
+      }
+      final rightNormal = Vec3(delta.z / segLen, 0, -delta.x / segLen);
+      for (final frac in const [0.25, 0.5, 0.75]) {
+        final probe = Vec3.lerp(a, b, frac);
+        final hRight = sampleGroundY(
+          probe.x + rightNormal.x * 2,
+          probe.z + rightNormal.z * 2,
+        );
+        final hLeft = sampleGroundY(
+          probe.x - rightNormal.x * 2,
+          probe.z - rightNormal.z * 2,
+        );
+        rightScore += (hRight - hLeft) * segLen;
+      }
+    }
+    return TerraceCourse.validated(
+      id: id,
+      crestPoints: frozen,
+      topElevation: topElevation,
+      riseMeters: riseMeters,
+      depthMeters: depthMeters,
+      platformOnRight: rightScore >= -1e-6,
     );
   }
 
@@ -642,6 +686,19 @@ class TerraceCourse {
   final double topElevation;
   final double riseMeters;
   final double depthMeters;
+  final bool platformOnRight;
+
+  Vec3 platformNormalBetween(Vec3 a, Vec3 b) {
+    final delta = b - a;
+    final segLen = delta.horizontalLength;
+    if (segLen <= 1e-9) {
+      return const Vec3(1, 0, 0);
+    }
+    final sign = platformOnRight ? 1.0 : -1.0;
+    return Vec3((delta.z / segLen) * sign, 0, (-delta.x / segLen) * sign);
+  }
+
+  Vec3 dropNormalBetween(Vec3 a, Vec3 b) => platformNormalBetween(a, b) * -1;
 
   double? samplePlatformElevation(Vec3 query) {
     for (var i = 0; i < crestPoints.length - 1; i++) {
@@ -661,7 +718,8 @@ class TerraceCourse {
       if (along < 0 || along > segLen) {
         continue;
       }
-      final inward = relX * tz - relZ * tx;
+      final platformNormal = platformNormalBetween(a, b);
+      final inward = relX * platformNormal.x + relZ * platformNormal.z;
       if (inward >= 0 && inward <= depthMeters) {
         return topElevation;
       }
@@ -677,7 +735,8 @@ class TerraceCourse {
           listEquals(other.crestPoints, crestPoints) &&
           other.topElevation == topElevation &&
           other.riseMeters == riseMeters &&
-          other.depthMeters == depthMeters;
+          other.depthMeters == depthMeters &&
+          other.platformOnRight == platformOnRight;
 
   @override
   int get hashCode => Object.hash(
@@ -686,6 +745,7 @@ class TerraceCourse {
     topElevation,
     riseMeters,
     depthMeters,
+    platformOnRight,
   );
 }
 
@@ -743,13 +803,13 @@ class WatchSightcone {
        assert(rangeMeters > 0, 'rangeMeters must be positive.'),
        assert(halfAngleRadians > 0, 'halfAngleRadians must be positive.');
 
+  static const double decalRimPaddingFactor = 1.1;
+
   final EntityId sourceId;
   final Vec3 origin;
   final double yawRadians;
   final double rangeMeters;
   final double halfAngleRadians;
-
-  /// Intrusion blend in `[0, 1]` (`0` jade calm, `1` vermilion alert).
   final double alertLevel;
   final bool isWatchtower;
 
@@ -757,10 +817,11 @@ class WatchSightcone {
 
   Vec3 get decalProjectionCenter => origin + forward * (rangeMeters * 0.5);
 
-  /// Square `DecalNode.project(size: ...)` side length padded so wide cones
-  /// and anti-aliased rims never clip the `[-0.5, 0.5]` decal box.
   double get decalBoxSize =>
-      math.max(rangeMeters, 2 * rangeMeters * math.sin(halfAngleRadians)) * 1.1;
+      math.max(rangeMeters, 2 * rangeMeters * math.sin(halfAngleRadians)) *
+      decalRimPaddingFactor;
+
+  double get coneRangeNormalized => rangeMeters / decalBoxSize;
 
   bool containsPoint(Vec3 point, {double maxVerticalDelta = 4}) {
     if ((point.y - origin.y).abs() > maxVerticalDelta) {
@@ -864,8 +925,6 @@ class PlacedStructure {
   int get hashCode => Object.hash(id, kind, position, yawRadians);
 }
 
-/// Deterministic catenary lantern cord spanning two mutually facing eaves
-/// within [maxSpanMeters] (`6.5` m).
 @immutable
 class LanternSpan {
   const new({
@@ -1260,8 +1319,6 @@ class ShukubaGraph {
   );
 }
 
-/// Clamped `[0, 1]` Golden Dusk (`0`) to Blue Hour Night (`1`) rig. Inputs
-/// outside `[0, 1]` or `NaN` clamp safely into `[0, 1]`.
 @immutable
 class TimeOfDayRig {
   const new(double rawValue)
@@ -1286,9 +1343,7 @@ class TimeOfDayRig {
 
   PentatonicScale get scale => PentatonicScale.forTimeOfDay(value);
 
-  /// Unit ray travel direction from sun or moon toward the ground, matching
-  /// `DirectionalLight.direction`.
-  Vec3 get celestialDirection {
+  Vec3 get celestialRayDirection {
     if (!isMoonlit) {
       final duskT = value / scaleSwitchScalar;
       final elevation = (24 - 11 * duskT) * degrees2Radians;
@@ -1310,6 +1365,8 @@ class TimeOfDayRig {
       math.cos(azimuth) * horiz,
     ).normalized();
   }
+
+  Vec3 get celestialSkyDirection => (celestialRayDirection * -1).normalized();
 
   Vec3 get celestialLinearRgb => Vec3.lerp(
     const Vec3(1, 0.72, 0.44),
@@ -1454,8 +1511,6 @@ class CameraPreset {
   );
 }
 
-/// Encodes `depthLayer` (`-1` ground, `0` kit, `1` lane overlay) so headless
-/// PBR fallbacks and compiled `.fmat` materials share identical depth ordering.
 enum ShukubaSurfaceRole {
   packedEarth(
     depthLayer: -1,

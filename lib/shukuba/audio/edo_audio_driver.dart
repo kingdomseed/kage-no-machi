@@ -5,8 +5,6 @@ import 'package:kage_no_machi/shukuba/audio/edo_wav_synth.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:vector_math/vector_math.dart';
 
-/// Shukuba audio driver backed by synthesized 16-bit PCM WAV clips and
-/// spatial 3D audio via [SoloudAudioEngine].
 class EdoAudioDriver implements ShukubaAudioDriver {
   new({EdoWavBank? wavBank, this.maxRecentNotes = 64})
     : _wavBank = wavBank ?? EdoWavBank.synthesizeAll();
@@ -33,21 +31,16 @@ class EdoAudioDriver implements ShukubaAudioDriver {
   AudioBus? _instrumentsBus;
   bool _isNativeAudioActive = false;
 
-  /// Synthesized PCM WAV clips bank.
   EdoWavBank get wavBank => _wavBank;
 
-  /// Whether the native SoLoud audio backend is active.
   bool get isNativeAudioActive => _isNativeAudioActive;
 
-  /// Bounded history of recent placement note events.
   List<PlacementNoteEvent> get recentNotes =>
       List<PlacementNoteEvent>.unmodifiable(_recentNotes);
 
-  /// Current ambient loop gains keyed by kind.
   Map<AmbientLoopKind, double> get currentLoopGains =>
       Map<AmbientLoopKind, double>.unmodifiable(_currentLoopGains);
 
-  /// Current 3D spatial anchor positions for ambient beds.
   Map<AmbientLoopKind, Vec3> get loopAnchors =>
       Map<AmbientLoopKind, Vec3>.unmodifiable(_loopAnchors);
 

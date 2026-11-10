@@ -4,13 +4,11 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 
-/// Pure-Dart 16-bit PCM WAV Synthesizer for Edo instruments and ambient loops.
 abstract final class EdoWavSynth {
   static const int defaultSampleRate = 44100;
   static const double defaultLoopDurationSeconds = 4;
   static const double rootD4Hz = PentatonicScale.rootD4Hz;
 
-  /// Synthesizes a one-shot WAV clip for the given [instrument].
   static Uint8List synthesizeInstrument(
     EdoInstrument instrument, {
     int sampleRate = defaultSampleRate,
@@ -21,7 +19,6 @@ abstract final class EdoWavSynth {
     EdoInstrument.bonsho => synthesizeBonsho(sampleRate: sampleRate),
   };
 
-  /// Synthesizes a seamless looping WAV clip for the given ambient [kind].
   static Uint8List synthesizeAmbient(
     AmbientLoopKind kind, {
     int sampleRate = defaultSampleRate,
@@ -41,8 +38,6 @@ abstract final class EdoWavSynth {
     ),
   };
 
-  /// Synthesizes a plucked koto string via Karplus-Strong waveguide with
-  /// fractional-delay tuning to concert `D4` and kiri body resonances.
   static Uint8List synthesizeKoto({int sampleRate = defaultSampleRate}) {
     const duration = 2.2;
     final totalSamples = (duration * sampleRate).round();
@@ -96,8 +91,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(samples, sampleRate: sampleRate);
   }
 
-  /// Synthesizes a shakuhachi bamboo flute note tuned to `D4` with breath
-  /// chiff onset, harmonic partials, and delayed 4.8 Hz vibrato.
   static Uint8List synthesizeShakuhachi({int sampleRate = defaultSampleRate}) {
     const duration = 2.2;
     final totalSamples = (duration * sampleRate).round();
@@ -154,8 +147,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(samples, sampleRate: sampleRate);
   }
 
-  /// Synthesizes hyoshigi oak clappers with sharp transient and tuned modal
-  /// partials rooted on `D5` and `D4`.
   static Uint8List synthesizeHyoshigi({int sampleRate = defaultSampleRate}) {
     const duration = 0.65;
     final totalSamples = (duration * sampleRate).round();
@@ -195,8 +186,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(samples, sampleRate: sampleRate);
   }
 
-  /// Synthesizes bonsho Buddhist bronze temple bell modal partials with
-  /// slow shimmer beating, warm decay, and soft wooden mallet contact.
   static Uint8List synthesizeBonsho({int sampleRate = defaultSampleRate}) {
     const duration = 3.6;
     final totalSamples = (duration * sampleRate).round();
@@ -259,8 +248,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(samples, sampleRate: sampleRate);
   }
 
-  /// Synthesizes a seamless looping river murmur ambient bed with multi-band
-  /// water rush and periodic babble modulation over [durationSeconds].
   static Uint8List synthesizeRiverMurmur({
     int sampleRate = defaultSampleRate,
     double durationSeconds = defaultLoopDurationSeconds,
@@ -310,8 +297,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(seamless, sampleRate: sampleRate, isLoop: true);
   }
 
-  /// Synthesizes a seamless looping bamboo wind ambient bed with sweeping
-  /// resonant wind and hollow culm rustle over [durationSeconds].
   static Uint8List synthesizeBambooWind({
     int sampleRate = defaultSampleRate,
     double durationSeconds = defaultLoopDurationSeconds,
@@ -359,8 +344,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(seamless, sampleRate: sampleRate, isLoop: true);
   }
 
-  /// Synthesizes a seamless looping night crickets ambient bed with autumn
-  /// suzumushi bell-cricket pulse trains and natural rest phrasing.
   static Uint8List synthesizeNightCrickets({
     int sampleRate = defaultSampleRate,
     double durationSeconds = defaultLoopDurationSeconds,
@@ -422,7 +405,6 @@ abstract final class EdoWavSynth {
     return encodeWav16Mono(samples, sampleRate: sampleRate, isLoop: true);
   }
 
-  /// Encodes raw samples into a valid 44-byte RIFF/WAVE mono 16-bit PCM buffer.
   static Uint8List encodeWav16Mono(
     List<double> rawSamples, {
     required int sampleRate,
@@ -509,7 +491,6 @@ abstract final class EdoWavSynth {
     return wavBytes;
   }
 
-  /// Decodes 16-bit mono PCM samples from [wavBytes] into normalized floats.
   static Float64List decodeWav16MonoToFloat(Uint8List wavBytes) {
     if (wavBytes.length < 44) {
       throw ArgumentError('Invalid WAV: byte length < 44.');
@@ -563,7 +544,6 @@ abstract final class EdoWavSynth {
   }
 }
 
-/// Immutable in-memory bank containing pre-synthesized WAV clips.
 @immutable
 class EdoWavBank {
   const new({

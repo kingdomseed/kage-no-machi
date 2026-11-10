@@ -4,9 +4,6 @@ import 'package:kage_no_machi/shukuba/look/sumi_ink_pass.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:vector_math/vector_math.dart';
 
-/// Shukuba look driver producing painterly Edo gouache surfaces,
-/// translucent shōji & chōchin paper, wind-swayed maple & bamboo foliage,
-/// depth-absorbed river water, and Shadow Tactics vision cones.
 class EdoLookDriver implements ShukubaLookDriver {
   new({this.allowHeadlessFallback = false});
 
@@ -251,9 +248,8 @@ class EdoLookDriver implements ShukubaLookDriver {
       _lastNightFactor = rig.nightFactor;
       final sky = _skySource;
       if (sky != null) {
-        final cDir = rig.celestialDirection;
         sky
-          ..sunDirection = Vector3(-cDir.x, -cDir.y, -cDir.z).normalized()
+          ..sunDirection = rig.celestialSkyDirection.toVector3()
           ..sunColor = Vector3(
             4.2 * (1 - rig.nightFactor) + 1.2 * rig.nightFactor,
             2.8 * (1 - rig.nightFactor) + 1.6 * rig.nightFactor,
@@ -281,7 +277,7 @@ class EdoLookDriver implements ShukubaLookDriver {
     final key = _keyLight;
     if (key != null) {
       key
-        ..direction = rig.celestialDirection.toVector3()
+        ..direction = rig.celestialRayDirection.toVector3()
         ..color = rig.celestialLinearRgb.toVector3()
         ..intensity = rig.celestialIntensity
         ..shadowAmbientStrength = 0.28 + 0.10 * rig.nightFactor;
@@ -341,10 +337,7 @@ class EdoLookDriver implements ShukubaLookDriver {
             _decalMaterials[i].parameters
               ..setFloat('decal_fade', opacity)
               ..setFloat('half_angle_rad', cone.halfAngleRadians)
-              ..setFloat(
-                'cone_range_norm',
-                cone.rangeMeters / cone.decalBoxSize,
-              )
+              ..setFloat('cone_range_norm', cone.coneRangeNormalized)
               ..setFloat('alert_mix', cone.alertLevel)
               ..setFloat('time_sec', elapsedSeconds);
           }

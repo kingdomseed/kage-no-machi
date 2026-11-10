@@ -471,17 +471,7 @@ class TerrainBuilder {
         return;
       }
       final along = Vec3(delta.x / segLen, 0, delta.z / segLen);
-      final candNormal = Vec3(-along.z, 0, along.x);
-      final mid = Vec3.lerp(spanA, spanB, 0.5);
-      final hPos = sampleRawTerrain(
-        mid.x + candNormal.x * 1.6,
-        mid.z + candNormal.z * 1.6,
-      );
-      final hNeg = sampleRawTerrain(
-        mid.x - candNormal.x * 1.6,
-        mid.z - candNormal.z * 1.6,
-      );
-      final dropNormal = hPos <= hNeg ? candNormal : candNormal * -1;
+      final dropNormal = terrace.dropNormalBetween(spanA, spanB);
 
       final topY = terrace.topElevation;
       final copTopY = topY + copingProud;

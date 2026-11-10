@@ -103,9 +103,6 @@ class TacticalCameraRig {
     );
   }
 
-  /// Intersects the camera ray through [screenPosition] with [sampleGroundY]
-  /// via coarse ray-march and 12-step bisection so roof and canopy overhangs
-  /// never hijack ground plot picking.
   Vec3? raycastGround(
     Offset screenPosition,
     Size viewSize,

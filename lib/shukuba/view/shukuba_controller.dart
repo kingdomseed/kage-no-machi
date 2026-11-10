@@ -190,10 +190,11 @@ class ShukubaController extends ChangeNotifier {
             .reduce(math.max);
         final topY = maxGround + riseMeters;
         final crest = [for (final p in points) p.withY(topY)];
-        final terrace = TerraceCourse.validated(
+        final terrace = TerraceCourse.alignedToTerrain(
           id: id,
           crestPoints: crest,
           topElevation: topY,
+          sampleGroundY: world.sampleGroundHeight,
           riseMeters: riseMeters,
           depthMeters: depthMeters,
         );
