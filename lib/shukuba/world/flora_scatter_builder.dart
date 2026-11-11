@@ -46,7 +46,10 @@ class FloraScatterBuilder {
       return false;
     }
 
-    if (x >= -6.0 && x <= 6.0 && z >= -2.45 && z <= 2.45) {
+    if (x >= TerrainConfig.bridgeMinX - 0.8 &&
+        x <= TerrainConfig.bridgeMaxX + 0.8 &&
+        z >= TerrainConfig.bridgeMinZ - 0.65 &&
+        z <= TerrainConfig.bridgeMaxZ + 0.65) {
       return false;
     }
 
@@ -198,10 +201,7 @@ class FloraScatterBuilder {
         continue;
       }
 
-      final strawBlend = (0.5 + 0.5 * math.cos(x * 0.14 - z * 0.16)).clamp(
-        0.0,
-        1.0,
-      );
+      final strawBlend = 0.5 + 0.5 * math.cos(x * 0.14 - z * 0.16);
       final tone = 0.86 + 0.28 * microHash;
       final r = (0.19 + 0.24 * strawBlend) * tone;
       final g = (0.36 + 0.05 * strawBlend) * tone;
@@ -231,13 +231,13 @@ class FloraScatterBuilder {
       if (standMask < 0.24 && (i % 3 != 0)) {
         continue;
       }
-      final bankDist = 2.40 + 1.95 * ((i * 0.38196601125) % 1.0);
+      final goldenMix = (i * 0.38196601125) % 1.0;
+      final bankDist = 2.40 + 1.95 * goldenMix;
       final x = TerrainConfig.riverCenterX(z) + side * bankDist;
       if (!isClearForGroundFlora(x, z, graph, roadMargin: 0.35)) {
         continue;
       }
 
-      final goldenMix = ((bankDist - 2.40) / 1.95).clamp(0.0, 1.0);
       final hSeed = (math.sin(i * 7.73 + 1.9) * 917.3).abs() % 1.0;
       final r = 0.42 + 0.30 * (1 - goldenMix * 0.50) + 0.08 * hSeed;
       final g = 0.41 + 0.07 * hSeed;

@@ -20,12 +20,11 @@ vertex {
     float t = material_params.time_sec;
     float kind = material_params.foliage_kind;
     float cantilever;
+    float h = max(0.0, vertex.position.y);
     if (kind < 1.5) {
-      float h = max(0.0, vertex.position.y);
       cantilever = clamp(h * h * 0.045, 0.0, 1.8);
     } else {
-      float tipLift = max(0.0, vertex.world_position.y - vertex.model_transform[3].y);
-      cantilever = smoothstep(0.05, 0.85, tipLift) * 1.15;
+      cantilever = smoothstep(0.04, 0.85, h) * 1.15;
     }
     float gust = 0.72 + 0.28 * sin(t * 0.65 + vertex.world_position.x * 0.14 - vertex.world_position.z * 0.11);
     float swayX = sin(t * 1.85 + vertex.world_position.x * 0.62 + vertex.world_position.z * 0.48);
@@ -161,7 +160,7 @@ fragment {
       float x0 = 0.14 + (fi / 7.0) * 0.72;
       float h = 0.58 + 0.35 * fract(sin(fi * 19.3 + seed) * 437.5);
       if (uv.y <= h) {
-        float t = clamp(uv.y / h, 0.0, 1.0);
+        float t = max(0.0, uv.y / h);
         float splay = (x0 - 0.5) * 0.30 + 0.07 * sin(fi * 4.3 + seed);
         float curveX = x0 + splay * t * t;
         float halfW = (0.048 - 0.008 * fract(fi * 0.37)) * (1.0 - pow(t, 1.35));
@@ -172,7 +171,7 @@ fragment {
         }
       }
     }
-    leafTone = clamp(0.12 + 0.88 * bladeTip, 0.0, 1.0);
+    leafTone = 0.12 + 0.88 * clamp(bladeTip, 0.0, 1.0);
     return alpha;
   }
 
@@ -195,7 +194,7 @@ fragment {
     }
 
     float clusterNoise = NoiseSimplex3(worldPos * 2.2, 77) * 0.5 + 0.5;
-    float mixFactor = clamp(leafTone * 0.74 + clusterNoise * 0.26, 0.0, 1.0);
+    float mixFactor = leafTone * 0.74 + clusterNoise * 0.26;
 
     vec3 leafColor = mix(
       material_params.leaf_primary.rgb,
@@ -214,7 +213,7 @@ fragment {
     vec3 leafNormal = normalize(mix(cardNormal, domeNormal, 0.72));
 
     vec3 viewDir = GetViewDirection();
-    float skyFacing = clamp(leafNormal.y * 0.5 + 0.5, 0.0, 1.0);
+    float skyFacing = leafNormal.y * 0.5 + 0.5;
     float rim = pow(clamp(1.0 - abs(dot(leafNormal, viewDir)), 0.0, 1.0), 1.8);
 
     float rootShade = kind > 1.5 && uv.y < 1.5

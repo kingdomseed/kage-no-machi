@@ -6,7 +6,6 @@ import 'package:flutter_scene/scene.dart'
         InstancedMesh,
         InstancedMeshComponent,
         Mesh,
-        MeshGeometry,
         Node,
         ShadowCastingMode;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
@@ -17,6 +16,8 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         ShukubaSurfaceRole,
         StructureKind,
         Vec3;
+import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
+    show EdoKitBuilder;
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart'
     show TerrainConfig;
 import 'package:vector_math/vector_math.dart'
@@ -47,7 +48,7 @@ class AtmosphereBuilder {
       )..shadowCastingMode = ShadowCastingMode.off,
     );
 
-    final quadGeo = _buildUnitBillboardQuad();
+    final quadGeo = EdoKitBuilder.buildUnitBillboardQuad();
     final haloInstanced = InstancedMesh(geometry: quadGeo, material: haloMat);
     _populateLanternHalos(haloInstanced, graph);
     if (haloInstanced.instanceCount > 0) {
@@ -313,28 +314,20 @@ class AtmosphereBuilder {
     }
 
     for (final s in graph.structures.values) {
-      switch (s.kind) {
-        case StructureKind.chaya:
-          for (final lx in const [-1.58, 1.58]) {
-            final p = s.position + Vec3(lx, 2.02, 2.95).rotateY(s.yawRadians);
-            addHalo(p, 2.05, warmHalo);
-          }
-        case StructureKind.machiya:
-          final p =
-              s.position + const Vec3(0, 1.95, 3.55).rotateY(s.yawRadians);
-          addHalo(p, 1.90, warmHalo);
-        case StructureKind.marketStall:
-          final p =
-              s.position + const Vec3(1.12, 1.92, 1.08).rotateY(s.yawRadians);
-          addHalo(p, 1.70, warmHalo);
-        case StructureKind.toriiGate:
-          final p = s.position + const Vec3(0, 3.05, 0).rotateY(s.yawRadians);
-          addHalo(p, 2.15, Vector4(1, 0.78, 0.52, 0.88));
-        case StructureKind.kura ||
-            StructureKind.yaguraTower ||
-            StructureKind.mapleCluster ||
-            StructureKind.bambooGrove:
-          break;
+      final isGate = s.kind == StructureKind.toriiGate;
+      final size = switch (s.kind) {
+        StructureKind.chaya => 2.05,
+        StructureKind.machiya => 1.85,
+        StructureKind.marketStall => 1.70,
+        StructureKind.toriiGate => 1.95,
+        StructureKind.kura ||
+        StructureKind.yaguraTower ||
+        StructureKind.mapleCluster ||
+        StructureKind.bambooGrove => 0.0,
+      };
+      final tint = isGate ? Vector4(1, 0.78, 0.52, 0.88) : warmHalo;
+      for (final local in EdoKitBuilder.structureLanternLocalOffsets(s)) {
+        addHalo(s.position + local.rotateY(s.yawRadians), size, tint);
       }
     }
   }
@@ -407,22 +400,5 @@ class AtmosphereBuilder {
       final size = 0.055 + 0.030 * hSeed;
       addMote(x, y, z, size, Vector4(0.58, 0.74, 0.92, 0.85));
     }
-  }
-
-  static MeshGeometry _buildUnitBillboardQuad() {
-    final builder = GeometryBuilder()..color(Vector4(1, 1, 1, 1));
-    int emit(Vector3 p, double u, double v) {
-      builder.texCoord(Vector2(u, v));
-      return builder.addVertex(p);
-    }
-
-    final v0 = emit(Vector3(-0.5, -0.5, 0), 0, 0);
-    final v1 = emit(Vector3(0.5, -0.5, 0), 1, 0);
-    final v2 = emit(Vector3(0.5, 0.5, 0), 1, 1);
-    final v3 = emit(Vector3(-0.5, 0.5, 0), 0, 1);
-    builder
-      ..addTriangle(v0, v1, v2)
-      ..addTriangle(v0, v2, v3);
-    return builder.build();
   }
 }

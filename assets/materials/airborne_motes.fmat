@@ -94,11 +94,11 @@ fragment {
       float softDot = pow(clamp(1.0 - r, 0.0, 1.0), 2.2);
       float twinkle = 0.65 + 0.35 * sin(t * 2.1 + phase);
       float alpha = softDot * twinkle * material_params.dusk_gain * 0.72;
-      material.base_color = vec4(vColor.rgb, clamp(alpha, 0.0, 0.80));
+      material.base_color = vec4(vColor.rgb, max(0.0, alpha));
     } else if (family < 0.66) {
       float leafMask = FallingMapleMask(uv);
       float vis = mix(0.32, 0.95, material_params.dusk_gain);
-      material.base_color = vec4(vColor.rgb, clamp(leafMask * vis, 0.0, 0.95));
+      material.base_color = vec4(vColor.rgb, max(0.0, leafMask * vis));
     } else {
       float r = length(uv - vec2(0.5)) * 2.0;
       bool isFirefly = vColor.g > vColor.b;
@@ -106,12 +106,12 @@ fragment {
         float pulse = pow(0.5 + 0.5 * sin(t * 2.35 + phase * 1.7), 2.6);
         float glow = pow(clamp(1.0 - r, 0.0, 1.0), 2.0);
         float alpha = glow * (0.20 + 0.80 * pulse) * material_params.night_gain * 0.88;
-        material.base_color = vec4(vColor.rgb * (0.85 + 0.55 * pulse), clamp(alpha, 0.0, 0.92));
+        material.base_color = vec4(vColor.rgb * (0.85 + 0.55 * pulse), max(0.0, alpha));
       } else {
         float glint = pow(clamp(1.0 - r, 0.0, 1.0), 3.0);
         float shimmer = 0.55 + 0.45 * sin(t * 3.2 + phase * 2.1);
         float alpha = glint * shimmer * material_params.night_gain * 0.58;
-        material.base_color = vec4(vColor.rgb, clamp(alpha, 0.0, 0.65));
+        material.base_color = vec4(vColor.rgb, max(0.0, alpha));
       }
     }
 

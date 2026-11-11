@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter_scene/scene.dart'
-    show GeometryBuilder, Mesh, Node, ShadowCastingMode;
+    show GeometryBuilder, Mesh, MeshGeometry, Node, ShadowCastingMode;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         BuildPreview,
@@ -24,6 +24,51 @@ import 'package:vector_math/vector_math.dart'
 class EdoKitBuilder {
   const new();
 
+  static final Vector4 _whiteColor = Vector4(1, 1, 1, 1);
+
+  static const Vec3 heldLanternLocalOffset = Vec3(0.26, 1.18, 0.76);
+
+  static List<Vec3> structureLanternLocalOffsets(PlacedStructure structure) {
+    switch (structure.kind) {
+      case StructureKind.chaya:
+        return const [Vec3(-1.58, 2.02, 2.84), Vec3(1.58, 2.02, 2.84)];
+      case StructureKind.machiya:
+        final variant = structure.id.value.hashCode.abs() % 3;
+        if (variant == 1) {
+          return const [Vec3(1.08, 1.92, 3.86)];
+        }
+        if (variant == 2) {
+          return const [Vec3(-1.08, 1.92, 3.86)];
+        }
+        return const [];
+      case StructureKind.marketStall:
+        return const [Vec3(1.12, 1.96, 1.08)];
+      case StructureKind.toriiGate:
+        return const [Vec3(-1.38, 3.06, 0), Vec3(1.38, 3.06, 0)];
+      case StructureKind.kura ||
+          StructureKind.yaguraTower ||
+          StructureKind.mapleCluster ||
+          StructureKind.bambooGrove:
+        return const [];
+    }
+  }
+
+  static MeshGeometry buildUnitBillboardQuad({Vector4? color}) {
+    final builder = GeometryBuilder()
+      ..color(color ?? _whiteColor)
+      ..texCoord(Vector2(0, 0))
+      ..addVertex(Vector3(-0.5, -0.5, 0))
+      ..texCoord(Vector2(1, 0))
+      ..addVertex(Vector3(0.5, -0.5, 0))
+      ..texCoord(Vector2(1, 1))
+      ..addVertex(Vector3(0.5, 0.5, 0))
+      ..texCoord(Vector2(0, 1))
+      ..addVertex(Vector3(-0.5, 0.5, 0))
+      ..addTriangle(0, 1, 2)
+      ..addTriangle(0, 2, 3);
+    return builder.build();
+  }
+
   static void addBox(
     GeometryBuilder builder,
     Vector3 min,
@@ -39,9 +84,7 @@ class EdoKitBuilder {
     final dx = (x1 - x0).abs();
     final dy = (y1 - y0).abs();
     final dz = (z1 - z0).abs();
-    if (color != null) {
-      builder.color(color);
-    }
+    builder.color(color ?? _whiteColor);
 
     int addUvVertex(Vector3 pos, double u, double v) {
       builder.texCoord(Vector2(u, v));
@@ -115,9 +158,7 @@ class EdoKitBuilder {
     final uAxis = e1.length2 > 1e-10 ? e1.normalized() : Vector3(1, 0, 0);
     final vRaw = normal.cross(uAxis);
     final vAxis = vRaw.length2 > 1e-10 ? vRaw.normalized() : Vector3(0, 1, 0);
-    if (color != null) {
-      builder.color(color);
-    }
+    builder.color(color ?? _whiteColor);
 
     int emit(Vector3 p) {
       final rel = p - p0;
@@ -155,9 +196,7 @@ class EdoKitBuilder {
     }
     final uAxis = e1.length2 > 1e-10 ? e1.normalized() : Vector3(1, 0, 0);
     final vAxis = e2.length2 > 1e-10 ? e2.normalized() : Vector3(0, 1, 0);
-    if (color != null) {
-      builder.color(color);
-    }
+    builder.color(color ?? _whiteColor);
 
     int emit(Vector3 p) {
       final rel = p - p0;
@@ -526,9 +565,7 @@ class EdoKitBuilder {
     final hLen = math.sqrt(dx * dx + dz * dz);
     final nx = hLen > 1e-5 ? -dz / hLen * halfThick : halfThick;
     final nz = hLen > 1e-5 ? dx / hLen * halfThick : 0.0;
-    if (color != null) {
-      builder.color(color);
-    }
+    builder.color(color ?? _whiteColor);
 
     int v(Vector3 p, double u, double tv) {
       builder.texCoord(Vector2(u, tv));
@@ -981,7 +1018,6 @@ class EdoKitBuilder {
       );
     }
 
-    // Lower cedar wainscoting (shitami-ita) + side/rear gable timber framing
     addBox(
       timberBuilder,
       Vector3(-2.34, 0.28, 3.16),
@@ -1030,7 +1066,6 @@ class EdoKitBuilder {
       }
     }
 
-    // Door jambs & lintel beam
     addBox(
       timberBuilder,
       Vector3(-0.84, 0.24, 3.15),
@@ -1043,7 +1078,6 @@ class EdoKitBuilder {
       Vector3(2.36, 2.36, 3.28),
     );
 
-    // Shoji screens behind lattice and doorway
     addBox(
       shojiBuilder,
       Vector3(-2.28, 0.98, 3.16),
@@ -1052,7 +1086,6 @@ class EdoKitBuilder {
     addBox(shojiBuilder, Vector3(-0.68, 0.32, 3.16), Vector3(0.68, 2.20, 3.21));
     addBox(shojiBuilder, Vector3(0.90, 0.98, 3.16), Vector3(2.28, 2.20, 3.21));
 
-    // Vertical street lattice bars (koshi)
     for (final span in const [(-2.22, -0.96), (0.96, 2.22)]) {
       const bars = 5;
       for (var i = 0; i < bars; i++) {
@@ -1065,7 +1098,6 @@ class EdoKitBuilder {
       }
     }
 
-    // Split dyed noren shop curtains over entrance
     const norenPanels = [(-0.62, -0.24), (-0.18, 0.18), (0.24, 0.62)];
     for (final p in norenPanels) {
       addBox(
@@ -1075,7 +1107,6 @@ class EdoKitBuilder {
       );
     }
 
-    // Street-level hisashi porch roof + slender porch posts
     addLeanToRoof(
       roofBuilder,
       xMin: -2.78,
@@ -1124,7 +1155,6 @@ class EdoKitBuilder {
       ridgeY: ridgeY,
     );
 
-    // Threshold street props under the porch
     if (variant == 0) {
       addBox(
         timberBuilder,
@@ -1272,7 +1302,6 @@ class EdoKitBuilder {
     final awningBuilder = GeometryBuilder();
     final lanternBuilder = GeometryBuilder();
 
-    // Stone plinth + garden stepping stones
     addBox(
       stoneBuilder,
       Vector3(-2.90, -1.40, -2.75),
@@ -1284,7 +1313,6 @@ class EdoKitBuilder {
       Vector3(0.45, 0.05, 3.12),
     );
 
-    // Engawa wrap-around wooden veranda deck + posts
     addBox(
       timberBuilder,
       Vector3(-2.92, 0.22, 1.58),
@@ -1317,7 +1345,6 @@ class EdoKitBuilder {
       );
     }
 
-    // Main warm plaster pavilion
     const wallTop = 3.06;
     addBox(
       plasterBuilder,
@@ -1339,7 +1366,6 @@ class EdoKitBuilder {
       Vector3(0, 0, -1),
     );
 
-    // Wide glowing shoji veranda bays
     addBox(
       shojiBuilder,
       Vector3(-2.42, 0.42, 1.54),
@@ -1349,7 +1375,6 @@ class EdoKitBuilder {
     addBox(shojiBuilder, Vector3(0.88, 0.42, 1.54), Vector3(1.88, 2.28, 1.59));
     addBox(shojiBuilder, Vector3(2.08, 0.42, -1.90), Vector3(2.13, 2.28, 1.24));
 
-    // Noren curtains over veranda entrance
     for (final p in const [(-0.78, -0.30), (-0.22, 0.22), (0.30, 0.78)]) {
       addBox(
         awningBuilder,
@@ -1358,7 +1383,6 @@ class EdoKitBuilder {
       );
     }
 
-    // Sweeping main kawara roof + front & side veranda hisashi eaves
     const eavesY = 3.12;
     const ridgeY = 4.54;
     addGabledRoof(
@@ -1380,7 +1404,6 @@ class EdoKitBuilder {
       yFront: 2.36,
     );
 
-    // Signature vermilion-cloth roadside tea bench (shogi)
     addBox(
       timberBuilder,
       Vector3(-2.42, 0.02, 2.74),
@@ -1392,13 +1415,11 @@ class EdoKitBuilder {
       Vector3(-0.88, 0.46, 3.28),
     );
 
-    // Stone toro garden lantern on right corner
     addBox(stoneBuilder, Vector3(2.26, 0.02, 2.74), Vector3(2.68, 0.24, 3.16));
     addBox(stoneBuilder, Vector3(2.36, 0.26, 2.84), Vector3(2.58, 0.92, 3.06));
     addBox(shojiBuilder, Vector3(2.34, 0.94, 2.82), Vector3(2.60, 1.22, 3.08));
     addBox(stoneBuilder, Vector3(2.20, 1.24, 2.68), Vector3(2.74, 1.38, 3.22));
 
-    // Plump hanging veranda chochin lanterns
     addLanternBody(
       lanternBuilder,
       timberBuilder,
@@ -1503,7 +1524,6 @@ class EdoKitBuilder {
     final timberBuilder = GeometryBuilder();
     final roofBuilder = GeometryBuilder();
 
-    // Tall battered ishigaki stone foundation
     const wBase = 2.38;
     const dBase = 2.88;
     const wTop = 2.26;
@@ -1526,7 +1546,6 @@ class EdoKitBuilder {
     addQuadOutward(stoneBuilder, sb3, sb0, st0, st3, Vector3(-1, 0.2, 0));
     addQuadOutward(stoneBuilder, st0, st1, st2, st3, Vector3(0, 1, 0));
 
-    // Stone entrance steps
     addBox(
       stoneBuilder,
       Vector3(-0.92, -0.40, dTop + 0.03),
@@ -1538,14 +1557,12 @@ class EdoKitBuilder {
       Vector3(0.88, 0.66, dTop + 0.24),
     );
 
-    // Dark timber lower dado skirt
     addBox(
       timberBuilder,
       Vector3(-2.22, 0.70, -2.72),
       Vector3(2.22, 1.72, 2.72),
     );
 
-    // Chalk-white shikkui plaster vault core + thick gables
     const wallTop = 4.86;
     const eavesY = 4.92;
     const ridgeY = 6.32;
@@ -1569,7 +1586,6 @@ class EdoKitBuilder {
       Vector3(0, 0, -1),
     );
 
-    // Heavy fireproof doorway + plaster hood + upper shuttered vault window
     addBox(kuraBuilder, Vector3(-0.92, 0.72, 2.74), Vector3(0.92, 2.66, 2.86));
     addBox(
       timberBuilder,
@@ -1666,7 +1682,6 @@ class EdoKitBuilder {
       );
     }
 
-    // Merchant counter + goods + side barrel
     addBox(
       timberBuilder,
       Vector3(-0.96, 0.06, -0.38),
@@ -1801,7 +1816,6 @@ class EdoKitBuilder {
       );
     }
 
-    // Nuki lower tie beam + wedges + central gakuzuka plaque
     addBox(
       lacquerBuilder,
       Vector3(-2.46, 3.40, -0.11),
@@ -1813,7 +1827,6 @@ class EdoKitBuilder {
       Vector3(0.24, 4.32, 0.13),
     );
 
-    // Shimaki & pitched dark kasagi top lintel with upturned tips
     addBox(
       lacquerBuilder,
       Vector3(-2.62, 4.36, -0.18),
@@ -2008,7 +2021,6 @@ class EdoKitBuilder {
     final rockBuilder = GeometryBuilder();
     final fernBuilder = GeometryBuilder();
 
-    // Sinuous leaning trunk + reaching scaffold branches
     addTaperedLimb(
       timberBuilder,
       const Vec3(0, 0.04, 0),
@@ -2583,38 +2595,28 @@ class EdoKitBuilder {
           radius: 0.125,
           height: 0.28,
         );
-        root.add(
-          Node(
-            mesh: Mesh(
-              lanternBuilder.build(),
-              resolveMaterial(ShukubaSurfaceRole.chochinLantern),
-            ),
-          ),
-        );
-
-        final haloBuilder = GeometryBuilder()
-          ..color(Vector4(1.06, 0.86, 0.64, 0.85))
-          ..texCoord(Vector2(0, 0))
-          ..addVertex(Vector3(-0.5, -0.5, 0))
-          ..texCoord(Vector2(1, 0))
-          ..addVertex(Vector3(0.5, -0.5, 0))
-          ..texCoord(Vector2(1, 1))
-          ..addVertex(Vector3(0.5, 0.5, 0))
-          ..texCoord(Vector2(0, 1))
-          ..addVertex(Vector3(-0.5, 0.5, 0))
-          ..addTriangle(0, 1, 2)
-          ..addTriangle(0, 2, 3);
-        root.add(
-          Node(
+        root
+          ..add(
+            Node(
               mesh: Mesh(
-                haloBuilder.build(),
-                resolveMaterial(ShukubaSurfaceRole.lanternHaze),
+                lanternBuilder.build(),
+                resolveMaterial(ShukubaSurfaceRole.chochinLantern),
               ),
-            )
-            ..position = Vector3(0.26, 1.18, 0.76)
-            ..scale = Vector3(1.28, 1.28, 1)
-            ..shadowCastingMode = ShadowCastingMode.off,
-        );
+            ),
+          )
+          ..add(
+            Node(
+                mesh: Mesh(
+                  buildUnitBillboardQuad(
+                    color: Vector4(1.06, 0.86, 0.64, 0.85),
+                  ),
+                  resolveMaterial(ShukubaSurfaceRole.lanternHaze),
+                ),
+              )
+              ..position = heldLanternLocalOffset.toVector3()
+              ..scale = Vector3(1.28, 1.28, 1)
+              ..shadowCastingMode = ShadowCastingMode.off,
+          );
       case StreetAgentRole.nightSmuggler:
         hasTimber = true;
         final travelHat = Vector4(0.68, 0.54, 0.32, 1);
@@ -2701,13 +2703,6 @@ class EdoKitBuilder {
     GroundHeightSampler sampleGroundY,
   ) {
     final root = Node();
-    if (preview is NoBuildPreview) {
-      return root;
-    }
-
-    final ghostMat = resolveMaterial(ShukubaSurfaceRole.ghostPreview);
-    final builder = GeometryBuilder();
-
     switch (preview) {
       case NoBuildPreview():
         return root;
@@ -2717,6 +2712,7 @@ class EdoKitBuilder {
         :final yawRadians,
         :final lanternSpans,
       ):
+        final ghostMat = resolveMaterial(ShukubaSurfaceRole.ghostPreview);
         final spec = kind.spec;
         final hw = spec.footprintWidth * 0.5;
         final hd = spec.footprintDepth * 0.5;
@@ -2725,7 +2721,6 @@ class EdoKitBuilder {
         final postTint = Vector4(0.98, 0.88, 0.64, 0.74);
         final cordFrameTint = Vector4(0.98, 0.88, 0.64, 0.54);
 
-        // Ground footprint sill bars
         const rim = 0.14;
         addBox(
           stampBuilder,
@@ -2752,7 +2747,6 @@ class EdoKitBuilder {
           color: padTint,
         );
 
-        // Front-facing directional chevron (+Z local forward)
         if (spec.snapsToRoadTangent || spec.straddlesRoad) {
           addTriangleOutward(
             stampBuilder,
@@ -2821,15 +2815,15 @@ class EdoKitBuilder {
           ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), yawRadians);
         root.add(stampNode);
 
-        // Preview catenary lantern chords that will auto-string on placement
         if (lanternSpans.isNotEmpty) {
+          final cordBuilder = GeometryBuilder();
           final chordTint = Vector4(1, 0.76, 0.32, 0.85);
           for (final span in lanternSpans) {
             var prev = span.sampleCatenary(0);
             for (var i = 1; i <= 10; i++) {
               final curr = span.sampleCatenary(i / 10);
               addCordSegment(
-                builder,
+                cordBuilder,
                 prev,
                 curr,
                 halfThick: 0.026,
@@ -2838,10 +2832,12 @@ class EdoKitBuilder {
               prev = curr;
             }
           }
-          root.add(Node(mesh: Mesh(builder.build(), ghostMat)));
+          root.add(Node(mesh: Mesh(cordBuilder.build(), ghostMat)));
         }
 
       case StrokeRibbonPreview(:final style, :final points, :final widthMeters):
+        final ghostMat = resolveMaterial(ShukubaSurfaceRole.ghostPreview);
+        final builder = GeometryBuilder();
         if (points.length < 2) {
           if (points.length == 1) {
             final p = points.first;
@@ -2927,6 +2923,8 @@ class EdoKitBuilder {
         root.add(Node(mesh: Mesh(builder.build(), ghostMat)));
 
       case DemolishHoverPreview(:final candidate):
+        final ghostMat = resolveMaterial(ShukubaSurfaceRole.ghostPreview);
+        final builder = GeometryBuilder();
         const segs = 12;
         final c = candidate.center;
         final rIn = math.max(0.5, candidate.radiusMeters);

@@ -207,7 +207,7 @@ class TerrainBuilder {
             yardWear = yw;
           }
           if (margin > -0.3 && margin < 0.75) {
-            final pd = 1.0 - (margin.abs() / 0.75).clamp(0.0, 1.0);
+            final pd = 1.0 - margin.abs() / 0.75;
             if (pd > plinthDamp) {
               plinthDamp = pd;
             }
@@ -257,7 +257,7 @@ class TerrainBuilder {
         final finalR = rCol * (1 - bankWet * 0.62) + 0.34 * bankWet * 0.62;
         final finalG = gCol * (1 - bankWet * 0.62) + 0.44 * bankWet * 0.62;
         final finalB = bCol * (1 - bankWet * 0.62) + 0.48 * bankWet * 0.62;
-        final wearAlpha = math.max(totalWear, bankWet * 0.65).clamp(0.0, 1.0);
+        final wearAlpha = math.max(totalWear, bankWet * 0.65);
 
         builder
           ..color(Vector4(finalR, finalG, finalB, wearAlpha))

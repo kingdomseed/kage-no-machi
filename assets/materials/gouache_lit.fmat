@@ -57,17 +57,18 @@ fragment {
       material_params.warm_tint.rgb,
       clamp(pigment * 0.52 + (microBrush - 0.5) * 0.16, 0.0, 1.0)
     );
-    float rough = clamp(
-      material_params.roughness_val + (pigment - 0.5) * 0.10,
-      0.08,
-      1.0
-    );
+    float rough = material_params.roughness_val + (pigment - 0.5) * 0.10;
     float spec = 0.42;
     vec3 perturbedN = N;
     float style = material_params.style_id;
+    const float kStyleKawaraTile = 1.0;
+    const float kStyleCedarTimber = 2.0;
+    const float kStyleStoneMasonry = 3.0;
+    const float kStyleEdoPlaster = 4.0;
+    const float kStyleLaneThreshold = 5.25;
+    const float kStyleDyedCloth = 6.0;
 
-    if (style > 0.5 && style < 1.5) {
-      // style 1.0: Corrugated kawara clay roof tiles with eave-aligned ribs and course steps
+    if (abs(style - kStyleKawaraTile) < 0.5) {
       if (abs(N.y) < 0.95) {
         float uEave = dot(P, T);
         float vSlope = dot(P, B);
@@ -94,8 +95,7 @@ fragment {
         rough = mix(0.36, 0.78, (1.0 - (ribWave * 0.5 + 0.5)) * 0.7 + mossMask * 0.3);
         spec = 0.64;
       }
-    } else if (style >= 1.5 && style < 2.5) {
-      // style 2.0: Shitami-ita stained cedar boards and weathered bridge timber
+    } else if (abs(style - kStyleCedarTimber) <= 0.5) {
       float boardCoord = abs(N.y) < 0.55 ? dot(P, T) / 0.21 : dot(P, T) / 0.24;
       float grainCoord = abs(N.y) < 0.55 ? P.y * 2.2 : dot(P, B) * 1.8;
       float boardFract = fract(boardCoord);
@@ -108,9 +108,9 @@ fragment {
       float bevel = (boardFract < 0.09 ? -1.0 : (boardFract > 0.91 ? 1.0 : 0.0)) * seam;
       perturbedN = normalize(N + T * (bevel * 0.26 + (woodGrain - 0.5) * 0.08));
       rough = clamp(rough + seam * 0.12 - woodGrain * 0.06, 0.35, 0.96);
-    } else if (style >= 2.5 && style < 3.5) {
-      // style 3.0: Cut ishigaki masonry (vColor.a > 0.75) vs natural sculpted boulders (vColor.a <= 0.75)
-      if (vColor.a > 0.75) {
+    } else if (abs(style - kStyleStoneMasonry) < 0.5) {
+      bool isCutMasonry = vColor.a > 0.75;
+      if (isCutMasonry) {
         float uStone = dot(P, T);
         float vStone = abs(N.y) < 0.82 ? P.y : dot(P, B);
         float row = floor(vStone / 0.44);
@@ -155,16 +155,14 @@ fragment {
         perturbedN = normalize(N + T * (strata * 0.22) + B * ((fissure - 0.4) * 0.18));
         rough = mix(0.78, 0.38, smoothstep(-0.25, -0.58, P.y));
       }
-    } else if (style >= 3.5 && style < 4.5) {
-      // style 4.0: Hand-troweled Edo earthen and shikkui lime plaster with rain splash base
+    } else if (abs(style - kStyleEdoPlaster) <= 0.5) {
       float trowel = NoiseSimplex3(vec3(P.x * 2.8, P.y * 4.6, P.z * 2.8), 601);
       float splashMask = clamp(1.0 - uv.y * 2.8, 0.0, 1.0) * material_params.weathering;
       albedo *= 0.94 + 0.10 * trowel;
       albedo = mix(albedo, albedo * vec3(0.56, 0.50, 0.44), splashMask * 0.65);
       perturbedN = normalize(N + T * (trowel * 0.06));
-    } else if (style >= 4.5 && style < 5.8) {
-      // style 5.0 (packedEarth) and 5.5 (laneOverlay stone-curbed cobble & gravel road)
-      float isLane = step(5.25, style);
+    } else if (style > 4.5 && style < 5.8) {
+      float isLane = step(kStyleLaneThreshold, style);
       float macroZone = NoiseFbm2(P.xz * 0.18, 701, 3, 2.0, 0.5) * 0.5 + 0.5;
       float pebbleField = NoiseSimplex2(P.xz * 5.4, 719) * 0.5 + 0.5;
       float fineGrit = NoiseSimplex2(P.xz * 14.0, 733);
@@ -216,8 +214,7 @@ fragment {
         rough = mix(mix(rough, 0.86, wear * 0.5), 0.32, wetShore * 0.78);
       }
     } else if (style >= 5.8) {
-      // style 6.0 (dyed cloth awning / noren / nobori) & 6.5 (vermilion lacquer)
-      if (style < 6.25) {
+      if (abs(style - kStyleDyedCloth) < 0.25) {
         if (vColor.a < 0.75) {
           albedo = mix(vec3(0.68, 0.65, 0.60), vec3(0.84, 0.80, 0.74), pigment);
         }
@@ -235,9 +232,10 @@ fragment {
     vec3 weathered = mix(albedo, albedo * 0.76, drip * 0.32);
 
     float upMoisture = smoothstep(0.35, 0.92, perturbedN.y) * material_params.dew_sheen;
-    float dewHold = (style > 0.5 && style < 3.5) || style > 5.2 ? 0.44 : 0.18;
-    rough = mix(rough, 0.20, clamp(upMoisture * dewHold, 0.0, 0.64));
-    spec = mix(spec, 0.76, clamp(upMoisture * dewHold, 0.0, 0.56));
+    float dewHold = (style > 0.5 && style < 3.5) || style > kStyleLaneThreshold ? 0.44 : 0.18;
+    float moistureMix = upMoisture * dewHold;
+    rough = mix(rough, 0.20, moistureMix);
+    spec = mix(spec, 0.76, moistureMix);
 
     material.base_color = vec4(weathered * vColor.rgb, 1.0);
     material.normal = perturbedN;

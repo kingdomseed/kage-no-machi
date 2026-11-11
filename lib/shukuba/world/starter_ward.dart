@@ -107,7 +107,6 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
   ];
 
   final structures = <PlacedStructure>[
-    // West highway approach: lantern gate, chaya teahouse, and machiya row
     PlacedStructure(
       id: EntityId.validated('torii_west_gate'),
       kind: StructureKind.toriiGate,
@@ -142,8 +141,6 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       position: Vec3(-6.2, wardY(-6.2, -3.5), -3.5),
       yawRadians: -0.45,
     ),
-
-    // Lower east terrace: bustling bridgehead market & side-alley teahouse
     PlacedStructure(
       id: EntityId.validated('market_east_s1'),
       kind: StructureKind.marketStall,
@@ -172,8 +169,6 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       position: Vec3(6.9, wardY(6.9, 8.2), 8.2),
       yawRadians: math.pi / 2,
     ),
-
-    // Upper east stone terrace: chalk-white kura vault and merchant house
     PlacedStructure(
       id: EntityId.validated('kura_upper_east'),
       kind: StructureKind.kura,
@@ -185,8 +180,6 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       position: Vec3(19.6, wardY(19.6, 5.65), 5.65),
       yawRadians: math.pi,
     ),
-
-    // Autumn momiji maples & slender moso bamboo groves
     PlacedStructure(
       id: EntityId.validated('maple_bridge_nw'),
       kind: StructureKind.mapleCluster,

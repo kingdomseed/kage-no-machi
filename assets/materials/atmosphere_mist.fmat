@@ -28,7 +28,7 @@ vertex {
       vec3 camUp = cross(toCam, camRight);
       vertex.world_position =
           center + camRight * (vertex.position.x * scaleX) + camUp * (vertex.position.y * scaleY);
-    } else {
+    } else if (vertex.uv.y >= 0.0) {
       float swell = sin(t * 0.55 + vertex.world_position.z * 0.16 + vertex.world_position.x * 0.24);
       vertex.world_position.y += swell * 0.065;
     }
@@ -58,7 +58,7 @@ fragment {
         clamp(r * 0.85, 0.0, 1.0)
       );
       float alpha = radial * wisp * softDepth * material_params.mist_opacity * vColor.a * 0.32;
-      material.base_color = vec4(coreTint * vColor.rgb, clamp(alpha, 0.0, 0.42));
+      material.base_color = vec4(coreTint * vColor.rgb, max(0.0, alpha));
       PrepareMaterial(material);
       return;
     }
@@ -75,9 +75,13 @@ fragment {
         vec3(0.52, 0.62, 0.76),
         material_params.night_mix * 0.65
       );
-      float steamAlpha =
-          edgeX * verticalEnv * steamWisp * softDepth * vColor.a * 0.28;
-      material.base_color = vec4(steamTint * vColor.rgb, clamp(steamAlpha, 0.0, 0.32));
+      float steamAlpha = edgeX *
+          verticalEnv *
+          steamWisp *
+          softDepth *
+          vColor.a *
+          (0.16 + 0.20 * material_params.mist_opacity);
+      material.base_color = vec4(steamTint * vColor.rgb, max(0.0, steamAlpha));
       PrepareMaterial(material);
       return;
     }
@@ -98,7 +102,7 @@ fragment {
 
     float alpha =
         edgeX * vColor.a * softDepth * billow * bridgeClear * material_params.mist_opacity * 0.42;
-    material.base_color = vec4(mistRgb * vColor.rgb, clamp(alpha, 0.0, 0.46));
+    material.base_color = vec4(mistRgb * vColor.rgb, max(0.0, alpha));
     PrepareMaterial(material);
   }
 }

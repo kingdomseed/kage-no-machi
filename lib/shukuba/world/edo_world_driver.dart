@@ -13,7 +13,6 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         ShukubaWorldDriver,
         StreetAgentRole,
         StreetAgentSnapshot,
-        StructureKind,
         TimeOfDayRig,
         Vec3,
         WatchSightcone,
@@ -101,59 +100,24 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   @override
   List<Vec3> get activeLanternOrigins {
     final origins = <Vec3>[];
-    for (final span in _graph.lanternSpans) {
-      origins.add(span.midpoint);
-    }
-
     for (final agent in _simAgents) {
       if (agent.carriesLantern) {
-        final heldOffset = const Vec3(
-          0.26,
-          1.18,
-          0.76,
-        ).rotateY(agent.yawRadians);
+        final heldOffset = EdoKitBuilder.heldLanternLocalOffset.rotateY(
+          agent.yawRadians,
+        );
         origins.add(agent.position + heldOffset);
       }
     }
 
+    for (final span in _graph.lanternSpans) {
+      origins.add(span.midpoint);
+    }
+
     for (final structure in _graph.structures.values) {
-      switch (structure.kind) {
-        case StructureKind.chaya:
-          final left = const Vec3(
-            -1.58,
-            2.05,
-            2.95,
-          ).rotateY(structure.yawRadians);
-          final right = const Vec3(
-            1.58,
-            2.05,
-            2.95,
-          ).rotateY(structure.yawRadians);
-          origins
-            ..add(structure.position + left)
-            ..add(structure.position + right);
-        case StructureKind.toriiGate:
-          final gateGlow = const Vec3(0, 3.05, 0).rotateY(structure.yawRadians);
-          origins.add(structure.position + gateGlow);
-        case StructureKind.marketStall:
-          final stallGlow = const Vec3(
-            1.12,
-            1.96,
-            1.08,
-          ).rotateY(structure.yawRadians);
-          origins.add(structure.position + stallGlow);
-        case StructureKind.machiya:
-          final porchGlow = const Vec3(
-            0,
-            1.95,
-            3.55,
-          ).rotateY(structure.yawRadians);
-          origins.add(structure.position + porchGlow);
-        case StructureKind.kura ||
-            StructureKind.yaguraTower ||
-            StructureKind.mapleCluster ||
-            StructureKind.bambooGrove:
-          break;
+      for (final local in EdoKitBuilder.structureLanternLocalOffsets(
+        structure,
+      )) {
+        origins.add(structure.position + local.rotateY(structure.yawRadians));
       }
     }
     return origins;
@@ -438,15 +402,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
 
       agent.velocity += steering * dtSeconds;
-      if (agent.velocity.length > agent.speed) {
-        agent.velocity = agent.velocity.normalized() * agent.speed;
+      var velLen = agent.velocity.length;
+      if (velLen > agent.speed) {
+        agent.velocity = agent.velocity * (agent.speed / velLen);
+        velLen = agent.speed;
       }
 
       final nextPosV = currentPosV + agent.velocity * dtSeconds;
       final groundY = sampleGroundHeight(nextPosV.x, nextPosV.z);
       agent.position = Vec3(nextPosV.x, groundY, nextPosV.z);
 
-      if (agent.velocity.length2 > 1e-4) {
+      if (velLen > 1e-2) {
         agent.yawRadians = math.atan2(agent.velocity.x, agent.velocity.z);
       }
 
@@ -457,10 +423,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
       final node = _agentNodes[agent.id];
       if (node != null) {
-        final speedRatio = (agent.velocity.length / agent.speed).clamp(
-          0.0,
-          1.0,
-        );
+        final speedRatio = agent.speed > 0 ? velLen / agent.speed : 0.0;
         final phase = _walkTime * 7.2 + agent.bobPhase;
         final bob = math.sin(phase).abs() * 0.034 * speedRatio;
         final strideRoll = math.sin(phase) * 0.042 * speedRatio;

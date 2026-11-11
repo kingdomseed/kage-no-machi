@@ -22,14 +22,14 @@ fragment {
     float fragDepth = GetFragmentViewDepth();
     float thickness = max(0.0, sceneDepth - fragDepth);
 
-    float depthT = clamp(1.0 - exp(-thickness * 1.15), 0.0, 1.0);
+    float depthT = 1.0 - exp(-thickness * 1.15);
     vec4 waterColor = mix(
       material_params.shallow_color,
       material_params.deep_color,
       depthT
     );
 
-    float t = material_params.time_sec > 0.0 ? material_params.time_sec : GetTime();
+    float t = material_params.time_sec;
     vec2 uv = GetUV0();
     float bankDist = min(uv.x, 1.0 - uv.x) * 2.0;
     float centerSpeed = mix(0.55, 1.15, smoothstep(0.0, 0.65, bankDist));

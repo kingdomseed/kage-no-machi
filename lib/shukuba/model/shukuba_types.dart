@@ -1800,9 +1800,9 @@ class TimeOfDayRig {
 
   double get lanternEmissiveGain => 0.35 + 3.1 * nightFactor;
 
-  double get lanternPointLightIntensity => 0.3 + 11.2 * nightFactor;
+  double get lanternPointLightIntensity => 1.6 + 11.8 * nightFactor;
 
-  double get lanternPointLightRange => 6.5 + 4.5 * nightFactor;
+  double get lanternPointLightRange => 7.9 + 4.5 * nightFactor;
 
   double get riverMurmurGain => 0.44 - 0.08 * nightFactor;
 

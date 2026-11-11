@@ -21,7 +21,6 @@ class EdoLookDriver implements ShukubaLookDriver {
   DirectionalLight? _fillLight;
   Node? _fillLightNode;
   GradientSkySource? _skySource;
-  Skybox? _skybox;
   SkyEnvironment? _skyEnvironment;
   EnvironmentSettings? _duskSettings;
   EnvironmentSettings? _nightSettings;
@@ -154,7 +153,6 @@ class EdoLookDriver implements ShukubaLookDriver {
       _skySource = sky;
       final skyboxInstance = Skybox(sky);
       final skyEnvInstance = SkyEnvironment(sky);
-      _skybox = skyboxInstance;
       _skyEnvironment = skyEnvInstance;
 
       scene
@@ -251,12 +249,6 @@ class EdoLookDriver implements ShukubaLookDriver {
         night,
         rig.nightFactor,
       );
-      if (_skybox != null) {
-        scene.skybox = _skybox;
-      }
-      if (_skyEnvironment != null) {
-        scene.skyEnvironment = _skyEnvironment;
-      }
     }
 
     if ((_lastNightFactor - rig.nightFactor).abs() > 0.02) {
@@ -393,13 +385,14 @@ class EdoLookDriver implements ShukubaLookDriver {
       elapsedSeconds,
     );
 
-    final duskBoostedIntensity = 1.6 + 11.8 * rig.nightFactor;
+    final lanternIntensity = rig.lanternPointLightIntensity;
+    final lanternRange = rig.lanternPointLightRange;
     for (var i = 0; i < _lanternNodes.length; i++) {
       if (i < lanternOrigins.length) {
         _lanternNodes[i].position = lanternOrigins[i].toVector3();
         _lanternLights[i]
-          ..intensity = duskBoostedIntensity
-          ..range = rig.lanternPointLightRange + 1.4;
+          ..intensity = lanternIntensity
+          ..range = lanternRange;
         _lanternNodes[i].visible = true;
       } else {
         _lanternLights[i].intensity = 0;

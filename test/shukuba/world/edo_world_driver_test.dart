@@ -189,11 +189,16 @@ void main() {
         );
         final expectedHeld =
             bearer.position +
-            const Vec3(0.26, 1.18, 0.76).rotateY(bearer.yawRadians);
+            EdoKitBuilder.heldLanternLocalOffset.rotateY(bearer.yawRadians);
         final matched = driver.activeLanternOrigins.any(
           (o) => (o - expectedHeld).length < 1e-6,
         );
         expect(matched, isTrue);
+
+        final gate = driver.graph.structures.values.firstWhere(
+          (s) => s.kind == StructureKind.toriiGate,
+        );
+        expect(EdoKitBuilder.structureLanternLocalOffsets(gate).length, 2);
       },
     );
 
