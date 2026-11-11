@@ -315,8 +315,25 @@ class EdoLookDriver implements ShukubaLookDriver {
       'time_sec',
       elapsedSeconds,
     );
+    final sunTranslucency = 1.0 - rig.nightFactor * 0.90;
     _setParamFloat(ShukubaSurfaceRole.mapleCanopy, 'time_sec', elapsedSeconds);
+    _setParamFloat(
+      ShukubaSurfaceRole.mapleCanopy,
+      'sun_translucency',
+      sunTranslucency,
+    );
     _setParamFloat(ShukubaSurfaceRole.bambooCanopy, 'time_sec', elapsedSeconds);
+    _setParamFloat(
+      ShukubaSurfaceRole.bambooCanopy,
+      'sun_translucency',
+      sunTranslucency,
+    );
+    _setParamFloat(ShukubaSurfaceRole.groundMeadow, 'time_sec', elapsedSeconds);
+    _setParamFloat(
+      ShukubaSurfaceRole.groundMeadow,
+      'sun_translucency',
+      sunTranslucency,
+    );
     _setParamFloat(ShukubaSurfaceRole.riverWater, 'time_sec', elapsedSeconds);
     _setParamFloat(ShukubaSurfaceRole.ghostPreview, 'time_sec', elapsedSeconds);
 
@@ -415,7 +432,8 @@ class EdoLookDriver implements ShukubaLookDriver {
     ShukubaSurfaceRole.shojiScreen ||
     ShukubaSurfaceRole.chochinLantern => 'assets/materials/shoji_lantern.fmat',
     ShukubaSurfaceRole.mapleCanopy ||
-    ShukubaSurfaceRole.bambooCanopy => 'assets/materials/foliage_canopy.fmat',
+    ShukubaSurfaceRole.bambooCanopy ||
+    ShukubaSurfaceRole.groundMeadow => 'assets/materials/foliage_canopy.fmat',
     ShukubaSurfaceRole.riverWater => 'assets/materials/river_water.fmat',
     ShukubaSurfaceRole.ghostPreview => 'assets/materials/ghost_preview.fmat',
   };
@@ -511,16 +529,28 @@ class EdoLookDriver implements ShukubaLookDriver {
           ..setFloat('rib_freq', 12);
       case ShukubaSurfaceRole.mapleCanopy:
         mat.parameters
-          ..setVec4('leaf_primary', Vector4(0.46, 0.042, 0.014, 1))
-          ..setVec4('leaf_secondary', Vector4(0.84, 0.22, 0.026, 1))
+          ..setVec4('leaf_primary', Vector4(0.24, 0.022, 0.012, 1))
+          ..setVec4('leaf_secondary', Vector4(0.84, 0.22, 0.024, 1))
           ..setFloat('rim_warmth', 0.48)
-          ..setFloat('wind_strength', 0.16);
+          ..setFloat('sun_translucency', 1)
+          ..setFloat('wind_strength', 0.16)
+          ..setFloat('foliage_kind', 0);
       case ShukubaSurfaceRole.bambooCanopy:
         mat.parameters
-          ..setVec4('leaf_primary', Vector4(0.055, 0.165, 0.035, 1))
-          ..setVec4('leaf_secondary', Vector4(0.18, 0.36, 0.062, 1))
-          ..setFloat('rim_warmth', 0.38)
-          ..setFloat('wind_strength', 0.20);
+          ..setVec4('leaf_primary', Vector4(0.042, 0.135, 0.028, 1))
+          ..setVec4('leaf_secondary', Vector4(0.19, 0.36, 0.062, 1))
+          ..setFloat('rim_warmth', 0.36)
+          ..setFloat('sun_translucency', 1)
+          ..setFloat('wind_strength', 0.20)
+          ..setFloat('foliage_kind', 1);
+      case ShukubaSurfaceRole.groundMeadow:
+        mat.parameters
+          ..setVec4('leaf_primary', Vector4(0.50, 0.48, 0.42, 1))
+          ..setVec4('leaf_secondary', Vector4(1, 0.94, 0.80, 1))
+          ..setFloat('rim_warmth', 0.34)
+          ..setFloat('sun_translucency', 1)
+          ..setFloat('wind_strength', 0.24)
+          ..setFloat('foliage_kind', 2);
       case ShukubaSurfaceRole.riverWater:
         mat.parameters
           ..setVec4('shallow_color', Vector4(0.068, 0.215, 0.175, 0.78))

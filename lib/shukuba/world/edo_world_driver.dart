@@ -19,6 +19,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         WatchSightcone,
         defaultShukubaMaterial;
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart';
+import 'package:kage_no_machi/shukuba/world/flora_scatter_builder.dart';
 import 'package:kage_no_machi/shukuba/world/starter_ward.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
 import 'package:vector_math/vector_math.dart' show Quaternion, Vector3;
@@ -65,15 +66,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   ShukubaMaterialResolver _resolveMaterial = defaultShukubaMaterial;
   late final TerrainBuilder _terrainBuilder = const TerrainBuilder();
   late final EdoKitBuilder _kitBuilder = const EdoKitBuilder();
+  late final FloraScatterBuilder _floraBuilder = const FloraScatterBuilder();
 
   late ShukubaGraph _graph = ShukubaGraph.empty;
   BuildPreview _activePreview = const NoBuildPreview();
 
   Node? _worldRoot;
-  late Node _terrainNode;
+  late final Node _terrainContainerNode = Node();
   late Node _waterNode;
   late Node _gorgeDressingNode;
   late Node _bridgeNode;
+  late final Node _floraNode = Node();
   late final Node _roadsNode = Node();
   late final Node _terracesNode = Node();
   late final Node _wallsNode = Node();
@@ -186,10 +189,6 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _resolveMaterial = resolveMaterial;
 
     _worldRoot = Node();
-    _terrainNode = _terrainBuilder.buildTerrainNode(
-      _resolveMaterial,
-      terraces: initialGraph?.terraces ?? const [],
-    );
     _waterNode = _terrainBuilder.buildWaterNode(_resolveMaterial);
     _gorgeDressingNode = _terrainBuilder.buildGorgeDressingNode(
       _resolveMaterial,
@@ -197,10 +196,11 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _bridgeNode = _terrainBuilder.buildBridgeNode(_resolveMaterial);
 
     _worldRoot!
-      ..add(_terrainNode)
+      ..add(_terrainContainerNode)
       ..add(_waterNode)
       ..add(_gorgeDressingNode)
       ..add(_bridgeNode)
+      ..add(_floraNode)
       ..add(_roadsNode)
       ..add(_terracesNode)
       ..add(_wallsNode)
@@ -334,6 +334,27 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     if (_scene == null) {
       return;
     }
+
+    _terrainContainerNode
+      ..removeAll()
+      ..add(
+        _terrainBuilder.buildTerrainNode(
+          _resolveMaterial,
+          terraces: _graph.terraces,
+          roads: _graph.roads,
+          structures: _graph.structures.values,
+        ),
+      );
+
+    _floraNode
+      ..removeAll()
+      ..add(
+        _floraBuilder.buildFloraScatterNode(
+          graph: _graph,
+          resolveMaterial: _resolveMaterial,
+          sampleGroundY: sampleGroundHeight,
+        ),
+      );
 
     _roadsNode.removeAll();
     for (final road in _graph.roads) {

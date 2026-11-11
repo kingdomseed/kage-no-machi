@@ -65,7 +65,13 @@ void main() {
   float normalCrease =
       smoothstep(0.32, 0.86, creaseRaw * ink_params.weights.y * 0.48) * skyFade * distAtten;
 
-  float edge = clamp(max(depthEdge, normalCrease * 0.58), 0.0, 1.0);
+  float maxRough = max(
+    centerSample.a,
+    max(max(sLeft.a, sRight.a), max(sBottom.a, sTop.a))
+  );
+  float botanicalDamp = 1.0 - 0.78 * smoothstep(0.960, 0.980, maxRough);
+  float edge =
+      clamp(max(depthEdge, normalCrease * 0.58), 0.0, 1.0) * botanicalDamp;
   vec3 inkModulated = mix(
     base.rgb,
     base.rgb * ink_params.ink_color.rgb,

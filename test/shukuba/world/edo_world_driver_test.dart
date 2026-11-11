@@ -140,6 +140,41 @@ void main() {
             'flutter_scene unmounts children from RenderScene.',
       );
     });
+
+    test(
+      'FloraScatterBuilder excludes river, bridge, roads, and footprints',
+      () {
+        const terrain = TerrainBuilder();
+        final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
+
+        expect(
+          FloraScatterBuilder.isClearForGroundFlora(0, 12, graph),
+          isFalse,
+        );
+        expect(FloraScatterBuilder.isClearForGroundFlora(0, 0, graph), isFalse);
+        expect(
+          FloraScatterBuilder.isClearForGroundFlora(-14, 0, graph),
+          isFalse,
+        );
+
+        final firstShop = graph.structures.values.firstWhere(
+          (s) => s.kind == StructureKind.machiya,
+        );
+        expect(
+          FloraScatterBuilder.isClearForGroundFlora(
+            firstShop.position.x,
+            firstShop.position.z,
+            graph,
+          ),
+          isFalse,
+        );
+
+        expect(
+          FloraScatterBuilder.isClearForGroundFlora(-28, 22, graph),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('EdoWorldDriver and Scene verification', () {

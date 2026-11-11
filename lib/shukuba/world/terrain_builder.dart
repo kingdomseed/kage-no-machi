@@ -6,9 +6,11 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         CourtyardWall,
         GroundHeightSampler,
+        PlacedStructure,
         RoadSpline,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
+        StructureKind,
         TerraceCourse,
         Vec3;
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
@@ -101,8 +103,50 @@ class TerrainBuilder {
     return height;
   }
 
+  static double horizontalDistanceToSegment(
+    double px,
+    double pz,
+    Vec3 a,
+    Vec3 b,
+  ) {
+    final abx = b.x - a.x;
+    final abz = b.z - a.z;
+    final lenSq = abx * abx + abz * abz;
+    if (lenSq <= 1e-8) {
+      final dx = px - a.x;
+      final dz = pz - a.z;
+      return math.sqrt(dx * dx + dz * dz);
+    }
+    final t = (((px - a.x) * abx + (pz - a.z) * abz) / lenSq).clamp(0.0, 1.0);
+    final cx = a.x + abx * t;
+    final cz = a.z + abz * t;
+    final dx = px - cx;
+    final dz = pz - cz;
+    return math.sqrt(dx * dx + dz * dz);
+  }
+
+  static double signedFootprintMargin(double px, double pz, PlacedStructure s) {
+    final dx = px - s.position.x;
+    final dz = pz - s.position.z;
+    final cy = math.cos(-s.yawRadians);
+    final sy = math.sin(-s.yawRadians);
+    final lx = (dx * cy + dz * sy).abs();
+    final lz = (-dx * sy + dz * cy).abs();
+    final spec = s.kind.spec;
+    final mx = lx - spec.footprintWidth * 0.5;
+    final mz = lz - spec.footprintDepth * 0.5;
+    if (mx <= 0 && mz <= 0) {
+      return math.max(mx, mz);
+    }
+    final ox = math.max<double>(0, mx);
+    final oz = math.max<double>(0, mz);
+    return math.sqrt(ox * ox + oz * oz);
+  }
+
   MeshGeometry buildTerrainGeometry({
     Iterable<TerraceCourse> terraces = const [],
+    Iterable<RoadSpline> roads = const [],
+    Iterable<PlacedStructure> structures = const [],
   }) {
     final builder = GeometryBuilder();
     const minX = TerrainConfig.minX;
@@ -110,6 +154,15 @@ class TerrainBuilder {
     const minZ = TerrainConfig.minZ;
     const maxZ = TerrainConfig.maxZ;
     const step = TerrainConfig.gridStep;
+
+    final roadList = roads.toList();
+    final terraceList = terraces.toList();
+    final buildingList = [
+      for (final s in structures)
+        if (s.kind != StructureKind.mapleCluster &&
+            s.kind != StructureKind.bambooGrove)
+          s,
+    ];
 
     final cols = ((maxX - minX) / step).round() + 1;
     final rows = ((maxZ - minZ) / step).round() + 1;
@@ -123,30 +176,91 @@ class TerrainBuilder {
         final y = sampleRawTerrain(x, z);
         final rivX = TerrainConfig.riverCenterX(z);
         final rivDist = (x - rivX).abs();
-        final roadCorridor = 1.0 - (z.abs() - 1.8).clamp(0.0, 5.2) / 5.2;
-        final bankWet = 1.0 - ((rivDist - 2.4) / 2.6).clamp(0.0, 1.0);
+
+        var roadWear = 0.0;
+        if (roadList.isEmpty) {
+          roadWear = 1.0 - (z.abs() - 1.8).clamp(0.0, 4.6) / 4.6;
+        } else {
+          for (final road in roadList) {
+            final hw = road.widthMeters * 0.5;
+            for (var i = 0; i < road.controlPoints.length - 1; i++) {
+              final d = horizontalDistanceToSegment(
+                x,
+                z,
+                road.controlPoints[i],
+                road.controlPoints[i + 1],
+              );
+              final w = 1.0 - ((d - hw) / 2.8).clamp(0.0, 1.0);
+              if (w > roadWear) {
+                roadWear = w;
+              }
+            }
+          }
+        }
+
+        var yardWear = 0.0;
+        var plinthDamp = 0.0;
+        for (final s in buildingList) {
+          final margin = signedFootprintMargin(x, z, s);
+          final yw = 1.0 - (margin / 2.4).clamp(0.0, 1.0);
+          if (yw > yardWear) {
+            yardWear = yw;
+          }
+          if (margin > -0.3 && margin < 0.75) {
+            final pd = 1.0 - (margin.abs() / 0.75).clamp(0.0, 1.0);
+            if (pd > plinthDamp) {
+              plinthDamp = pd;
+            }
+          }
+        }
+
+        var terraceMoss = 0.0;
+        for (final t in terraceList) {
+          for (var i = 0; i < t.crestPoints.length - 1; i++) {
+            final d = horizontalDistanceToSegment(
+              x,
+              z,
+              t.crestPoints[i],
+              t.crestPoints[i + 1],
+            );
+            final tm = 1.0 - (d / 2.2).clamp(0.0, 1.0);
+            if (tm > terraceMoss) {
+              terraceMoss = tm;
+            }
+          }
+        }
+
+        final bankWet = 1.0 - ((rivDist - 2.3) / 2.7).clamp(0.0, 1.0);
         final patch =
             0.5 + 0.5 * math.sin(x * 0.22 + z * 0.17) * math.cos(z * 0.29);
         final meadow =
             0.5 + 0.5 * math.cos(x * 0.11 - z * 0.13) * math.sin(x * 0.19);
 
-        final mossR = 0.52 + 0.24 * patch + 0.10 * meadow;
-        final mossG = 0.88 + 0.20 * patch - 0.06 * meadow;
-        final mossB = 0.42 + 0.14 * patch;
+        var rCol = 0.48 + 0.24 * patch + 0.12 * meadow;
+        var gCol = 0.84 + 0.20 * patch - 0.05 * meadow;
+        var bCol = 0.40 + 0.14 * patch;
 
-        final earthR =
-            mossR * (1 - roadCorridor * 0.68) + 1.08 * roadCorridor * 0.68;
-        final earthG =
-            mossG * (1 - roadCorridor * 0.68) + 0.86 * roadCorridor * 0.68;
-        final earthB =
-            mossB * (1 - roadCorridor * 0.68) + 0.66 * roadCorridor * 0.68;
+        rCol = rCol * (1 - terraceMoss * 0.45) + 0.30 * terraceMoss * 0.45;
+        gCol = gCol * (1 - terraceMoss * 0.45) + 0.74 * terraceMoss * 0.45;
+        bCol = bCol * (1 - terraceMoss * 0.45) + 0.28 * terraceMoss * 0.45;
 
-        final finalR = earthR * (1 - bankWet * 0.58) + 0.34 * bankWet * 0.58;
-        final finalG = earthG * (1 - bankWet * 0.58) + 0.44 * bankWet * 0.58;
-        final finalB = earthB * (1 - bankWet * 0.58) + 0.50 * bankWet * 0.58;
+        final totalWear = math.max(roadWear * 0.84, yardWear * 0.76);
+        rCol = rCol * (1 - totalWear) + 1.18 * totalWear;
+        gCol = gCol * (1 - totalWear) + 0.88 * totalWear;
+        bCol = bCol * (1 - totalWear) + 0.62 * totalWear;
+
+        final dampShade = 1.0 - 0.28 * plinthDamp;
+        rCol *= dampShade;
+        gCol *= dampShade;
+        bCol *= dampShade;
+
+        final finalR = rCol * (1 - bankWet * 0.62) + 0.34 * bankWet * 0.62;
+        final finalG = gCol * (1 - bankWet * 0.62) + 0.44 * bankWet * 0.62;
+        final finalB = bCol * (1 - bankWet * 0.62) + 0.48 * bankWet * 0.62;
+        final wearAlpha = math.max(totalWear, bankWet * 0.65).clamp(0.0, 1.0);
 
         builder
-          ..color(Vector4(finalR, finalG, finalB, 1))
+          ..color(Vector4(finalR, finalG, finalB, wearAlpha))
           ..texCoord(Vector2(u * 16.0, v * 16.0))
           ..addVertex(Vector3(x, y, z));
       }
@@ -170,9 +284,15 @@ class TerrainBuilder {
   Node buildTerrainNode(
     ShukubaMaterialResolver resolveMaterial, {
     Iterable<TerraceCourse> terraces = const [],
+    Iterable<RoadSpline> roads = const [],
+    Iterable<PlacedStructure> structures = const [],
   }) {
     final mesh = Mesh(
-      buildTerrainGeometry(terraces: terraces),
+      buildTerrainGeometry(
+        terraces: terraces,
+        roads: roads,
+        structures: structures,
+      ),
       resolveMaterial(ShukubaSurfaceRole.packedEarth),
     );
     return Node(mesh: mesh);
@@ -415,14 +535,47 @@ class TerrainBuilder {
         final sx = x + (b.$2 < 0 ? -0.95 : 0.95);
         final sz = z + 0.72;
         final sy = sampleRawTerrain(sx, sz);
-        EdoKitBuilder.addFoliageCluster(
+        EdoKitBuilder.addShrubRosette(
           shrubBuilder,
-          Vector3(sx, sy + 0.28, sz),
-          Vector3(0.76, 0.34, 0.70),
-          color: Vector4(0.84, 0.96, 0.76, 1),
+          Vector3(sx, sy + 0.06, sz),
+          Vector3(0.86, 0.38, 0.80),
+          color: Vector4(0.84, 0.98, 0.74, 1),
           phase: b.$6,
         );
       }
+    }
+
+    const meadowOutcrops = [
+      (-23.5, -20.0, 1.45, 0.78, 1.18, 0.6),
+      (-24.8, 19.5, 1.38, 0.72, 1.10, 1.9),
+      (22.5, -19.5, 1.42, 0.76, 1.15, 1.1),
+      (23.8, 21.0, 1.50, 0.82, 1.22, 2.4),
+    ];
+    for (final m in meadowOutcrops) {
+      final mx = m.$1;
+      final mz = m.$2;
+      final my = sampleRawTerrain(mx, mz);
+      EdoKitBuilder.addRockBoulder(
+        rockBuilder,
+        Vector3(mx, my + 0.16, mz),
+        Vector3(m.$3, m.$4, m.$5),
+        yaw: m.$6,
+        seed: mx * 0.3 + mz * 0.2,
+      );
+      EdoKitBuilder.addRockBoulder(
+        rockBuilder,
+        Vector3(mx + 0.95, my + 0.08, mz + 0.65),
+        Vector3(m.$3 * 0.58, m.$4 * 0.62, m.$5 * 0.56),
+        yaw: m.$6 + 1.2,
+        seed: mx * 0.5 - mz * 0.4,
+      );
+      EdoKitBuilder.addShrubRosette(
+        shrubBuilder,
+        Vector3(mx - 0.85, my + 0.06, mz + 0.55),
+        Vector3(0.92, 0.40, 0.86),
+        color: Vector4(0.86, 1.02, 0.76, 1),
+        phase: m.$6,
+      );
     }
 
     for (final span in const [(-5.4, -3.4), (3.4, 5.4)]) {

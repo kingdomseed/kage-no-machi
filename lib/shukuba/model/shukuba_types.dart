@@ -2009,13 +2009,18 @@ enum ShukubaSurfaceRole {
   ),
   mapleCanopy(
     depthLayer: 0,
-    defaultRoughness: 0.84,
+    defaultRoughness: 0.985,
     previewColor: Color(0xFFC84628),
   ),
   bambooCanopy(
     depthLayer: 0,
-    defaultRoughness: 0.8,
+    defaultRoughness: 0.985,
     previewColor: Color(0xFF4F7942),
+  ),
+  groundMeadow(
+    depthLayer: 0,
+    defaultRoughness: 0.985,
+    previewColor: Color(0xFF6B8448),
   ),
   riverWater(
     depthLayer: 0,

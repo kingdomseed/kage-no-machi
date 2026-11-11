@@ -181,88 +181,219 @@ class EdoKitBuilder {
     }
   }
 
-  static void addFoliageCluster(
+  static void addArchedFoliageCard(
+    GeometryBuilder builder,
+    Vector3 stem, {
+    required double yaw,
+    required double pitchUp,
+    required double length,
+    required double width,
+    required double droop,
+    required Vector4 color,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+    final fwd = Vector3(cy, 0, sy);
+    final right = Vector3(-sy, 0, cy);
+    final cp = math.cos(pitchUp);
+    final sp = math.sin(pitchUp);
+
+    final pMid =
+        stem +
+        fwd * (length * 0.52 * cp) +
+        Vector3(0, length * 0.52 * sp + droop * 0.16, 0);
+    final pTip =
+        stem + fwd * (length * cp) + Vector3(0, length * sp - droop, 0);
+
+    builder.color(color);
+    int emit(Vector3 pos, double u, double v) {
+      builder.texCoord(Vector2(u, v));
+      return builder.addVertex(pos);
+    }
+
+    final hw0 = width * 0.42;
+    final hw1 = width * 0.52;
+    final hw2 = width * 0.46;
+    final v0 = emit(stem - right * hw0, 0, 0);
+    final v1 = emit(stem + right * hw0, 1, 0);
+    final v2 = emit(pMid - right * hw1, 0, 0.52);
+    final v3 = emit(pMid + right * hw1, 1, 0.52);
+    final v4 = emit(pTip - right * hw2, 0, 1);
+    final v5 = emit(pTip + right * hw2, 1, 1);
+
+    builder
+      ..addTriangle(v0, v1, v3)
+      ..addTriangle(v0, v3, v2)
+      ..addTriangle(v2, v3, v5)
+      ..addTriangle(v2, v5, v4);
+  }
+
+  static void addLeafSprayCloud(
     GeometryBuilder builder,
     Vector3 center,
     Vector3 radii, {
     required Vector4 color,
     double phase = 0,
   }) {
-    const sides = 7;
-    final top = Vector3(center.x, center.y + radii.y, center.z);
-    final bottom = Vector3(center.x, center.y - radii.y * 0.65, center.z);
-    final upperRing = <Vector3>[];
-    final lowerRing = <Vector3>[];
-
-    for (var i = 0; i < sides; i++) {
-      final angle = phase + (i / sides) * math.pi * 2;
-      final wobble = 0.86 + 0.18 * math.sin(angle * 2.0 + phase * 1.7);
-      final ca = math.cos(angle) * wobble;
-      final sa = math.sin(angle) * wobble;
-      upperRing.add(
-        Vector3(
-          center.x + ca * radii.x * 0.80,
-          center.y + radii.y * 0.36,
-          center.z + sa * radii.z * 0.80,
-        ),
-      );
-      lowerRing.add(
-        Vector3(
-          center.x + ca * radii.x,
-          center.y - radii.y * 0.16,
-          center.z + sa * radii.z,
-        ),
+    Vector4 tint(double mult, int salt) {
+      final jR = 1.0 + 0.06 * math.sin(phase * 1.9 + salt * 2.3);
+      final jG = 1.0 + 0.06 * math.cos(phase * 1.3 + salt * 3.1);
+      return Vector4(
+        (color.x * mult * jR).clamp(0.05, 1.45),
+        (color.y * mult * jG).clamp(0.05, 1.45),
+        (color.z * mult).clamp(0.05, 1.45),
+        color.w,
       );
     }
 
-    final crownTint = Vector4(
-      (color.x * 1.12).clamp(0.0, 1.5),
-      (color.y * 1.10).clamp(0.0, 1.5),
-      (color.z * 1.04).clamp(0.0, 1.5),
-      color.w,
-    );
-    final underTint = Vector4(
-      color.x * 0.72,
-      color.y * 0.74,
-      color.z * 0.84,
-      color.w,
-    );
+    const lowerCount = 5;
+    for (var i = 0; i < lowerCount; i++) {
+      final yaw = phase + (i / lowerCount) * math.pi * 2;
+      final stem = Vector3(
+        center.x + math.cos(yaw) * radii.x * 0.18,
+        center.y - radii.y * 0.18,
+        center.z + math.sin(yaw) * radii.z * 0.18,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: 0.24 + 0.05 * math.sin(i * 1.7 + phase),
+        length: radii.x * 1.08,
+        width: radii.z * 1.06,
+        droop: radii.y * 0.48,
+        color: tint(0.84, i),
+      );
+    }
 
+    const midCount = 4;
+    for (var i = 0; i < midCount; i++) {
+      final yaw = phase + 0.58 + (i / midCount) * math.pi * 2;
+      final stem = Vector3(
+        center.x + math.cos(yaw) * radii.x * 0.12,
+        center.y + radii.y * 0.10,
+        center.z + math.sin(yaw) * radii.z * 0.12,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: 0.46 + 0.06 * math.cos(i * 2.1 + phase),
+        length: radii.x * 0.98,
+        width: radii.z * 0.98,
+        droop: radii.y * 0.34,
+        color: tint(1.02, i + 7),
+      );
+    }
+
+    for (var i = 0; i < 2; i++) {
+      final yaw = phase + 1.15 + i * 2.15;
+      final stem = Vector3(
+        center.x - math.cos(yaw) * radii.x * 0.36,
+        center.y + radii.y * 0.42,
+        center.z - math.sin(yaw) * radii.z * 0.36,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: 0.18,
+        length: radii.x * 0.94,
+        width: radii.z * 0.94,
+        droop: radii.y * 0.26,
+        color: tint(1.16, i + 15),
+      );
+    }
+  }
+
+  static void addShrubRosette(
+    GeometryBuilder builder,
+    Vector3 baseCenter,
+    Vector3 radii, {
+    required Vector4 color,
+    double phase = 0,
+  }) {
+    const frondCount = 7;
+    for (var i = 0; i < frondCount; i++) {
+      final yaw = phase + (i / frondCount) * math.pi * 2;
+      final lift = (i.isEven ? 0.56 : 0.36) + 0.06 * math.sin(i * 1.9 + phase);
+      final shade = 0.88 + 0.22 * (i / frondCount);
+      final stem = Vector3(
+        baseCenter.x + math.cos(yaw) * 0.08,
+        baseCenter.y,
+        baseCenter.z + math.sin(yaw) * 0.08,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: lift,
+        length: radii.x * (0.94 + 0.14 * (i % 3)),
+        width: radii.z * 0.86,
+        droop: radii.y * 0.55,
+        color: Vector4(
+          color.x * shade,
+          color.y * (0.94 + 0.10 * (i % 2)),
+          color.z * shade,
+          color.w,
+        ),
+      );
+    }
+  }
+
+  static void addSculptedEllipsoid(
+    GeometryBuilder builder,
+    Vector3 center,
+    Vector3 radii, {
+    required Vector4 color,
+  }) {
+    const sides = 8;
+    final top = Vector3(center.x, center.y + radii.y, center.z);
+    final bottom = Vector3(center.x, center.y - radii.y, center.z);
+    final upper = <Vector3>[];
+    final lower = <Vector3>[];
+    for (var i = 0; i < sides; i++) {
+      final a = (i / sides) * math.pi * 2;
+      final ca = math.cos(a);
+      final sa = math.sin(a);
+      upper.add(
+        Vector3(
+          center.x + ca * radii.x * 0.86,
+          center.y + radii.y * 0.42,
+          center.z + sa * radii.z * 0.86,
+        ),
+      );
+      lower.add(
+        Vector3(
+          center.x + ca * radii.x * 0.86,
+          center.y - radii.y * 0.42,
+          center.z + sa * radii.z * 0.86,
+        ),
+      );
+    }
     for (var i = 0; i < sides; i++) {
       final next = (i + 1) % sides;
-      final u0 = upperRing[i];
-      final u1 = upperRing[next];
-      final l0 = lowerRing[i];
-      final l1 = lowerRing[next];
-      final midOut = ((u0 + u1 + l0 + l1) * 0.25) - center;
-
+      final u0 = upper[i];
+      final u1 = upper[next];
+      final l0 = lower[i];
+      final l1 = lower[next];
+      final outMid = ((u0 + u1 + l0 + l1) * 0.25) - center;
       addTriangleOutward(
         builder,
         u0,
         u1,
         top,
-        midOut + Vector3(0, radii.y, 0),
-        uvScale: 0.8,
-        color: crownTint,
-      );
-      addQuadOutward(
-        builder,
-        l0,
-        l1,
-        u1,
-        u0,
-        midOut,
-        uvScale: 0.8,
+        outMid + Vector3(0, radii.y, 0),
         color: color,
       );
+      addQuadOutward(builder, l0, l1, u1, u0, outMid, color: color);
       addTriangleOutward(
         builder,
         l1,
         l0,
         bottom,
-        midOut - Vector3(0, radii.y, 0),
-        uvScale: 0.8,
-        color: underTint,
+        outMid - Vector3(0, radii.y, 0),
+        color: color,
       );
     }
   }
@@ -1821,58 +1952,77 @@ class EdoKitBuilder {
       0.13,
       0.05,
     );
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(0.56, 2.86, -0.18),
+      const Vec3(0.84, 4.10, 0.68),
+      0.075,
+      0.032,
+    );
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(-0.38, 2.95, 0.16),
+      const Vec3(-0.88, 4.32, 0.12),
+      0.070,
+      0.030,
+    );
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(0.19, 3.85, 0.08),
+      const Vec3(0.24, 5.38, 0.14),
+      0.065,
+      0.026,
+    );
 
-    // Wide cloud-layered (tamamono) autumn canopy pads
     final pads = [
       (
         Vector3(-1.05, 3.38, -0.58),
-        Vector3(1.24, 0.38, 1.08),
+        Vector3(1.28, 0.44, 1.14),
         Vector4(0.95, 0.65, 0.55, 1),
         0.2,
       ),
       (
         Vector3(1.08, 3.58, -0.44),
-        Vector3(1.20, 0.36, 1.04),
+        Vector3(1.24, 0.42, 1.10),
         Vector4(1.18, 0.88, 0.52, 1),
         1.1,
       ),
       (
         Vector3(-0.56, 3.92, 0.88),
-        Vector3(1.28, 0.40, 1.12),
+        Vector3(1.32, 0.46, 1.18),
         Vector4(1.06, 0.72, 0.50, 1),
         2.0,
       ),
       (
         Vector3(0.84, 4.16, 0.72),
-        Vector3(1.12, 0.36, 0.98),
+        Vector3(1.18, 0.42, 1.04),
         Vector4(1.24, 0.96, 0.56, 1),
         2.9,
       ),
       (
         Vector3(-0.92, 4.38, 0.14),
-        Vector3(1.06, 0.34, 0.96),
+        Vector3(1.12, 0.40, 1.02),
         Vector4(1.02, 0.68, 0.48, 1),
         3.5,
       ),
       (
         Vector3(0.12, 4.68, -0.18),
-        Vector3(1.38, 0.42, 1.24),
+        Vector3(1.42, 0.48, 1.28),
         Vector4(1.14, 0.82, 0.52, 1),
         4.1,
       ),
       (
         Vector3(0.24, 5.42, 0.14),
-        Vector3(1.02, 0.36, 0.94),
+        Vector3(1.08, 0.42, 0.98),
         Vector4(1.28, 1.02, 0.58, 1),
         4.9,
       ),
     ];
 
     for (final p in pads) {
-      addFoliageCluster(mapleBuilder, p.$1, p.$2, color: p.$3, phase: p.$4);
+      addLeafSprayCloud(mapleBuilder, p.$1, p.$2, color: p.$3, phase: p.$4);
     }
 
-    // Mossy base boulder + green fern cushion
     addRockBoulder(
       rockBuilder,
       Vector3(0.68, 0.26, 0.46),
@@ -1880,10 +2030,10 @@ class EdoKitBuilder {
       yaw: 0.7,
       seed: 1.9,
     );
-    addFoliageCluster(
+    addShrubRosette(
       fernBuilder,
-      Vector3(-0.54, 0.26, 0.52),
-      Vector3(0.60, 0.24, 0.54),
+      Vector3(-0.54, 0.10, 0.52),
+      Vector3(0.76, 0.34, 0.72),
       color: Vector4(0.86, 0.98, 0.74, 1),
       phase: 0.8,
     );
@@ -1961,25 +2111,39 @@ class EdoKitBuilder {
     }
 
     final sprays = [
-      (Vector3(-0.78, 4.75, -0.52), Vector3(1.26, 0.38, 1.12), 0.92, 0.4),
-      (Vector3(0.74, 5.15, 0.48), Vector3(1.22, 0.36, 1.08), 1.04, 1.5),
-      (Vector3(-0.42, 5.68, 0.66), Vector3(1.16, 0.35, 1.04), 0.98, 2.2),
-      (Vector3(0.58, 6.02, -0.56), Vector3(1.18, 0.36, 1.06), 1.08, 2.9),
-      (Vector3(-0.14, 6.42, 0.08), Vector3(1.32, 0.40, 1.18), 1.12, 3.6),
-      (Vector3(0.10, 7.05, -0.06), Vector3(0.98, 0.34, 0.92), 1.18, 4.4),
-      (Vector3(-0.56, 0.34, -0.42), Vector3(0.66, 0.24, 0.60), 0.84, 0.9),
+      (Vector3(-0.78, 4.55, -0.52), Vector3(1.28, 0.44, 1.16), 0.92, 0.4),
+      (Vector3(0.74, 4.95, 0.48), Vector3(1.26, 0.42, 1.12), 1.04, 1.5),
+      (Vector3(-0.42, 5.52, 0.66), Vector3(1.20, 0.40, 1.08), 0.98, 2.2),
+      (Vector3(0.58, 5.92, -0.56), Vector3(1.22, 0.42, 1.10), 1.08, 2.9),
+      (Vector3(-0.14, 6.36, 0.08), Vector3(1.36, 0.46, 1.22), 1.12, 3.6),
+      (Vector3(0.10, 6.98, -0.06), Vector3(1.06, 0.40, 0.98), 1.18, 4.4),
     ];
 
     for (final s in sprays) {
       final shade = s.$3;
-      addFoliageCluster(
+      addLeafSprayCloud(
         foliageBuilder,
         s.$1,
         s.$2,
-        color: Vector4(shade * 0.94, shade * 1.04, shade * 0.84, 1),
+        color: Vector4(shade * 0.94, shade * 1.06, shade * 0.84, 1),
         phase: s.$4,
       );
     }
+
+    addShrubRosette(
+      foliageBuilder,
+      Vector3(-0.52, 0.08, -0.38),
+      Vector3(0.82, 0.36, 0.78),
+      color: Vector4(0.82, 0.96, 0.72, 1),
+      phase: 0.9,
+    );
+    addShrubRosette(
+      foliageBuilder,
+      Vector3(0.26, 0.08, 0.56),
+      Vector3(0.70, 0.32, 0.66),
+      color: Vector4(0.90, 1.04, 0.78, 1),
+      phase: 2.3,
+    );
 
     addRockBoulder(
       rockBuilder,
@@ -2122,8 +2286,7 @@ class EdoKitBuilder {
       color: haoriTint,
     );
 
-    // Head + wide conical woven sugegasa straw hat
-    addFoliageCluster(
+    addSculptedEllipsoid(
       clothBuilder,
       Vector3(0, 1.40, 0),
       Vector3(0.11, 0.11, 0.11),
