@@ -309,8 +309,14 @@ class _ShukubaPageState extends State<ShukubaPage> {
                         _draggedDuringPrimary = true;
                       }
 
+                      if ((_activeButtons & kSecondaryMouseButton) != 0) {
+                        setState(() {
+                          _cameraRig.orbitByScreenDelta(event.delta, viewSize);
+                        });
+                        return;
+                      }
+
                       final isPanGesture =
-                          (_activeButtons & kSecondaryMouseButton) != 0 ||
                           (_activeButtons & kMiddleMouseButton) != 0 ||
                           ((_activeButtons & kPrimaryMouseButton) != 0 &&
                               _isSpacePressed);

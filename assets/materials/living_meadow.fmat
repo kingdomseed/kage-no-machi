@@ -28,44 +28,32 @@ vertex {
       : instHash;
 
     if (subKind < 0.25) {
-      wp.y += (bHash - 0.48) * 0.12 * s;
+      wp.y += (bHash - 0.48) * 0.07 * s;
     }
 
     const vec2 windDir = vec2(0.7808688, 0.6246950);
     const vec2 crossDir = vec2(-0.6246950, 0.7808688);
 
-    float advect = dot(instOrigin.xz, windDir) * 0.135 - t * 0.86;
-    float swellA = 0.5 + 0.5 * sin(advect);
-    float swellB = 0.5 + 0.5 * sin(
-      advect * 1.77 + dot(instOrigin.xz, crossDir) * 0.17 - t * 0.49
-    );
-    float gustEnv = pow(clamp(swellA * 0.64 + swellB * 0.36, 0.0, 1.0), 1.50);
+    float spatialPhase = sin(instOrigin.x * 0.19 + instOrigin.z * 0.13) * 1.7
+      + cos(instOrigin.z * 0.17 - instOrigin.x * 0.11) * 1.5
+      + bHash * 6.2831853;
+    float slowBreath = sin(t * 0.72 + spatialPhase);
+    float gentleDrift = cos(t * 1.14 - spatialPhase * 0.63 + bHash * 3.1);
 
-    float eddy = sin(t * 2.55 + instOrigin.x * 0.82 + instOrigin.z * 0.68 + bHash * 6.2831853);
-    float flutter = sin(t * 7.6 + bHash * 17.0 + s * 2.8) * gustEnv * 0.026;
+    float reachScale = subKind < 0.25
+      ? (0.022 + 0.010 * bHash)
+      : (subKind < 0.55 ? 0.044 : 0.020);
+    float flex = pow(max(s, 0.0), 1.65) * material_params.gust_strength;
 
-    float stiffness = subKind < 0.25
-      ? (0.74 + 0.28 * bHash)
-      : (subKind < 0.55 ? 0.62 : 0.94);
-    float flex = pow(max(s, 0.0), 1.72) / stiffness;
-    float alongPush = (0.048 + 0.35 * gustEnv + 0.058 * eddy)
-      * material_params.gust_strength
-      * flex;
-    float crossPush = (eddy * 0.044 * flex + flutter + (bHash - 0.5) * 0.042 * s * s)
-      * material_params.gust_strength;
+    float alongPush = (0.32 + 0.68 * (0.5 + 0.5 * slowBreath)) * reachScale * flex;
+    float crossPush = gentleDrift * reachScale * 0.42 * flex;
 
     vec2 dispXZ = windDir * alongPush + crossDir * crossPush;
-    float dispSq = dot(dispXZ, dispXZ);
-
     wp.xz += dispXZ;
-    wp.y -= min(0.26, dispSq * 0.88);
+    wp.y -= min(0.04, dot(dispXZ, dispXZ) * 0.65);
     vertex.world_position = wp;
 
-    vec3 gustNormal = normalize(vec3(-windDir.x * 0.42, 0.90, -windDir.y * 0.42));
-    vertex.world_normal = normalize(
-      mix(vertex.world_normal, gustNormal, clamp(gustEnv * s * 0.72, 0.0, 0.84))
-    );
-    vertex.uv1 = vec2(bHash, gustEnv);
+    vertex.uv1 = vec2(bHash, 0.0);
   }
 }
 
@@ -74,7 +62,7 @@ fragment {
 
   float SusukiPlumeCoverage(vec2 uv, float seed, out float plumeTone) {
     vec2 p = vec2((uv.x - 0.5) * 2.0, clamp(uv.y, 0.0, 1.0));
-    float spine = 1.0 - smoothstep(0.035, 0.105, abs(p.x - 0.08 * p.y * p.y));
+    float spine = 1.0 - smoothstep(0.040, 0.115, abs(p.x - 0.08 * p.y * p.y));
     float alpha = spine * (1.0 - smoothstep(0.90, 1.0, p.y));
     float tone = 0.55 + 0.45 * p.y;
     for (int i = 0; i < 6; i++) {
@@ -92,7 +80,7 @@ fragment {
         if (along > -0.01 && along < len) {
           float u = clamp(along / len, 0.0, 1.0);
           float droop = -0.11 * fs * u * u;
-          float hw = sin(pow(u, 0.55) * 3.14159265) * 0.078 * (1.0 - 0.25 * u);
+          float hw = sin(pow(u, 0.55) * 3.14159265) * 0.084 * (1.0 - 0.22 * u);
           float m = 1.0 - smoothstep(hw * 0.35, hw * 1.05, abs(dot(rel, perp) - droop));
           if (m > alpha) {
             alpha = m;
@@ -140,94 +128,86 @@ fragment {
 
   void Surface(inout MaterialInputs material) {
     vec2 uv = GetUV0();
-    vec2 meadowState = GetUV1();
+    float bHash = GetUV1().x;
     vec4 vColor = GetVertexColor();
     vec3 worldPos = GetWorldPosition();
     vec3 viewDir = GetViewDirection();
     float subKind = vColor.a;
     float s = clamp(uv.y, 0.0, 1.0);
-    float bHash = meadowState.x;
-    float gustEnv = meadowState.y;
-    float gustSheen = gustEnv * (subKind < 0.25 ? s : 0.85);
 
     float coverage = 1.0;
     vec3 albedo;
     vec3 emissive = vec3(0.0);
-    float spec = 0.14;
+    float spec = 0.12;
 
     if (subKind < 0.25) {
-      float rootAo = mix(0.18, 1.0, smoothstep(0.0, 0.72, s));
-      float tipSun = smoothstep(0.32, 1.0, s);
+      float rootAo = mix(0.24, 1.0, smoothstep(0.0, 0.68, s));
+      float tipSun = smoothstep(0.28, 1.0, s);
 
-      vec3 deepRoot = vec3(0.012, 0.044, 0.010);
-      vec3 emeraldMid = vec3(0.056, 0.235, 0.026);
-      vec3 sunlitTip = vec3(0.31, 0.50, 0.062);
-      vec3 autumnStraw = vec3(0.38, 0.30, 0.082);
+      vec3 deepRoot = vec3(0.026, 0.036, 0.016);
+      vec3 sageMid = vec3(0.082, 0.138, 0.046);
+      vec3 sunlitOlive = vec3(0.205, 0.255, 0.086);
+      vec3 autumnStraw = vec3(0.355, 0.270, 0.105);
 
-      float meadowPatch = 0.5 + 0.5 * NoiseSimplex2(worldPos.xz * 0.11, 193);
+      float patchTone = 0.5 + 0.5 * NoiseSimplex2(worldPos.xz * 0.16, 193);
       float strawMix = clamp(
-        (1.0 - meadowPatch) * 0.46 + max(0.0, vColor.r - vColor.g) * 1.5 + (bHash - 0.5) * 0.16,
+        (1.0 - patchTone) * 0.52 + max(0.0, vColor.r - vColor.g) * 1.4 + (bHash - 0.5) * 0.22,
         0.0,
-        0.78
+        0.82
       );
-      vec3 lushBlade = mix(emeraldMid, sunlitTip, tipSun);
-      vec3 bladeRgb = mix(lushBlade, autumnStraw, strawMix * (0.35 + 0.65 * s));
+      vec3 oliveBlade = mix(sageMid, sunlitOlive, tipSun);
+      vec3 bladeRgb = mix(oliveBlade, autumnStraw, strawMix * (0.38 + 0.62 * s));
       bladeRgb = mix(deepRoot, bladeRgb, rootAo);
-      bladeRgb *= mix(vec3(0.86), vColor.rgb * 1.25, 0.52);
+      bladeRgb *= mix(vec3(0.88), vColor.rgb * 1.12, 0.48);
 
       vec3 geoN = GetWorldNormal();
-      float rimTranslucency = pow(1.0 - clamp(abs(dot(viewDir, geoN)), 0.0, 1.0), 2.1) * tipSun;
-      float gustFlash = (gustSheen + rimTranslucency * 0.55)
-        * (0.35 + 0.65 * material_params.sun_translucency);
-      bladeRgb += vec3(0.14, 0.19, 0.032) * gustFlash;
+      float rimTranslucency = pow(1.0 - clamp(abs(dot(viewDir, geoN)), 0.0, 1.0), 2.2) * tipSun;
+      bladeRgb += vec3(0.055, 0.068, 0.018) * rimTranslucency * material_params.sun_translucency;
 
-      float midrib = (uv.x - 0.5) * 0.32;
-      material.normal = normalize(mix(geoN + vec3(midrib, 0.0, -midrib), vec3(0.0, 1.0, 0.0), 0.44));
+      float midrib = (uv.x - 0.5) * 0.24;
+      material.normal = normalize(mix(geoN + vec3(midrib, 0.0, -midrib), vec3(0.0, 1.0, 0.0), 0.52));
 
       float dewMix = material_params.dew_sheen * tipSun;
-      spec = mix(0.18, 0.58, dewMix + gustSheen * 0.28);
+      spec = mix(0.14, 0.36, dewMix);
       albedo = bladeRgb;
-      emissive = bladeRgb
-        * (0.05 + 0.20 * tipSun + 0.14 * gustSheen + 0.14 * rimTranslucency)
-        * material_params.sun_translucency;
+      emissive = bladeRgb * (0.022 * tipSun + 0.032 * rimTranslucency) * material_params.sun_translucency;
     } else if (subKind < 0.55) {
       float plumeTone = 0.5;
       coverage = SusukiPlumeCoverage(uv, bHash, plumeTone);
-      vec3 stemGold = vec3(0.34, 0.27, 0.12);
-      vec3 silkyPlume = vec3(0.86, 0.78, 0.56);
+      vec3 stemGold = vec3(0.30, 0.24, 0.11);
+      vec3 silkyPlume = vec3(0.78, 0.70, 0.50);
       albedo = mix(stemGold, silkyPlume, plumeTone) * vColor.rgb;
-      albedo += vec3(0.15, 0.12, 0.05) * gustSheen * material_params.sun_translucency;
       material.normal = vec3(0.0, 1.0, 0.0);
-      spec = 0.32;
-      emissive = albedo * (0.15 + 0.25 * plumeTone) * material_params.sun_translucency;
+      spec = 0.24;
+      emissive = albedo * (0.04 + 0.06 * plumeTone) * material_params.sun_translucency;
     } else if (subKind < 0.80) {
       float isCenter = 0.0;
       coverage = NogikuFlowerCoverage(uv, bHash, isCenter);
-      vec3 ivoryPetal = mix(vec3(0.82, 0.84, 0.78), vec3(0.98, 0.97, 0.92), vColor.r);
-      vec3 yomenaPetal = vec3(0.84, 0.80, 0.97);
-      vec3 petalTone = mix(ivoryPetal, yomenaPetal, step(0.82, bHash) * 0.72);
-      vec3 stamenGold = vec3(0.88, 0.60, 0.08);
+      vec3 ivoryPetal = mix(vec3(0.78, 0.80, 0.74), vec3(0.94, 0.92, 0.86), vColor.r);
+      vec3 yomenaPetal = vec3(0.78, 0.75, 0.92);
+      vec3 petalTone = mix(ivoryPetal, yomenaPetal, step(0.80, bHash) * 0.72);
+      vec3 stamenGold = vec3(0.82, 0.55, 0.08);
       albedo = mix(petalTone, stamenGold, isCenter);
       material.normal = vec3(0.0, 1.0, 0.0);
-      spec = 0.22;
-      emissive = albedo * 0.14 * material_params.sun_translucency;
+      spec = 0.18;
+      emissive = albedo * 0.045 * material_params.sun_translucency;
     } else {
       float tipGlow = 0.0;
       coverage = HiganbanaCoverage(uv, bHash, tipGlow);
-      vec3 coreCrimson = vec3(0.38, 0.018, 0.016);
-      vec3 filamentScarlet = vec3(0.86, 0.075, 0.032);
+      vec3 coreCrimson = vec3(0.34, 0.018, 0.016);
+      vec3 filamentScarlet = vec3(0.78, 0.068, 0.028);
       albedo = mix(coreCrimson, filamentScarlet, tipGlow) * vColor.rgb;
       material.normal = vec3(0.0, 1.0, 0.0);
-      spec = 0.26;
-      emissive = albedo * 0.14 * material_params.sun_translucency;
+      spec = 0.22;
+      emissive = albedo * 0.05 * material_params.sun_translucency;
     }
 
-    float patchDapple = 0.90 + 0.20 * NoiseSimplex2(worldPos.xz * 0.42, 409);
+    float patchDapple = 0.92 + 0.16 * NoiseSimplex2(worldPos.xz * 0.38, 409);
     material.base_color = vec4(albedo * patchDapple, coverage);
-    material.roughness = 0.992;
+    material.roughness = 0.985;
     material.metallic = 0.0;
     material.specular = spec;
-    material.occlusion = subKind < 0.25 ? mix(0.36, 1.0, s) : 0.92;
+    material.occlusion = subKind < 0.25 ? mix(0.34, 1.0, s) : 0.90;
     material.emissive = emissive;
 
     PrepareMaterial(material);

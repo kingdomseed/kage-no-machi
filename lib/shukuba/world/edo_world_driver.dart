@@ -48,8 +48,6 @@ class _SimAgent {
   double yawRadians;
   Vector3 velocity;
 
-  Vec3 get forward => Vec3(math.sin(yawRadians), 0, math.cos(yawRadians));
-
   StreetAgentSnapshot toSnapshot() => StreetAgentSnapshot(
     id: id,
     role: role,
@@ -148,8 +146,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   ];
 
   @override
-  double sampleGroundHeight(double x, double z) =>
-      _terrainBuilder.sampleGroundHeight(x, z, terraces: _graph.terraces);
+  double sampleGroundHeight(double x, double z) => _terrainBuilder
+      .sampleGroundHeight(x, z, terraces: _graph.terraces, roads: _graph.roads);
 
   @override
   Future<void> attach(
@@ -190,7 +188,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   }
 
   void initSimulation({ShukubaGraph? initialGraph}) {
-    _graph = initialGraph ?? buildStarterShukubaGraph(sampleGroundHeight);
+    _graph =
+        initialGraph ??
+        buildStarterShukubaGraph(_terrainBuilder.sampleGroundHeight);
     _initAgents();
   }
 
@@ -201,25 +201,29 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         _SimAgent(
           id: EntityId.validated('townsfolk_kaido_1'),
           role: StreetAgentRole.townsfolk,
-          position: Vec3(-16, sampleGroundHeight(-16, 0.4), 0.4),
+          position: Vec3(-16, sampleGroundHeight(-16, 0.08), 0.08),
           waypoints: [
-            Vec3(-18, sampleGroundHeight(-18, 0.4), 0.4),
-            Vec3(-6, sampleGroundHeight(-6, -0.3), -0.3),
+            Vec3(-18, sampleGroundHeight(-18, 0.22), 0.22),
+            Vec3(-6, sampleGroundHeight(-6, -0.05), -0.05),
             Vec3(0, sampleGroundHeight(0, 0), 0),
-            Vec3(8.5, sampleGroundHeight(8.5, 0.6), 0.6),
-            Vec3(17, sampleGroundHeight(17, -0.4), -0.4),
+            Vec3(12.6, sampleGroundHeight(12.6, -0.12), -0.12),
+            Vec3(15.3, sampleGroundHeight(15.3, -0.15), -0.15),
+            Vec3(20.2, sampleGroundHeight(20.2, 0.30), 0.30),
+            Vec3(15.3, sampleGroundHeight(15.3, -0.15), -0.15),
+            Vec3(12.6, sampleGroundHeight(12.6, -0.12), -0.12),
+            Vec3(0, sampleGroundHeight(0, 0), 0),
           ],
           speed: 1.65,
         ),
         _SimAgent(
           id: EntityId.validated('lantern_innkeeper'),
           role: StreetAgentRole.lanternWatchman,
-          position: Vec3(-9.5, sampleGroundHeight(-9.5, -0.2), -0.2),
+          position: Vec3(-9.5, sampleGroundHeight(-9.5, -0.16), -0.16),
           waypoints: [
-            Vec3(-9.5, sampleGroundHeight(-9.5, -0.2), -0.2),
+            Vec3(-9.5, sampleGroundHeight(-9.5, -0.16), -0.16),
             Vec3(0, sampleGroundHeight(0, 0.2), 0.2),
             Vec3(9, sampleGroundHeight(9, 0.3), 0.3),
-            Vec3(9, sampleGroundHeight(9, 7.6), 7.6),
+            Vec3(9.3, sampleGroundHeight(9.3, 8.2), 8.2),
             Vec3(9, sampleGroundHeight(9, 0.3), 0.3),
             Vec3(0, sampleGroundHeight(0, 0.2), 0.2),
           ],
@@ -230,10 +234,10 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         _SimAgent(
           id: EntityId.validated('merchant_traveler'),
           role: StreetAgentRole.nightSmuggler,
-          position: Vec3(9, sampleGroundHeight(9, 11.5), 11.5),
+          position: Vec3(9.2, sampleGroundHeight(9.2, 11.5), 11.5),
           waypoints: [
             Vec3(9, sampleGroundHeight(9, 12), 12),
-            Vec3(9, sampleGroundHeight(9, 1.5), 1.5),
+            Vec3(9, sampleGroundHeight(9, 1.8), 1.8),
             Vec3(0, sampleGroundHeight(0, -0.3), -0.3),
             Vec3(-7.8, sampleGroundHeight(-7.8, -2), -2),
             Vec3(-8.4, sampleGroundHeight(-8.4, -9.2), -9.2),
@@ -336,6 +340,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           road,
           _resolveMaterial,
           sampleGroundHeight,
+          allRoads: _graph.roads,
+          terraces: _graph.terraces,
         ),
       );
     }
@@ -343,7 +349,12 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _terracesNode.removeAll();
     for (final terrace in _graph.terraces) {
       _terracesNode.add(
-        _terrainBuilder.buildTerraceNode(terrace, _resolveMaterial),
+        _terrainBuilder.buildTerraceNode(
+          terrace,
+          _resolveMaterial,
+          roads: _graph.roads,
+          allTerraces: _graph.terraces,
+        ),
       );
     }
 

@@ -545,11 +545,11 @@ class EdoLookDriver implements ShukubaLookDriver {
     switch (role) {
       case ShukubaSurfaceRole.packedEarth:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.15, 0.135, 0.082, 1))
-          ..setVec4('warm_tint', Vector4(0.28, 0.20, 0.105, 1))
-          ..setFloat('roughness_val', 0.93)
-          ..setFloat('grain_scale', 7.5)
-          ..setFloat('weathering', 0.26)
+          ..setVec4('base_tint', Vector4(0.175, 0.138, 0.088, 1))
+          ..setVec4('warm_tint', Vector4(0.305, 0.228, 0.132, 1))
+          ..setFloat('roughness_val', 0.92)
+          ..setFloat('grain_scale', 5.2)
+          ..setFloat('weathering', 0.20)
           ..setFloat('style_id', 5);
       case ShukubaSurfaceRole.ishigakiStone:
         mat.parameters
@@ -561,11 +561,11 @@ class EdoLookDriver implements ShukubaLookDriver {
           ..setFloat('style_id', 3);
       case ShukubaSurfaceRole.laneOverlay:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.27, 0.185, 0.105, 1))
-          ..setVec4('warm_tint', Vector4(0.40, 0.275, 0.155, 1))
-          ..setFloat('roughness_val', 0.89)
-          ..setFloat('grain_scale', 8.5)
-          ..setFloat('weathering', 0.22)
+          ..setVec4('base_tint', Vector4(0.33, 0.235, 0.135, 1))
+          ..setVec4('warm_tint', Vector4(0.47, 0.340, 0.195, 1))
+          ..setFloat('roughness_val', 0.88)
+          ..setFloat('grain_scale', 6.4)
+          ..setFloat('weathering', 0.18)
           ..setFloat('style_id', 5.5);
       case ShukubaSurfaceRole.plasterWall:
         mat.parameters

@@ -13,6 +13,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         GroundHeightSampler,
         PlacedStructure,
+        RoadStyle,
         ShukubaGraph,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
@@ -79,14 +80,29 @@ class _SegBox {
   }
 }
 
+class _NaturalAnchor {
+  const new({
+    required this.x,
+    required this.z,
+    required this.coreRadius,
+    required this.haloRadius,
+  });
+
+  final double x;
+  final double z;
+  final double coreRadius;
+  final double haloRadius;
+}
+
 class _FloraExclusionIndex {
   factory fromGraph(ShukubaGraph graph) {
     final roadSegs = <_SegBox>[];
     for (final road in graph.roads) {
       final halfW = road.widthMeters * 0.5;
-      for (var i = 0; i < road.controlPoints.length - 1; i++) {
-        final a = road.controlPoints[i];
-        final b = road.controlPoints[i + 1];
+      final pts = road.smoothCenterline(stepMeters: 1);
+      for (var i = 0; i < pts.length - 1; i++) {
+        final a = pts[i];
+        final b = pts[i + 1];
         roadSegs.add(
           _SegBox(
             a.x,
@@ -140,17 +156,25 @@ class _FloraExclusionIndex {
             math.max(a.x, b.x),
             math.min(a.z, b.z),
             math.max(a.z, b.z),
-            0.74,
+            0.82,
           ),
         );
       }
     }
 
     final buildings = <PlacedStructure>[];
-    final treeCenters = <Vec3>[];
+    final naturalAnchors = <_NaturalAnchor>[];
     for (final s in graph.structures.values) {
-      if (s.kind.isBotanicalTree) {
-        treeCenters.add(s.position);
+      if (s.kind.isNaturalFeature) {
+        final isRock = s.kind == StructureKind.rockOutcrop;
+        naturalAnchors.add(
+          _NaturalAnchor(
+            x: s.position.x,
+            z: s.position.z,
+            coreRadius: isRock ? 1.05 : 0.44,
+            haloRadius: isRock ? 3.25 : 3.55,
+          ),
+        );
       } else {
         buildings.add(s);
       }
@@ -161,7 +185,7 @@ class _FloraExclusionIndex {
       wallSegs: wallSegs,
       terraceSegs: terraceSegs,
       buildings: buildings,
-      treeCenters: treeCenters,
+      naturalAnchors: naturalAnchors,
     );
   }
 
@@ -170,21 +194,30 @@ class _FloraExclusionIndex {
     required this.wallSegs,
     required this.terraceSegs,
     required this.buildings,
-    required this.treeCenters,
+    required this.naturalAnchors,
   });
 
   final List<_SegBox> roadSegs;
   final List<_SegBox> wallSegs;
   final List<_SegBox> terraceSegs;
   final List<PlacedStructure> buildings;
-  final List<Vec3> treeCenters;
+  final List<_NaturalAnchor> naturalAnchors;
+
+  bool isNearRoad(double x, double z, double extraMargin) {
+    for (var i = 0; i < roadSegs.length; i++) {
+      if (roadSegs[i].containsWithin(x, z, extraMargin)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   bool isClear(
     double x,
     double z, {
-    double roadMargin = 0.36,
-    double footprintMargin = 0.30,
-    double minRiverDist = 2.36,
+    double roadMargin = 0.42,
+    double footprintMargin = 0.34,
+    double minRiverDist = 2.40,
   }) {
     if (x < TerrainConfig.minX + 1.1 ||
         x > TerrainConfig.maxX - 1.1 ||
@@ -197,17 +230,15 @@ class _FloraExclusionIndex {
       return false;
     }
 
-    if (x >= TerrainConfig.bridgeMinX - 0.75 &&
-        x <= TerrainConfig.bridgeMaxX + 0.75 &&
-        z >= TerrainConfig.bridgeMinZ - 0.62 &&
-        z <= TerrainConfig.bridgeMaxZ + 0.62) {
+    if (x >= TerrainConfig.bridgeMinX - 0.85 &&
+        x <= TerrainConfig.bridgeMaxX + 0.85 &&
+        z >= TerrainConfig.bridgeMinZ - 0.72 &&
+        z <= TerrainConfig.bridgeMaxZ + 0.72) {
       return false;
     }
 
-    for (var i = 0; i < roadSegs.length; i++) {
-      if (roadSegs[i].containsWithin(x, z, roadMargin)) {
-        return false;
-      }
+    if (isNearRoad(x, z, roadMargin)) {
+      return false;
     }
 
     for (var i = 0; i < wallSegs.length; i++) {
@@ -222,11 +253,11 @@ class _FloraExclusionIndex {
       }
     }
 
-    for (var i = 0; i < treeCenters.length; i++) {
-      final tc = treeCenters[i];
-      final dx = x - tc.x;
-      final dz = z - tc.z;
-      if (dx * dx + dz * dz < 0.18) {
+    for (var i = 0; i < naturalAnchors.length; i++) {
+      final a = naturalAnchors[i];
+      final dx = x - a.x;
+      final dz = z - a.z;
+      if (dx * dx + dz * dz < a.coreRadius * a.coreRadius) {
         return false;
       }
     }
@@ -250,10 +281,10 @@ class _FloraExclusionIndex {
     var best = 99.0;
     for (var i = 0; i < terraceSegs.length; i++) {
       final s = terraceSegs[i];
-      if (x < s.minX - 4 ||
-          x > s.maxX + 4 ||
-          z < s.minZ - 4 ||
-          z > s.maxZ + 4) {
+      if (x < s.minX - 5 ||
+          x > s.maxX + 5 ||
+          z < s.minZ - 5 ||
+          z > s.maxZ + 5) {
         continue;
       }
       final d = TerrainBuilder.horizontalDistanceToSegment(
@@ -268,10 +299,10 @@ class _FloraExclusionIndex {
     }
     for (var i = 0; i < wallSegs.length; i++) {
       final s = wallSegs[i];
-      if (x < s.minX - 4 ||
-          x > s.maxX + 4 ||
-          z < s.minZ - 4 ||
-          z > s.maxZ + 4) {
+      if (x < s.minX - 5 ||
+          x > s.maxX + 5 ||
+          z < s.minZ - 5 ||
+          z > s.maxZ + 5) {
         continue;
       }
       final d = TerrainBuilder.horizontalDistanceToSegment(
@@ -286,6 +317,57 @@ class _FloraExclusionIndex {
     }
     return best;
   }
+
+  double sampleHabitatAffinity(double x, double z) {
+    final wallDist = minWallOrTerraceDistance(x, z);
+    final wallPocket = wallDist < 3.4
+        ? math.exp(-math.pow((wallDist - 1.15) / 1.05, 2)) * 0.92
+        : 0.0;
+
+    final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
+    final bankPocket = rivDist < 6.4
+        ? math.exp(-math.pow((rivDist - 3.45) / 1.65, 2)) * 0.88
+        : 0.0;
+
+    var anchorPocket = 0.0;
+    for (var i = 0; i < naturalAnchors.length; i++) {
+      final a = naturalAnchors[i];
+      final dx = x - a.x;
+      final dz = z - a.z;
+      final maxR = a.haloRadius + 1.2;
+      final dSq = dx * dx + dz * dz;
+      if (dSq > maxR * maxR) {
+        continue;
+      }
+      final d = math.sqrt(dSq);
+      final ring = math
+          .exp(-math.pow((d - (a.coreRadius + 0.55)) / 1.45, 2))
+          .clamp(0.0, 1.0);
+      if (ring > anchorPocket) {
+        anchorPocket = ring;
+      }
+    }
+
+    final wx =
+        x + 2.7 * math.sin(z * 0.13 + 0.8) + 1.4 * math.cos(x * 0.21 - 0.5);
+    final wz =
+        z + 2.7 * math.cos(x * 0.14 - 0.4) + 1.4 * math.sin(z * 0.19 + 1.1);
+    final organicDrift =
+        0.5 +
+        0.28 * math.sin(wx * 0.23 + wz * 0.17) +
+        0.22 * math.cos(wz * 0.31 - wx * 0.19);
+    final radialOut = math.sqrt(x * x + z * z);
+    final countryMargin = ((radialOut - 18.0) / 13.0).clamp(0.0, 1.0);
+    final outerClump = organicDrift > 0.68
+        ? ((organicDrift - 0.68) / 0.32) * 0.66 * countryMargin
+        : 0.0;
+
+    final primary = math.max(
+      math.max(wallPocket, bankPocket),
+      math.max(anchorPocket * 0.95, outerClump),
+    );
+    return (primary * (0.76 + 0.34 * organicDrift)).clamp(0.0, 1.0);
+  }
 }
 
 class FloraScatterBuilder {
@@ -295,8 +377,8 @@ class FloraScatterBuilder {
     double x,
     double z,
     ShukubaGraph graph, {
-    double roadMargin = 0.36,
-    double footprintMargin = 0.30,
+    double roadMargin = 0.42,
+    double footprintMargin = 0.34,
   }) => _FloraExclusionIndex.fromGraph(graph)
       .isClear(x, z, roadMargin: roadMargin, footprintMargin: footprintMargin);
 
@@ -314,7 +396,7 @@ class FloraScatterBuilder {
     final willowCutoutMat = resolveMaterial(ShukubaSurfaceRole.willowCanopy);
 
     final swardInstanced = InstancedMesh(
-      geometry: _buildMeadowSwardPrototypeGeometry(bladeCount: 26),
+      geometry: _buildMeadowSwardPrototypeGeometry(bladeCount: 12),
       material: livingMat,
     );
     final nogikuInstanced = InstancedMesh(
@@ -359,14 +441,14 @@ class FloraScatterBuilder {
       required double sz,
       required Vector4 color,
       double yLift = 0,
-      double slopeFollow = 0.42,
+      double slopeFollow = 0.38,
     }) {
       final gy = sampleGroundY(x, z);
       final hx =
           (sampleGroundY(x + 0.25, z) - sampleGroundY(x - 0.25, z)) / 0.5;
       final hz =
           (sampleGroundY(x, z + 0.25) - sampleGroundY(x, z - 0.25)) / 0.5;
-      if (hx.abs() > 1.45 || hz.abs() > 1.45) {
+      if (hx.abs() > 1.35 || hz.abs() > 1.35) {
         return false;
       }
       final up = Vector3(-hx * slopeFollow, 1, -hz * slopeFollow).normalized();
@@ -397,45 +479,28 @@ class FloraScatterBuilder {
     }
 
     const span = 73.0;
-    const swardCandidates = 4500;
+    const swardCandidates = 2350;
     for (var i = 0; i < swardCandidates; i++) {
       final ux = ((i + 1) * 0.7548776662466927) % 1.0;
       final uz = ((i + 1) * 0.5698402909980532) % 1.0;
-      final x = -36.5 + ux * span;
-      final z = -36.5 + uz * span;
+      final h = (math.sin(i * 12.9898 + 4.1) * 43758.5453).abs() % 1.0;
+      final jx = (math.sin(i * 7.13 + 1.7) * 1973.3).abs() % 1.0 - 0.5;
+      final jz = (math.sin(i * 11.41 + 3.2) * 2411.9).abs() % 1.0 - 0.5;
+      final x = -36.5 + ux * span + jx * 0.65;
+      final z = -36.5 + uz * span + jz * 0.65;
 
-      final macroLush =
-          0.5 +
-          0.5 *
-              math.sin(x * 0.15 + z * 0.12 + 0.6) *
-              math.cos(z * 0.19 - x * 0.11);
-      final mesoPatch = 0.5 + 0.5 * math.sin(x * 0.42 - z * 0.37 + 1.4);
-      final microHash = (math.sin(i * 12.9898 + 4.1) * 43758.5453).abs() % 1.0;
-
-      final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
-      final moistureBoost = ((11.0 - rivDist) / 8.5).clamp(0.0, 1.0) * 0.25;
-      final densityScore =
-          macroLush * 0.54 +
-          mesoPatch * 0.28 +
-          microHash * 0.18 +
-          moistureBoost;
-      if (densityScore < 0.20) {
+      final habitat = index.sampleHabitatAffinity(x, z);
+      if (habitat < 0.44 || h > habitat * 1.12) {
         continue;
       }
-      if (!index.isClear(x, z, roadMargin: 0.30, footprintMargin: 0.24)) {
+      if (!index.isClear(x, z, roadMargin: 0.44)) {
         continue;
       }
 
-      final lushness = (macroLush * 0.72 + moistureBoost * 0.9 + 0.14).clamp(
-        0.18,
-        1.0,
-      );
-      final radiusScale = 0.88 + 0.44 * microHash;
-      final heightScale =
-          (0.28 + 0.38 * lushness * (0.68 + 0.55 * mesoPatch)) *
-          (0.84 + 0.34 * microHash);
-
-      final tint = 0.88 + 0.24 * microHash;
+      final radiusScale = 0.84 + 0.42 * h;
+      final heightScale = (0.36 + 0.42 * habitat) * (0.82 + 0.34 * h);
+      final tint = 0.88 + 0.22 * h;
+      final dryStrawBias = (1.0 - habitat).clamp(0.0, 1.0);
       addAlignedInstance(
         swardInstanced,
         x: x,
@@ -445,93 +510,33 @@ class FloraScatterBuilder {
         sy: heightScale,
         sz: radiusScale,
         color: Vector4(
-          tint * (0.91 + 0.15 * (1 - lushness)),
-          tint * (0.97 + 0.08 * lushness),
-          tint * 0.87,
+          tint * (0.94 + 0.16 * dryStrawBias),
+          tint * (0.96 + 0.06 * habitat),
+          tint * 0.86,
           1,
         ),
         yLift: -0.015,
       );
     }
 
-    const meadowInfillCandidates = 1350;
-    for (var i = 0; i < meadowInfillCandidates; i++) {
-      final ux = ((i + 19) * 0.7548776662466927) % 1.0;
-      final uz = ((i + 19) * 0.5698402909980532) % 1.0;
-      final x = -23.0 + ux * 22.0;
-      final z = 2.0 + uz * 24.0;
-      final h = (math.sin(i * 14.37 + 1.8) * 28917.3).abs() % 1.0;
-      final dx = (x - -9.2) / 11.5;
-      final dz = (z - 14.2) / 11.2;
-      final wobble = 0.18 * math.sin(x * 0.37 - z * 0.31);
-      final radialWeight = (1.0 - (dx * dx + dz * dz + wobble)).clamp(0.0, 1.0);
-      if (radialWeight <= 0 || h > radialWeight * 1.12) {
-        continue;
-      }
-      if (!index.isClear(x, z, roadMargin: 0.32, footprintMargin: 0.26)) {
-        continue;
-      }
-      final wave = 0.5 + 0.5 * math.sin(x * 0.28 + z * 0.22);
-      final lush = (0.48 + 0.42 * wave * radialWeight).clamp(0.24, 1.0);
-      final radiusScale = 0.88 + 0.36 * h;
-      final heightScale =
-          (0.30 + 0.34 * lush * (0.65 + 0.35 * radialWeight)) *
-          (0.84 + 0.34 * h);
-      final tint = 0.89 + 0.22 * h;
-      addAlignedInstance(
-        swardInstanced,
-        x: x,
-        z: z,
-        yaw: (i * 2.39996323 + 0.9) % (math.pi * 2),
-        sx: radiusScale,
-        sy: heightScale,
-        sz: radiusScale,
-        color: Vector4(
-          tint * (0.91 + 0.14 * (1 - lush)),
-          tint * (0.97 + 0.08 * lush),
-          tint * 0.87,
-          1,
-        ),
-        yLift: -0.015,
-      );
-      if (i % 4 == 0 &&
-          index.isClear(x, z, roadMargin: 0.44, footprintMargin: 0.40)) {
-        addAlignedInstance(
-          nogikuInstanced,
-          x: x + (h - 0.5) * 0.22,
-          z: z + (wave - 0.5) * 0.22,
-          yaw: (i * 1.61803399) % (math.pi * 2),
-          sx: 0.78 + 0.38 * h,
-          sy: 0.34 + 0.26 * (0.55 + 0.45 * wave),
-          sz: 0.78 + 0.38 * h,
-          color: Vector4(0.90 + 0.10 * h, 0.97, 0.90 + 0.08 * (1 - h), 1),
-          yLift: -0.01,
-        );
-      }
-    }
-
-    const nogikuCandidates = 860;
+    const nogikuCandidates = 340;
     for (var i = 0; i < nogikuCandidates; i++) {
       final ux = ((i + 37) * 0.7548776662466927) % 1.0;
       final uz = ((i + 37) * 0.5698402909980532) % 1.0;
-      final x = -35.5 + ux * 71.0;
-      final z = -35.5 + uz * 71.0;
+      final x = -35.0 + ux * 70.0;
+      final z = -35.0 + uz * 70.0;
 
-      final colony =
-          0.5 +
-          0.5 *
-              math.sin(x * 0.22 + z * 0.25 + 1.1) *
-              math.cos(x * 0.17 - z * 0.29 + 0.4);
+      final habitat = index.sampleHabitatAffinity(x, z);
       final h = (math.sin(i * 19.17 + 2.3) * 31741.7).abs() % 1.0;
-      if (colony * 0.76 + h * 0.24 < 0.47) {
+      if (habitat < 0.54 || h > habitat * 0.92) {
         continue;
       }
-      if (!index.isClear(x, z, roadMargin: 0.44, footprintMargin: 0.40)) {
+      if (!index.isClear(x, z, roadMargin: 0.54, footprintMargin: 0.44)) {
         continue;
       }
 
-      final scaleXZ = 0.82 + 0.42 * h;
-      final scaleY = 0.30 + 0.24 * colony * (0.80 + 0.40 * h);
+      final scaleXZ = 0.78 + 0.36 * h;
+      final scaleY = 0.30 + 0.22 * habitat * (0.82 + 0.32 * h);
       final warmCream = 0.88 + 0.12 * h;
       addAlignedInstance(
         nogikuInstanced,
@@ -541,12 +546,12 @@ class FloraScatterBuilder {
         sx: scaleXZ,
         sy: scaleY,
         sz: scaleXZ,
-        color: Vector4(warmCream, 0.96, 0.88 + 0.10 * (1 - h), 1),
+        color: Vector4(warmCream, 0.95, 0.88 + 0.10 * (1 - h), 1),
         yLift: -0.01,
       );
     }
 
-    const susukiCandidates = 640;
+    const susukiCandidates = 280;
     for (var i = 0; i < susukiCandidates; i++) {
       final ux = ((i + 91) * 0.7548776662466927) % 1.0;
       final uz = ((i + 91) * 0.5698402909980532) % 1.0;
@@ -554,19 +559,20 @@ class FloraScatterBuilder {
       final z = -36.0 + uz * 72.0;
 
       final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
-      final bankRibbon = math.exp(-math.pow((rivDist - 4.6) / 2.6, 2));
-      final ridgeDrift =
-          0.5 + 0.5 * math.sin(x * 0.16 - z * 0.21 + 2.2) * math.cos(z * 0.14);
+      final bankRibbon = math.exp(-math.pow((rivDist - 3.9) / 1.9, 2));
+      final habitat = index.sampleHabitatAffinity(x, z);
+      final outerBluff = math.sqrt(x * x + z * z) > 22.0 ? habitat * 0.72 : 0.0;
       final h = (math.sin(i * 31.7 + 0.9) * 18913.3).abs() % 1.0;
-      if (math.max(bankRibbon * 0.92, ridgeDrift) * 0.78 + h * 0.22 < 0.50) {
+      final affinity = math.max(bankRibbon, outerBluff);
+      if (affinity < 0.52 || h > affinity * 0.95) {
         continue;
       }
-      if (!index.isClear(x, z, roadMargin: 0.62, footprintMargin: 0.58)) {
+      if (!index.isClear(x, z, roadMargin: 0.68, footprintMargin: 0.60)) {
         continue;
       }
 
-      final scaleXZ = 0.85 + 0.40 * h;
-      final scaleY = 0.76 + 0.46 * (0.55 + 0.45 * h);
+      final scaleXZ = 0.82 + 0.36 * h;
+      final scaleY = 0.68 + 0.38 * (0.55 + 0.45 * h);
       addAlignedInstance(
         susukiInstanced,
         x: x,
@@ -575,13 +581,13 @@ class FloraScatterBuilder {
         sx: scaleXZ,
         sy: scaleY,
         sz: scaleXZ,
-        color: Vector4(1.04, 0.96 + 0.08 * h, 0.82 + 0.12 * h, 1),
+        color: Vector4(1, 0.94 + 0.08 * h, 0.80 + 0.12 * h, 1),
         yLift: -0.02,
-        slopeFollow: 0.26,
+        slopeFollow: 0.24,
       );
     }
 
-    const higanbanaCandidates = 420;
+    const higanbanaCandidates = 180;
     for (var i = 0; i < higanbanaCandidates; i++) {
       final ux = ((i + 151) * 0.7548776662466927) % 1.0;
       final uz = ((i + 151) * 0.5698402909980532) % 1.0;
@@ -590,17 +596,18 @@ class FloraScatterBuilder {
 
       final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
       final wallDist = index.minWallOrTerraceDistance(x, z);
-      final nearBank = rivDist >= 2.55 && rivDist <= 5.4;
-      final nearStone = wallDist >= 0.82 && wallDist <= 2.45;
+      final nearBank = rivDist >= 2.55 && rivDist <= 4.8;
+      final nearStone = wallDist >= 0.86 && wallDist <= 2.25;
       if (!nearBank && !nearStone) {
         continue;
       }
-      final cluster = 0.5 + 0.5 * math.sin(x * 0.48 + z * 0.52);
       final h = (math.sin(i * 23.1 + 5.1) * 15731.9).abs() % 1.0;
-      if (cluster * 0.75 + h * 0.25 < 0.58) {
+      final colony =
+          0.5 + 0.5 * math.sin(x * 0.39 + z * 0.43 + 0.8) * math.cos(z * 0.29);
+      if (colony * 0.76 + h * 0.24 < 0.66) {
         continue;
       }
-      if (!index.isClear(x, z, roadMargin: 0.48, footprintMargin: 0.44)) {
+      if (!index.isClear(x, z, roadMargin: 0.54, footprintMargin: 0.48)) {
         continue;
       }
 
@@ -609,39 +616,42 @@ class FloraScatterBuilder {
         x: x,
         z: z,
         yaw: h * math.pi * 2,
-        sx: 0.78 + 0.30 * h,
-        sy: 0.36 + 0.18 * h,
-        sz: 0.78 + 0.30 * h,
-        color: Vector4(1.06, 0.88 + 0.12 * h, 0.84, 1),
+        sx: 0.74 + 0.26 * h,
+        sy: 0.34 + 0.16 * h,
+        sz: 0.74 + 0.26 * h,
+        color: Vector4(1.02, 0.86 + 0.12 * h, 0.82, 1),
         yLift: -0.01,
-        slopeFollow: 0.28,
+        slopeFollow: 0.26,
       );
     }
 
-    const reedCandidates = 860;
+    const reedCandidates = 520;
     for (var i = 0; i < reedCandidates; i++) {
       final side = i.isEven ? -1.0 : 1.0;
       final u = ((i + 1) * 0.6180339887498949) % 1.0;
-      final z = -35.8 + (i / reedCandidates) * 71.6 + (u - 0.5) * 0.58;
-      final standMask = 0.5 + 0.5 * math.sin(z * 0.36 + side * 1.4);
-      if (standMask < 0.20 && (i % 3 != 0)) {
+      final z = -35.8 + (i / reedCandidates) * 71.6 + (u - 0.5) * 0.64;
+      final standMask =
+          0.5 +
+          0.32 * math.sin(z * 0.31 + side * 1.4) +
+          0.18 * math.cos(z * 0.57 - side * 0.8);
+      if (standMask < 0.42) {
         continue;
       }
       final goldenMix = (i * 0.38196601125) % 1.0;
-      final bankDist = 2.34 + 2.05 * goldenMix;
+      final bankDist = 2.34 + 1.75 * goldenMix;
       final x = TerrainConfig.riverCenterX(z) + side * bankDist;
-      if (!index.isClear(x, z, roadMargin: 0.34, minRiverDist: 2.28)) {
+      if (!index.isClear(x, z, roadMargin: 0.40, minRiverDist: 2.28)) {
         continue;
       }
 
       final hSeed = (math.sin(i * 7.73 + 1.9) * 917.3).abs() % 1.0;
-      final r = 0.42 + 0.30 * (1 - goldenMix * 0.48) + 0.08 * hSeed;
-      final g = 0.42 + 0.08 * hSeed;
+      final r = 0.40 + 0.28 * (1 - goldenMix * 0.48) + 0.08 * hSeed;
+      final g = 0.39 + 0.08 * hSeed;
       final b = 0.13 + 0.04 * hSeed;
 
-      final width = 0.56 + 0.30 * hSeed;
+      final width = 0.54 + 0.26 * hSeed;
       final height =
-          0.72 + 0.52 * (1 - goldenMix * 0.40) * (0.75 + 0.42 * hSeed);
+          0.66 + 0.44 * (1 - goldenMix * 0.40) * (0.75 + 0.38 * hSeed);
       addAlignedInstance(
         reedInstanced,
         x: x,
@@ -656,42 +666,39 @@ class FloraScatterBuilder {
       );
     }
 
-    const shrubCandidates = 420;
+    const shrubCandidates = 280;
     for (var i = 0; i < shrubCandidates; i++) {
       final ux = ((i + 17) * 0.7548776662466927) % 1.0;
       final uz = ((i + 17) * 0.5698402909980532) % 1.0;
       final x = -34.8 + ux * 69.6;
       final z = -34.8 + uz * 69.6;
-      final wallDist = index.minWallOrTerraceDistance(x, z);
-      final nearEdge = wallDist < 2.4 ? 0.24 : 0.0;
-      final cluster =
-          0.5 + 0.5 * math.sin(x * 0.23 - z * 0.27) * math.cos(z * 0.19);
-      if (cluster + nearEdge < 0.48) {
-        continue;
-      }
-      if (!index.isClear(x, z, roadMargin: 0.68, footprintMargin: 0.52)) {
-        continue;
-      }
+      final habitat = index.sampleHabitatAffinity(x, z);
       final sHash = (math.sin(i * 17.3 + 2.7) * 613.9).abs() % 1.0;
-      final russet = sHash > 0.76;
+      if (habitat < 0.56 || sHash > habitat * 0.90) {
+        continue;
+      }
+      if (!index.isClear(x, z, roadMargin: 0.72, footprintMargin: 0.54)) {
+        continue;
+      }
+      final russet = sHash > 0.70;
       final shColor = russet
-          ? Vector4(2.10, 0.94 + 0.34 * sHash, 0.52, 1)
-          : Vector4(0.82 + 0.28 * sHash, 0.98 + 0.20 * sHash, 0.72, 1);
-      final rad = 0.52 + 0.36 * sHash;
+          ? Vector4(1.95, 0.88 + 0.32 * sHash, 0.48, 1)
+          : Vector4(0.76 + 0.24 * sHash, 0.92 + 0.18 * sHash, 0.66, 1);
+      final rad = 0.50 + 0.34 * sHash;
       addAlignedInstance(
         shrubInstanced,
         x: x,
         z: z,
         yaw: sHash * math.pi * 2,
         sx: rad,
-        sy: 0.34 + 0.24 * sHash,
+        sy: 0.32 + 0.22 * sHash,
         sz: rad,
         color: shColor,
         yLift: 0.02,
       );
     }
 
-    _populateTerraceWallDrapes(wallDrapeInstanced, graph);
+    _populateTerraceWallDrapes(wallDrapeInstanced, graph, index);
 
     var mapleIndex = 0;
     for (final s in graph.structures.values) {
@@ -699,12 +706,12 @@ class FloraScatterBuilder {
         continue;
       }
       mapleIndex++;
-      const patchCount = 46;
+      const patchCount = 40;
       for (var k = 0; k < patchCount; k++) {
         final frac = (k + 0.5) / patchCount;
         final ang = k * 2.39996323 + mapleIndex * 1.1;
         final downwindBias = 0.35 * math.max(0, math.cos(ang - 0.67)) * frac;
-        final radius = 0.48 + (3.25 + downwindBias * 2.2) * math.sqrt(frac);
+        final radius = 0.48 + (3.15 + downwindBias * 2.0) * math.sqrt(frac);
         final x = s.position.x + math.cos(ang) * radius;
         final z = s.position.z + math.sin(ang) * radius;
         if (!index.isClear(x, z, roadMargin: -0.22, footprintMargin: 0.20)) {
@@ -714,7 +721,7 @@ class FloraScatterBuilder {
         final r = 0.68 + 0.26 * warmGold;
         final g = 0.07 + 0.30 * warmGold * warmGold;
         final b = 0.03 + 0.03 * warmGold;
-        final patchSize = 0.40 + 0.26 * ((k * 0.61) % 1.0);
+        final patchSize = 0.38 + 0.24 * ((k * 0.61) % 1.0);
         addAlignedInstance(
           fallenLeafInstanced,
           x: x,
@@ -730,7 +737,7 @@ class FloraScatterBuilder {
       }
     }
 
-    const riverLeafCount = 38;
+    const riverLeafCount = 34;
     for (var i = 0; i < riverLeafCount; i++) {
       final z = -31.0 + (i / riverLeafCount) * 62.0;
       if (z >= TerrainConfig.bridgeMinZ - 0.8 &&
@@ -818,6 +825,7 @@ class FloraScatterBuilder {
   static void _populateTerraceWallDrapes(
     InstancedMesh target,
     ShukubaGraph graph,
+    _FloraExclusionIndex index,
   ) {
     final xform = Matrix4.identity();
     var seedIdx = 0;
@@ -831,24 +839,24 @@ class FloraScatterBuilder {
         final cy = math.cos(yaw);
         final sy = math.sin(yaw);
         final segLen = (b - a).horizontalLength;
-        final steps = math.max(1, (segLen / 2.35).floor());
+        final steps = math.max(1, (segLen / 2.85).floor());
 
         for (var k = 0; k < steps; k++) {
           seedIdx++;
           final h = (math.sin(seedIdx * 13.7 + 2.1) * 7919.3).abs() % 1.0;
-          if (h < 0.38) {
+          if (h < 0.58) {
             continue;
           }
           final t = (k + 0.25 + 0.5 * h) / steps;
           final crest = Vec3.lerp(a, b, t);
-          if (crest.z.abs() < 3.4) {
+          if (index.isNearRoad(crest.x, crest.z, 1.45)) {
             continue;
           }
-          final proudX = crest.x + drop.x * 0.14;
-          final proudZ = crest.z + drop.z * 0.14;
-          final topY = terrace.topElevation - 0.04;
-          final width = 0.72 + 0.44 * h;
-          final hang = 0.56 + 0.52 * ((seedIdx * 0.41) % 1.0);
+          final proudX = crest.x + drop.x * 0.36;
+          final proudZ = crest.z + drop.z * 0.36;
+          final topY = terrace.topElevation + 0.08 - 0.22 * (1.0 - h);
+          final width = 0.54 + 0.34 * h;
+          final hang = 0.44 + 0.38 * ((seedIdx * 0.41) % 1.0);
 
           xform.setValues(
             cy * width,
@@ -868,10 +876,10 @@ class FloraScatterBuilder {
             proudZ,
             1,
           );
-          final shade = 0.80 + 0.34 * h;
+          final shade = 0.62 + 0.24 * h;
           target.addInstance(
             xform,
-            color: Vector4(shade * 0.86, shade * 1.04, shade * 0.78, 1),
+            color: Vector4(shade * 0.62, shade * 0.78, shade * 0.46, 1),
           );
         }
       }
@@ -889,61 +897,59 @@ class FloraScatterBuilder {
     var seedIdx = 0;
 
     for (final road in graph.roads) {
+      if (road.style == RoadStyle.gardenPath) {
+        continue;
+      }
       final halfW = road.widthMeters * 0.5;
-      for (var i = 0; i < road.controlPoints.length - 1; i++) {
-        final pA = road.controlPoints[i];
-        final pB = road.controlPoints[i + 1];
+      final pts = road.smoothCenterline(stepMeters: 2.2);
+      for (var i = 0; i < pts.length - 1; i++) {
+        final pA = pts[i];
+        final pB = pts[i + 1];
         final seg = pB - pA;
         final len = seg.horizontalLength;
-        if (len < 1.8) {
+        if (len < 0.8) {
+          continue;
+        }
+        seedIdx++;
+        if (seedIdx % 3 != 0) {
           continue;
         }
         final tangent = seg.normalizedHorizontal();
         final normal = Vec3(-tangent.z, 0, tangent.x);
-        final steps = math.max(1, (len / 2.6).floor());
+        final base = Vec3.lerp(pA, pB, 0.5);
+        final side = seedIdx.isEven ? 1.0 : -1.0;
+        final h = (math.sin(seedIdx * 19.7 + 1.3) * 541.3).abs() % 1.0;
+        final offset = halfW + 0.84 + 0.32 * h;
+        final px = base.x + normal.x * side * offset;
+        final pz = base.z + normal.z * side * offset;
 
-        for (var k = 0; k < steps; k++) {
-          seedIdx++;
-          if (seedIdx % 3 == 0) {
-            continue;
-          }
-          final t = (k + 0.42) / steps;
-          final base = Vec3.lerp(pA, pB, t);
-          final side = seedIdx.isEven ? 1.0 : -1.0;
-          final h = (math.sin(seedIdx * 19.7 + 1.3) * 541.3).abs() % 1.0;
-          final offset = halfW + 0.54 + 0.24 * h;
-          final px = base.x + normal.x * side * offset;
-          final pz = base.z + normal.z * side * offset;
-
-          if ((px - TerrainConfig.riverCenterX(pz)).abs() < 7.4) {
-            continue;
-          }
-          if (!index.isClear(px, pz, footprintMargin: 0.90)) {
-            continue;
-          }
-
-          final gy = sampleGroundY(px, pz);
-          final slope =
-              (sampleGroundY(px + 0.25, pz) - sampleGroundY(px - 0.25, pz))
-                  .abs() +
-              (sampleGroundY(px, pz + 0.25) - sampleGroundY(px, pz - 0.25))
-                  .abs();
-          if (slope > 0.14) {
-            continue;
-          }
-
-          final rx = 0.15 + 0.08 * h;
-          final ry = 0.075 + 0.030 * ((seedIdx * 0.37) % 1.0);
-          final rz = 0.13 + 0.07 * ((seedIdx * 0.61) % 1.0);
-          EdoKitBuilder.addRockBoulder(
-            builder,
-            Vector3(px, gy + ry + 0.045, pz),
-            Vector3(rx, ry, rz),
-            yaw: h * math.pi * 2,
-            seed: seedIdx * 0.7,
-          );
-          count++;
+        if ((px - TerrainConfig.riverCenterX(pz)).abs() < 7.4) {
+          continue;
         }
+        if (!index.isClear(px, pz, roadMargin: 0.65, footprintMargin: 0.90)) {
+          continue;
+        }
+
+        final gy = sampleGroundY(px, pz);
+        final slope =
+            (sampleGroundY(px + 0.25, pz) - sampleGroundY(px - 0.25, pz))
+                .abs() +
+            (sampleGroundY(px, pz + 0.25) - sampleGroundY(px, pz - 0.25)).abs();
+        if (slope > 0.16) {
+          continue;
+        }
+
+        final rx = 0.16 + 0.10 * h;
+        final ry = 0.085 + 0.038 * ((seedIdx * 0.37) % 1.0);
+        final rz = 0.14 + 0.08 * ((seedIdx * 0.61) % 1.0);
+        EdoKitBuilder.addRockBoulder(
+          builder,
+          Vector3(px, gy + ry * 0.65, pz),
+          Vector3(rx, ry, rz),
+          yaw: h * math.pi * 2,
+          seed: seedIdx * 0.7,
+        );
+        count++;
       }
     }
 
@@ -972,9 +978,9 @@ class FloraScatterBuilder {
     final sy = math.sin(yaw);
     final right = Vector3(cy, 0, sy);
     final fwd = Vector3(-sy, 0, cy);
-    final n0 = Vector3(-sy * 0.35, 0.94, cy * 0.35).normalized();
-    final n1 = Vector3(-sy * 0.52, 0.85, cy * 0.52).normalized();
-    final n2 = Vector3(-sy * 0.68, 0.73, cy * 0.68).normalized();
+    final n0 = Vector3(-sy * 0.28, 0.96, cy * 0.28).normalized();
+    final n1 = Vector3(-sy * 0.44, 0.90, cy * 0.44).normalized();
+    final n2 = Vector3(-sy * 0.58, 0.81, cy * 0.58).normalized();
 
     builder.color(color);
 
@@ -986,14 +992,14 @@ class FloraScatterBuilder {
     }
 
     final midPos =
-        rootOffset + fwd * (archOut * 0.44) + Vector3(0, height * 0.54, 0);
+        rootOffset + fwd * (archOut * 0.46) + Vector3(0, height * 0.56, 0);
     final tipPos = rootOffset + fwd * archOut + Vector3(0, height, 0);
-    final midHalfW = baseHalfWidth * 0.62;
+    final midHalfW = baseHalfWidth * 0.68;
 
     final v0 = emit(rootOffset - right * baseHalfWidth, n0, 0, 0);
     final v1 = emit(rootOffset + right * baseHalfWidth, n0, 1, 0);
-    final v2 = emit(midPos - right * midHalfW, n1, 0, 0.54);
-    final v3 = emit(midPos + right * midHalfW, n1, 1, 0.54);
+    final v2 = emit(midPos - right * midHalfW, n1, 0, 0.56);
+    final v3 = emit(midPos + right * midHalfW, n1, 1, 0.56);
     final v4 = emit(tipPos, n2, 0.5, 1);
 
     builder
@@ -1009,23 +1015,23 @@ class FloraScatterBuilder {
     for (var i = 0; i < bladeCount; i++) {
       final frac = (i + 0.5) / bladeCount;
       final ang = i * 2.39996323;
-      final r = 0.40 * math.sqrt(frac);
+      final r = 0.26 * math.sqrt(frac);
       final hHash = (math.sin(i * 17.13 + 0.9) * 937.1).abs() % 1.0;
-      final isTallStalk = i % 5 == 0;
-      final bladeYaw = ang + (hHash - 0.5) * 1.25;
+      final isTallStalk = i % 4 == 0;
+      final bladeYaw = ang + (hHash - 0.5) * 0.95;
       final height = isTallStalk
-          ? (1.06 + 0.34 * hHash)
-          : (0.62 + 0.46 * hHash);
-      final arch = 0.14 + 0.22 * (1 - frac * 0.35) * (0.65 + 0.7 * hHash);
-      final shade = 0.84 + 0.32 * hHash;
+          ? (0.60 + 0.18 * hHash)
+          : (0.38 + 0.24 * hHash);
+      final arch = 0.12 + 0.16 * (1 - frac * 0.30) * (0.65 + 0.55 * hHash);
+      final shade = 0.86 + 0.28 * hHash;
       _addCurvedGrassBlade(
         builder,
         rootOffset: Vector3(math.cos(ang) * r, 0, math.sin(ang) * r),
         yaw: bladeYaw,
         height: height,
-        baseHalfWidth: isTallStalk ? 0.010 : (0.0115 + 0.0055 * (1 - hHash)),
+        baseHalfWidth: isTallStalk ? 0.021 : (0.023 + 0.006 * (1 - hHash)),
         archOut: arch,
-        color: Vector4(shade * 0.96, shade * 1.04, shade * 0.88, 0.10),
+        color: Vector4(shade * 0.97, shade * 1.02, shade * 0.88, 0.10),
       );
     }
     return builder.build();
@@ -1035,26 +1041,26 @@ class FloraScatterBuilder {
     required bool isSpiderLily,
   }) {
     final builder = GeometryBuilder();
-    final stemCount = isSpiderLily ? 8 : 12;
+    final stemCount = isSpiderLily ? 6 : 9;
     for (var i = 0; i < stemCount; i++) {
       final frac = (i + 0.5) / stemCount;
       final ang = i * 2.39996323 + 0.4;
-      final r = 0.30 * math.sqrt(frac);
+      final r = 0.24 * math.sqrt(frac);
       final h = (math.sin(i * 11.7 + 2.4) * 513.7).abs() % 1.0;
       _addCurvedGrassBlade(
         builder,
         rootOffset: Vector3(math.cos(ang) * r, 0, math.sin(ang) * r),
-        yaw: ang + (h - 0.5) * 0.8,
-        height: 0.54 + 0.42 * h,
-        baseHalfWidth: 0.013,
-        archOut: 0.12 + 0.14 * h,
-        color: Vector4(0.86 + 0.2 * h, 0.98, 0.82, 0.10),
+        yaw: ang + (h - 0.5) * 0.7,
+        height: 0.44 + 0.30 * h,
+        baseHalfWidth: 0.020,
+        archOut: 0.10 + 0.12 * h,
+        color: Vector4(0.88 + 0.18 * h, 0.98, 0.84, 0.10),
       );
     }
 
     final flowerCount = isSpiderLily ? 4 : 5;
     final subKindAlpha = isSpiderLily ? 0.90 : 0.68;
-    final baseHalf = isSpiderLily ? 0.145 : 0.095;
+    final baseHalf = isSpiderLily ? 0.140 : 0.095;
     final upN = Vector3(0, 1, 0);
 
     int emit(Vector3 p, double u, double v) {
@@ -1066,12 +1072,12 @@ class FloraScatterBuilder {
 
     for (var f = 0; f < flowerCount; f++) {
       final ang = f * (math.pi * 2 / flowerCount) + 0.35;
-      final r = 0.06 + 0.20 * ((f * 0.618) % 1.0);
+      final r = 0.05 + 0.18 * ((f * 0.618) % 1.0);
       final hSeed = ((f + 1) * 0.37) % 1.0;
-      final cardHalf = baseHalf * (0.78 + 0.38 * hSeed);
-      final topY = 0.64 + 0.50 * hSeed;
-      final cx = math.cos(ang) * (r + 0.08);
-      final cz = math.sin(ang) * (r + 0.08);
+      final cardHalf = baseHalf * (0.80 + 0.34 * hSeed);
+      final topY = 0.56 + 0.42 * hSeed;
+      final cx = math.cos(ang) * (r + 0.07);
+      final cz = math.sin(ang) * (r + 0.07);
       final center = Vector3(cx, topY, cz);
 
       builder.color(Vector4(0.88 + 0.12 * hSeed, 0.94, 0.90, subKindAlpha));
@@ -1098,19 +1104,19 @@ class FloraScatterBuilder {
 
   static MeshGeometry _buildSusukiClumpGeometry() {
     final builder = GeometryBuilder();
-    const bladeCount = 11;
+    const bladeCount = 9;
     for (var i = 0; i < bladeCount; i++) {
       final frac = (i + 0.5) / bladeCount;
       final ang = i * 2.39996323;
-      final r = 0.24 * math.sqrt(frac);
+      final r = 0.22 * math.sqrt(frac);
       final h = (math.sin(i * 15.9 + 1.2) * 733.1).abs() % 1.0;
       _addCurvedGrassBlade(
         builder,
         rootOffset: Vector3(math.cos(ang) * r, 0, math.sin(ang) * r),
         yaw: ang,
-        height: 0.62 + 0.28 * h,
-        baseHalfWidth: 0.020,
-        archOut: 0.24 + 0.18 * h,
+        height: 0.56 + 0.26 * h,
+        baseHalfWidth: 0.024,
+        archOut: 0.20 + 0.16 * h,
         color: Vector4(0.98, 0.94, 0.78, 0.10),
       );
     }
@@ -1121,12 +1127,12 @@ class FloraScatterBuilder {
       final ang = p * (math.pi * 2 / plumeCount) + 0.28;
       final cy = math.cos(ang);
       final sy = math.sin(ang);
-      final right = Vector3(-sy, 0, cy) * 0.135;
+      final right = Vector3(-sy, 0, cy) * 0.145;
       final outDir = Vector3(cy, 0, sy);
-      final base = outDir * 0.14 + Vector3(0, 0.58 + 0.07 * p, 0);
-      final tip = outDir * 0.42 + Vector3(0, 1.08 + 0.08 * p, 0);
+      final base = outDir * 0.13 + Vector3(0, 0.54 + 0.06 * p, 0);
+      final tip = outDir * 0.38 + Vector3(0, 1.02 + 0.07 * p, 0);
 
-      builder.color(Vector4(1.04, 0.96, 0.84, 0.40));
+      builder.color(Vector4(1.02, 0.95, 0.84, 0.40));
 
       int emit(Vector3 pos, double u, double v) {
         builder
@@ -1162,7 +1168,7 @@ class FloraScatterBuilder {
       final sy = math.sin(yaw);
       final right = Vector3(cy, 0, sy);
       final splay = Vector3(-sy, 0, cy);
-      final lean = (i.isEven ? 1.0 : -1.0) * 0.22;
+      final lean = (i.isEven ? 1.0 : -1.0) * 0.20;
 
       final bL = -right * 0.46 + splay * (lean * 0.12);
       final bR = right * 0.46 + splay * (lean * 0.12);

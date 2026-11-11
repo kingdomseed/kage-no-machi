@@ -36,22 +36,19 @@ vertex {
 
     const vec2 windDir = vec2(0.7808688, 0.6246950);
     const vec2 crossDir = vec2(-0.6246950, 0.7808688);
-    float advect = dot(wp.xz, windDir) * 0.135 - t * 0.86;
-    float swellA = 0.5 + 0.5 * sin(advect);
-    float swellB = 0.5 + 0.5 * sin(
-      advect * 1.77 + dot(wp.xz, crossDir) * 0.17 - t * 0.49
-    );
-    float gustEnv = pow(clamp(swellA * 0.64 + swellB * 0.36, 0.0, 1.0), 1.50);
-    float eddy = sin(t * 2.15 + wp.x * 0.58 + wp.z * 0.46);
-    float flutter = sin(t * 6.8 + wp.x * 1.9 - wp.z * 1.7) * gustEnv * 0.06;
+    float phase = sin(wp.x * 0.21 + wp.z * 0.14) * 1.6
+      + cos(wp.z * 0.18 - wp.x * 0.12) * 1.4;
+    float slowBreath = 0.5 + 0.5 * sin(t * 0.68 + phase);
+    float gentleSway = sin(t * 1.08 - phase * 0.7 + wp.y * 0.35);
 
-    float push = (0.10 + 0.54 * gustEnv + 0.14 * eddy)
+    float push = (0.04 + 0.18 * slowBreath + 0.05 * gentleSway)
       * material_params.wind_strength
       * cantilever;
-    vec2 dispXZ = windDir * push + crossDir * ((eddy * 0.11 + flutter) * material_params.wind_strength * cantilever);
+    vec2 dispXZ = windDir * push
+      + crossDir * (gentleSway * 0.06 * material_params.wind_strength * cantilever);
     wp.xz += dispXZ;
     if (kind > 3.5) {
-      wp.y += min(0.16, dot(dispXZ, dispXZ) * 0.42);
+      wp.y += min(0.06, dot(dispXZ, dispXZ) * 0.35);
     }
     vertex.world_position = wp;
   }

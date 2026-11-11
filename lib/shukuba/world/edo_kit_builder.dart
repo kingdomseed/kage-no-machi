@@ -6,10 +6,12 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         BuildPreview,
         DemolishHoverPreview,
+        EntityId,
         GroundHeightSampler,
         LanternSpan,
         NoBuildPreview,
         PlacedStructure,
+        RoadSpline,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
         StampGhostPreview,
@@ -47,6 +49,7 @@ class EdoKitBuilder {
         return const [Vec3(-1.38, 3.06, 0), Vec3(1.38, 3.06, 0)];
       case StructureKind.kura ||
           StructureKind.yaguraTower ||
+          StructureKind.rockOutcrop ||
           StructureKind.mapleCluster ||
           StructureKind.bambooGrove ||
           StructureKind.pineTree ||
@@ -553,6 +556,132 @@ class EdoKitBuilder {
         color: lowCol,
       );
     }
+    builder.color(_whiteColor);
+  }
+
+  static void addStratifiedCliffBlock(
+    GeometryBuilder builder,
+    Vector3 baseCenter,
+    Vector3 halfExtents, {
+    double yaw = 0,
+    double tiltX = 0.07,
+    double tiltZ = -0.05,
+    double seed = 0,
+    Vector4? color,
+  }) {
+    const sides = 8;
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+    Vector3 rot(double lx, double ly, double lz) => Vector3(
+      baseCenter.x + lx * cy + lz * sy,
+      baseCenter.y + ly,
+      baseCenter.z - lx * sy + lz * cy,
+    );
+
+    final h = halfExtents.y * 2;
+    final rx = halfExtents.x;
+    final rz = halfExtents.z;
+
+    final topCenter = rot(
+      0.05 * rx * math.sin(seed * 1.7),
+      h + 0.04 * h,
+      0.05 * rz * math.cos(seed * 1.3),
+    );
+    final botCenter = rot(0, -0.58, 0);
+
+    final skirtRing = <Vector3>[];
+    final midOuterRing = <Vector3>[];
+    final midShelfRing = <Vector3>[];
+    final crownRing = <Vector3>[];
+
+    for (var i = 0; i < sides; i++) {
+      final a =
+          (i / sides) * math.pi * 2 + 0.13 * math.sin(seed * 1.9 + i * 2.3);
+      final facet = 0.80 + 0.25 * math.sin(a * 2.0 + seed * 2.1 + i * 1.1);
+      final lx = math.cos(a) * rx * facet;
+      final lz = math.sin(a) * rz * facet;
+      final planeTilt = lx * tiltX + lz * tiltZ;
+      final shelfInset = 0.83 + 0.08 * math.cos(a * 2.0 - seed);
+
+      skirtRing.add(rot(lx * 1.12, -0.56, lz * 1.12));
+      midOuterRing.add(rot(lx * 0.99, h * 0.46 + planeTilt * 0.65, lz * 0.99));
+      midShelfRing.add(
+        rot(lx * shelfInset, h * 0.50 + planeTilt * 0.70, lz * shelfInset),
+      );
+      crownRing.add(rot(lx * 0.76, h + planeTilt, lz * 0.76));
+    }
+
+    final base = color ?? Vector4(0.96, 0.95, 0.93, 0.5);
+    final topCol = Vector4(base.x * 1.16, base.y * 1.10, base.z * 1.00, 0.5);
+    final shelfCol = Vector4(base.x * 1.04, base.y * 1.02, base.z * 0.96, 0.5);
+    final upperCol = Vector4(base.x * 0.92, base.y * 0.93, base.z * 0.96, 0.5);
+    final lowerCol = Vector4(base.x * 0.76, base.y * 0.80, base.z * 0.86, 0.5);
+
+    final centerWorld = rot(0, h * 0.5, 0);
+    for (var i = 0; i < sides; i++) {
+      final next = (i + 1) % sides;
+      final s0 = skirtRing[i];
+      final s1 = skirtRing[next];
+      final mo0 = midOuterRing[i];
+      final mo1 = midOuterRing[next];
+      final ms0 = midShelfRing[i];
+      final ms1 = midShelfRing[next];
+      final c0 = crownRing[i];
+      final c1 = crownRing[next];
+
+      final outDir = ((mo0 + mo1) * 0.5) - centerWorld
+        ..y = 0.12;
+
+      addTriangleOutward(
+        builder,
+        c0,
+        c1,
+        topCenter,
+        Vector3(0, 1, 0),
+        uvScale: 0.48,
+        color: topCol,
+      );
+      addQuadOutward(
+        builder,
+        ms0,
+        ms1,
+        c1,
+        c0,
+        outDir,
+        uvScale: 0.48,
+        color: upperCol,
+      );
+      addQuadOutward(
+        builder,
+        mo0,
+        mo1,
+        ms1,
+        ms0,
+        Vector3(0, 1, 0),
+        uvScale: 0.48,
+        color: shelfCol,
+      );
+      addQuadOutward(
+        builder,
+        s0,
+        s1,
+        mo1,
+        mo0,
+        outDir,
+        uvScale: 0.48,
+        color: lowerCol,
+      );
+      addTriangleOutward(
+        builder,
+        s1,
+        s0,
+        botCenter,
+        Vector3(0, -1, 0),
+        uvScale: 0.48,
+        color: lowerCol,
+      );
+    }
+    builder.color(_whiteColor);
   }
 
   static void addCordSegment(
@@ -930,11 +1059,398 @@ class EdoKitBuilder {
     );
   }
 
+  static Vector3 _localPropPoint(
+    Vector3 origin,
+    double cy,
+    double sy,
+    double lx,
+    double ly,
+    double lz,
+  ) => Vector3(
+    origin.x + lx * cy + lz * sy,
+    origin.y + ly,
+    origin.z - lx * sy + lz * cy,
+  );
+
+  static void _addRotatedBox(
+    GeometryBuilder builder,
+    Vector3 origin,
+    double cy,
+    double sy,
+    Vector3 minLocal,
+    Vector3 maxLocal, {
+    Vector4? color,
+  }) {
+    final b00 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      minLocal.x,
+      minLocal.y,
+      minLocal.z,
+    );
+    final b10 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      maxLocal.x,
+      minLocal.y,
+      minLocal.z,
+    );
+    final b11 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      maxLocal.x,
+      minLocal.y,
+      maxLocal.z,
+    );
+    final b01 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      minLocal.x,
+      minLocal.y,
+      maxLocal.z,
+    );
+    final t00 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      minLocal.x,
+      maxLocal.y,
+      minLocal.z,
+    );
+    final t10 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      maxLocal.x,
+      maxLocal.y,
+      minLocal.z,
+    );
+    final t11 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      maxLocal.x,
+      maxLocal.y,
+      maxLocal.z,
+    );
+    final t01 = _localPropPoint(
+      origin,
+      cy,
+      sy,
+      minLocal.x,
+      maxLocal.y,
+      maxLocal.z,
+    );
+
+    final nPosX = Vector3(cy, 0, -sy);
+    final nNegX = Vector3(-cy, 0, sy);
+    final nPosZ = Vector3(sy, 0, cy);
+    final nNegZ = Vector3(-sy, 0, -cy);
+    addQuadOutward(builder, b00, b10, t10, t00, nNegZ, color: color);
+    addQuadOutward(builder, b11, b01, t01, t11, nPosZ, color: color);
+    addQuadOutward(builder, b01, b00, t00, t01, nNegX, color: color);
+    addQuadOutward(builder, b10, b11, t11, t10, nPosX, color: color);
+    addQuadOutward(builder, t00, t10, t11, t01, Vector3(0, 1, 0), color: color);
+    addQuadOutward(
+      builder,
+      b01,
+      b11,
+      b10,
+      b00,
+      Vector3(0, -1, 0),
+      color: color,
+    );
+  }
+
+  static void addSakeBarrelRack(
+    GeometryBuilder timberBuilder,
+    GeometryBuilder strawBuilder, {
+    required Vector3 origin,
+    double yaw = 0,
+    bool twoTier = true,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+
+    for (final zSkid in const [-0.15, 0.15]) {
+      _addRotatedBox(
+        timberBuilder,
+        origin,
+        cy,
+        sy,
+        Vector3(-0.56, -0.04, zSkid - 0.04),
+        Vector3(0.56, 0.075, zSkid + 0.04),
+      );
+    }
+
+    final caskStrawColor = Vector4(1.06, 0.96, 0.78, 1);
+    void emitHorizontalCask(double lx, double ly, double radius) {
+      final a = _localPropPoint(origin, cy, sy, lx, ly, -0.24);
+      final b = _localPropPoint(origin, cy, sy, lx, ly, 0.24);
+      addTaperedLimb(
+        strawBuilder,
+        Vec3(a.x, a.y, a.z),
+        Vec3(b.x, b.y, b.z),
+        radius,
+        radius,
+        sides: 8,
+        color: caskStrawColor,
+      );
+      for (final hz in const [-0.18, 0.18]) {
+        final ha = _localPropPoint(origin, cy, sy, lx, ly, hz - 0.025);
+        final hb = _localPropPoint(origin, cy, sy, lx, ly, hz + 0.025);
+        addTaperedLimb(
+          timberBuilder,
+          Vec3(ha.x, ha.y, ha.z),
+          Vec3(hb.x, hb.y, hb.z),
+          radius + 0.015,
+          radius + 0.015,
+          sides: 8,
+        );
+      }
+      for (final capZ in const [-0.245, 0.245]) {
+        _addRotatedBox(
+          timberBuilder,
+          origin,
+          cy,
+          sy,
+          Vector3(lx - radius * 0.62, ly - radius * 0.62, capZ - 0.012),
+          Vector3(lx + radius * 0.62, ly + radius * 0.62, capZ + 0.012),
+        );
+      }
+    }
+
+    emitHorizontalCask(-0.27, 0.31, 0.22);
+    emitHorizontalCask(0.27, 0.31, 0.22);
+    if (twoTier) {
+      emitHorizontalCask(0, 0.70, 0.21);
+    }
+  }
+
+  static void addHandcart(
+    GeometryBuilder timberBuilder,
+    GeometryBuilder cargoBuilder, {
+    required Vector3 origin,
+    double yaw = 0,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+
+    for (final side in const [-0.38, 0.38]) {
+      final wIn = _localPropPoint(origin, cy, sy, side - 0.03, 0.34, -0.12);
+      final wOut = _localPropPoint(origin, cy, sy, side + 0.03, 0.34, -0.12);
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(wIn.x, wIn.y, wIn.z),
+        Vec3(wOut.x, wOut.y, wOut.z),
+        0.34,
+        0.34,
+        sides: 8,
+      );
+      final hIn = _localPropPoint(origin, cy, sy, side - 0.06, 0.34, -0.12);
+      final hOut = _localPropPoint(origin, cy, sy, side + 0.06, 0.34, -0.12);
+      addTaperedLimb(
+        cargoBuilder,
+        Vec3(hIn.x, hIn.y, hIn.z),
+        Vec3(hOut.x, hOut.y, hOut.z),
+        0.09,
+        0.09,
+        sides: 6,
+        color: Vector4(0.86, 0.76, 0.60, 1),
+      );
+    }
+
+    final axL = _localPropPoint(origin, cy, sy, -0.45, 0.34, -0.12);
+    final axR = _localPropPoint(origin, cy, sy, 0.45, 0.34, -0.12);
+    addCordSegment(
+      timberBuilder,
+      Vec3(axL.x, axL.y, axL.z),
+      Vec3(axR.x, axR.y, axR.z),
+      halfThick: 0.032,
+    );
+
+    for (final rx in const [-0.29, 0.29]) {
+      final rear = _localPropPoint(origin, cy, sy, rx, 0.48, -0.78);
+      final front = _localPropPoint(origin, cy, sy, rx * 0.88, 0.06, 0.92);
+      addCordSegment(
+        timberBuilder,
+        Vec3(rear.x, rear.y, rear.z),
+        Vec3(front.x, front.y, front.z),
+        halfThick: 0.030,
+      );
+    }
+    final barL = _localPropPoint(origin, cy, sy, -0.28, 0.07, 0.86);
+    final barR = _localPropPoint(origin, cy, sy, 0.28, 0.07, 0.86);
+    addCordSegment(
+      timberBuilder,
+      Vec3(barL.x, barL.y, barL.z),
+      Vec3(barR.x, barR.y, barR.z),
+      halfThick: 0.024,
+    );
+
+    for (var s = 0; s < 4; s++) {
+      final lz = -0.66 + s * 0.32;
+      final ly = 0.45 - (lz + 0.78) * 0.24;
+      final sL = _localPropPoint(origin, cy, sy, -0.32, ly, lz);
+      final sR = _localPropPoint(origin, cy, sy, 0.32, ly, lz);
+      addCordSegment(
+        timberBuilder,
+        Vec3(sL.x, sL.y, sL.z),
+        Vec3(sR.x, sR.y, sR.z),
+      );
+    }
+
+    _addRotatedBox(
+      cargoBuilder,
+      origin,
+      cy,
+      sy,
+      Vector3(-0.24, 0.44, -0.62),
+      Vector3(0.24, 0.82, -0.14),
+      color: Vector4(0.98, 0.88, 0.70, 1),
+    );
+    final baleA = _localPropPoint(origin, cy, sy, -0.22, 0.48, 0.14);
+    final baleB = _localPropPoint(origin, cy, sy, 0.22, 0.48, 0.14);
+    addTaperedLimb(
+      cargoBuilder,
+      Vec3(baleA.x, baleA.y, baleA.z),
+      Vec3(baleB.x, baleB.y, baleB.z),
+      0.16,
+      0.16,
+      sides: 7,
+      color: Vector4(1.06, 0.95, 0.74, 1),
+    );
+  }
+
+  static void addFirewoodStack(
+    GeometryBuilder timberBuilder,
+    GeometryBuilder roofBuilder, {
+    required Vector3 origin,
+    double yaw = 0,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+
+    for (final sx in const [-0.46, 0.46]) {
+      _addRotatedBox(
+        timberBuilder,
+        origin,
+        cy,
+        sy,
+        Vector3(sx - 0.03, -0.04, -0.18),
+        Vector3(sx + 0.03, 0.68, -0.12),
+      );
+      _addRotatedBox(
+        timberBuilder,
+        origin,
+        cy,
+        sy,
+        Vector3(sx - 0.03, -0.04, 0.12),
+        Vector3(sx + 0.03, 0.58, 0.18),
+      );
+    }
+
+    for (var row = 0; row < 3; row++) {
+      final count = 6 - row;
+      final ly = 0.09 + row * 0.115;
+      for (var c = 0; c < count; c++) {
+        final lx = -((count - 1) * 0.068) + c * 0.136;
+        final a = _localPropPoint(origin, cy, sy, lx, ly, -0.20);
+        final b = _localPropPoint(origin, cy, sy, lx, ly, 0.20);
+        addTaperedLimb(
+          timberBuilder,
+          Vec3(a.x, a.y, a.z),
+          Vec3(b.x, b.y, b.z),
+          0.056,
+          0.052,
+          sides: 6,
+        );
+      }
+    }
+
+    final rBL = _localPropPoint(origin, cy, sy, -0.54, 0.72, -0.24);
+    final rBR = _localPropPoint(origin, cy, sy, 0.54, 0.72, -0.24);
+    final rFL = _localPropPoint(origin, cy, sy, -0.54, 0.58, 0.26);
+    final rFR = _localPropPoint(origin, cy, sy, 0.54, 0.58, 0.26);
+    final upOffset = Vector3(0, 0.045, 0);
+    addQuadOutward(
+      roofBuilder,
+      rFL + upOffset,
+      rFR + upOffset,
+      rBR + upOffset,
+      rBL + upOffset,
+      Vector3(0, 1, 0),
+    );
+    addQuadOutward(roofBuilder, rBL, rBR, rFR, rFL, Vector3(0, -1, 0));
+  }
+
+  static void addStoneToro(
+    GeometryBuilder stoneBuilder,
+    GeometryBuilder glowBuilder,
+    Vector3 origin,
+  ) {
+    final toroColor = Vector4(0.96, 0.95, 0.92, 0.50);
+    addTaperedLimb(
+      stoneBuilder,
+      Vec3(origin.x, origin.y - 0.16, origin.z),
+      Vec3(origin.x, origin.y + 0.16, origin.z),
+      0.27,
+      0.23,
+      sides: 6,
+      color: toroColor,
+    );
+    addTaperedLimb(
+      stoneBuilder,
+      Vec3(origin.x, origin.y + 0.175, origin.z),
+      Vec3(origin.x, origin.y + 0.76, origin.z),
+      0.115,
+      0.095,
+      sides: 6,
+      color: toroColor,
+    );
+    addTaperedLimb(
+      stoneBuilder,
+      Vec3(origin.x, origin.y + 0.775, origin.z),
+      Vec3(origin.x, origin.y + 0.87, origin.z),
+      0.14,
+      0.23,
+      sides: 6,
+      color: toroColor,
+    );
+    addBox(
+      glowBuilder,
+      Vector3(origin.x - 0.11, origin.y + 0.885, origin.z - 0.11),
+      Vector3(origin.x + 0.11, origin.y + 1.15, origin.z + 0.11),
+    );
+    addTaperedLimb(
+      stoneBuilder,
+      Vec3(origin.x, origin.y + 1.165, origin.z),
+      Vec3(origin.x, origin.y + 1.36, origin.z),
+      0.33,
+      0.075,
+      sides: 6,
+      color: toroColor,
+    );
+    addTaperedLimb(
+      stoneBuilder,
+      Vec3(origin.x, origin.y + 1.372, origin.z),
+      Vec3(origin.x, origin.y + 1.48, origin.z),
+      0.062,
+      0.012,
+      sides: 6,
+      color: toroColor,
+    );
+  }
+
   Node buildStructureNode(
     PlacedStructure structure,
     ShukubaMaterialResolver resolveMaterial,
   ) {
-    final structureNode = Node()
+    final structureNode = Node(name: 'structure_${structure.id.value}')
       ..position = structure.position.toVector3()
       ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), structure.yawRadians);
 
@@ -948,6 +1464,10 @@ class EdoKitBuilder {
       ),
       StructureKind.toriiGate => buildToriiGateNode(structure, resolveMaterial),
       StructureKind.yaguraTower => buildYaguraTowerNode(
+        structure,
+        resolveMaterial,
+      ),
+      StructureKind.rockOutcrop => buildRockOutcropNode(
         structure,
         resolveMaterial,
       ),
@@ -1232,6 +1752,30 @@ class EdoKitBuilder {
       );
     }
 
+    final clutterStyle = (hash ~/ 3) % 3;
+    if (clutterStyle == 0) {
+      addSakeBarrelRack(
+        timberBuilder,
+        plasterBuilder,
+        origin: Vector3(-2.92, 0, 1.15),
+        yaw: math.pi / 2,
+      );
+    } else if (clutterStyle == 1) {
+      addFirewoodStack(
+        timberBuilder,
+        roofBuilder,
+        origin: Vector3(2.90, 0, -0.55),
+        yaw: -math.pi / 2,
+      );
+    } else {
+      addHandcart(
+        timberBuilder,
+        plasterBuilder,
+        origin: Vector3(-2.98, 0, -0.35),
+        yaw: 0.05,
+      );
+    }
+
     root
       ..add(
         Node(
@@ -1422,10 +1966,22 @@ class EdoKitBuilder {
       Vector3(-0.88, 0.46, 3.28),
     );
 
-    addBox(stoneBuilder, Vector3(2.26, 0.02, 2.74), Vector3(2.68, 0.24, 3.16));
-    addBox(stoneBuilder, Vector3(2.36, 0.26, 2.84), Vector3(2.58, 0.92, 3.06));
-    addBox(shojiBuilder, Vector3(2.34, 0.94, 2.82), Vector3(2.60, 1.22, 3.08));
-    addBox(stoneBuilder, Vector3(2.20, 1.24, 2.68), Vector3(2.74, 1.38, 3.22));
+    addStoneToro(stoneBuilder, shojiBuilder, Vector3(2.48, 0, 2.94));
+    if (structure.id.value.hashCode.abs().isEven) {
+      addSakeBarrelRack(
+        timberBuilder,
+        plasterBuilder,
+        origin: Vector3(-3.22, 0, -0.70),
+        yaw: math.pi / 2,
+      );
+    } else {
+      addFirewoodStack(
+        timberBuilder,
+        roofBuilder,
+        origin: Vector3(-3.18, 0, -0.60),
+        yaw: math.pi / 2,
+      );
+    }
 
     addLanternBody(
       lanternBuilder,
@@ -1628,12 +2184,34 @@ class EdoKitBuilder {
       thick: 0.16,
     );
 
+    final strawBuilder = GeometryBuilder();
+    addSakeBarrelRack(
+      timberBuilder,
+      strawBuilder,
+      origin: Vector3(-1.76, 0, 3.24),
+      yaw: 0.06,
+    );
+    addHandcart(
+      timberBuilder,
+      strawBuilder,
+      origin: Vector3(2.86, 0, 0.45),
+      yaw: 0.10,
+    );
+
     root
       ..add(
         Node(
           mesh: Mesh(
             stoneBuilder.build(),
             resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            strawBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.plasterWall),
           ),
         ),
       )
@@ -1712,6 +2290,26 @@ class EdoKitBuilder {
       0.19,
       sides: 6,
     );
+    if (structure.id.value.hashCode.abs().isEven) {
+      addSakeBarrelRack(
+        timberBuilder,
+        goodsBuilder,
+        origin: Vector3(1.42, 0, -0.16),
+        yaw: -math.pi / 2,
+        twoTier: false,
+      );
+    } else {
+      addBox(
+        timberBuilder,
+        Vector3(1.22, 0.02, -0.44),
+        Vector3(1.66, 0.42, 0.06),
+      );
+      addBox(
+        goodsBuilder,
+        Vector3(1.26, 0.44, -0.38),
+        Vector3(1.62, 0.74, 0.02),
+      );
+    }
 
     addLeanToRoof(
       awningBuilder,
@@ -3131,6 +3729,217 @@ class EdoKitBuilder {
     return root;
   }
 
+  Node buildRockOutcropNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final dna = _TreeDna.fromStructure(structure);
+    final phenotype = dna.bucket(4, 1);
+    final twist = dna.unit(2) * math.pi * 2;
+    final hScale = 0.88 + 0.28 * dna.unit(3);
+    final spread = 0.90 + 0.22 * dna.unit(4);
+
+    final rockBuilder = GeometryBuilder();
+    final fernBuilder = GeometryBuilder();
+
+    final warmSlate = Vector4(
+      0.94 + 0.10 * dna.signed(4),
+      0.92 + 0.08 * dna.signed(5),
+      0.88 + 0.08 * dna.signed(6),
+      0.5,
+    );
+    final coolSlate = Vector4(
+      0.84 + 0.08 * dna.signed(7),
+      0.88 + 0.07 * dna.signed(8),
+      0.95 + 0.06 * dna.signed(9),
+      0.5,
+    );
+
+    switch (phenotype) {
+      case 0:
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(-0.18 * spread, 0, -0.14 * spread),
+          Vector3(1.06 * spread, 1.12 * hScale, 0.88 * spread),
+          yaw: twist,
+          tiltX: 0.09,
+          tiltZ: -0.06,
+          seed: dna.unit(11) * 7.0,
+          color: warmSlate,
+        );
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(0.66 * spread, 0, 0.34 * spread),
+          Vector3(0.78 * spread, 0.66 * hScale, 0.68 * spread),
+          yaw: twist + 0.72,
+          tiltX: -0.06,
+          tiltZ: 0.08,
+          seed: dna.unit(12) * 7.0,
+          color: coolSlate,
+        );
+        addRockBoulder(
+          rockBuilder,
+          Vector3(-0.82 * spread, 0.16, 0.56 * spread),
+          Vector3(0.52 * spread, 0.28 * hScale, 0.44 * spread),
+          yaw: twist + 1.9,
+          seed: dna.unit(13) * 6.0,
+          color: warmSlate,
+        );
+        addShrubRosette(
+          fernBuilder,
+          Vector3(0.18 * spread, 0.08, 0.86 * spread),
+          Vector3(0.84, 0.36, 0.78),
+          color: Vector4(0.82, 0.98, 0.70, 1),
+          phase: twist + 0.5,
+        );
+      case 1:
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(0, 0, -0.10 * spread),
+          Vector3(0.72 * spread, 1.18 * hScale, 0.62 * spread),
+          yaw: twist,
+          tiltX: 0.05,
+          tiltZ: 0.04,
+          seed: dna.unit(21) * 7.0,
+          color: warmSlate,
+        );
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(-0.86 * spread, 0, 0.24 * spread),
+          Vector3(0.62 * spread, 0.74 * hScale, 0.54 * spread),
+          yaw: twist - 0.64,
+          tiltX: -0.09,
+          tiltZ: 0.05,
+          seed: dna.unit(22) * 7.0,
+          color: coolSlate,
+        );
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(0.82 * spread, 0, 0.30 * spread),
+          Vector3(0.56 * spread, 0.54 * hScale, 0.48 * spread),
+          yaw: twist + 0.88,
+          tiltX: 0.08,
+          tiltZ: -0.07,
+          seed: dna.unit(23) * 7.0,
+          color: warmSlate,
+        );
+        addRockBoulder(
+          rockBuilder,
+          Vector3(0.06 * spread, 0.10, 0.88 * spread),
+          Vector3(0.54 * spread, 0.16, 0.38 * spread),
+          yaw: twist + 0.3,
+          seed: dna.unit(24) * 6.0,
+          color: coolSlate,
+        );
+        addShrubRosette(
+          fernBuilder,
+          Vector3(-0.46 * spread, 0.08, 0.78 * spread),
+          Vector3(0.76, 0.32, 0.72),
+          color: Vector4(0.80, 0.96, 0.68, 1),
+          phase: twist + 1.4,
+        );
+      case 2:
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(-0.62 * spread, 0, -0.08 * spread),
+          Vector3(0.76 * spread, 1.04 * hScale, 0.96 * spread),
+          yaw: twist - 0.22,
+          tiltX: 0.11,
+          tiltZ: -0.04,
+          seed: dna.unit(31) * 7.0,
+          color: coolSlate,
+        );
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(0.64 * spread, 0, 0.12 * spread),
+          Vector3(0.72 * spread, 0.84 * hScale, 0.90 * spread),
+          yaw: twist + 0.28,
+          tiltX: -0.10,
+          tiltZ: 0.06,
+          seed: dna.unit(32) * 7.0,
+          color: warmSlate,
+        );
+        addRockBoulder(
+          rockBuilder,
+          Vector3(0.02, 0.14, 0.82 * spread),
+          Vector3(0.46 * spread, 0.24 * hScale, 0.40 * spread),
+          yaw: twist + 1.1,
+          seed: dna.unit(33) * 6.0,
+          color: warmSlate,
+        );
+        addShrubRosette(
+          fernBuilder,
+          Vector3(-0.08, 0.08, -0.82 * spread),
+          Vector3(0.88, 0.38, 0.82),
+          color: Vector4(0.84, 1, 0.72, 1),
+          phase: twist + 2.2,
+        );
+      default:
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(0, 0, 0),
+          Vector3(1.28 * spread, 0.72 * hScale, 1.02 * spread),
+          yaw: twist,
+          tiltX: 0.06,
+          tiltZ: 0.08,
+          seed: dna.unit(41) * 7.0,
+          color: warmSlate,
+        );
+        addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(-0.32 * spread, 0.18, -0.22 * spread),
+          Vector3(0.74 * spread, 0.88 * hScale, 0.64 * spread),
+          yaw: twist + 0.58,
+          tiltX: -0.07,
+          tiltZ: 0.05,
+          seed: dna.unit(42) * 7.0,
+          color: coolSlate,
+        );
+        for (var s = 0; s < 3; s++) {
+          final sa = twist + 0.9 + s * 2.05;
+          addRockBoulder(
+            rockBuilder,
+            Vector3(
+              math.cos(sa) * 1.12 * spread,
+              0.12,
+              math.sin(sa) * 0.96 * spread,
+            ),
+            Vector3(0.38, 0.20, 0.32),
+            yaw: sa + 0.6,
+            seed: dna.unit(45 + s) * 6.0,
+            color: s.isEven ? coolSlate : warmSlate,
+          );
+        }
+        addShrubRosette(
+          fernBuilder,
+          Vector3(0.78 * spread, 0.08, 0.66 * spread),
+          Vector3(0.80, 0.34, 0.74),
+          color: Vector4(0.82, 0.98, 0.70, 1),
+          phase: twist + 3.1,
+        );
+    }
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            rockBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            fernBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
+          ),
+        ),
+      );
+    return root;
+  }
+
   Node buildLanternSpanNode(
     LanternSpan span,
     ShukubaMaterialResolver resolveMaterial,
@@ -3602,11 +4411,13 @@ class EdoKitBuilder {
           );
         }
 
-        if (kind.isBotanicalTree) {
+        if (kind.isNaturalFeature) {
           const ringSegs = 8;
           final rIn = math.max(0.45, hw * 0.62);
           final rOut = rIn + 0.12;
-          final natureTint = Vector4(0.68, 0.95, 0.58, 0.86);
+          final natureTint = kind == StructureKind.rockOutcrop
+              ? Vector4(0.86, 0.88, 0.90, 0.86)
+              : Vector4(0.68, 0.95, 0.58, 0.86);
           for (var i = 0; i < ringSegs; i++) {
             final a0 = (i / ringSegs) * math.pi * 2;
             final a1 = ((i + 1) / ringSegs) * math.pi * 2;
@@ -3698,13 +4509,27 @@ class EdoKitBuilder {
         final halfW = widthMeters * 0.5;
         final (yTopOff, tint) = switch (style) {
           StrokePreviewStyle.lane => (0.10, Vector4(1, 0.80, 0.38, 0.82)),
+          StrokePreviewStyle.gardenPath => (
+            0.09,
+            Vector4(0.76, 0.92, 0.72, 0.84),
+          ),
           StrokePreviewStyle.terrace => (1.55, Vector4(0.72, 0.86, 1, 0.65)),
           StrokePreviewStyle.wall => (1.92, Vector4(0.98, 0.94, 0.86, 0.72)),
         };
 
-        for (var i = 0; i < points.length - 1; i++) {
-          final a = points[i];
-          final b = points[i + 1];
+        final ribbonPoints =
+            (style == StrokePreviewStyle.lane ||
+                style == StrokePreviewStyle.gardenPath)
+            ? RoadSpline(
+                id: const EntityId('__preview__'),
+                controlPoints: points,
+                widthMeters: widthMeters,
+              ).smoothCenterline(stepMeters: 0.70)
+            : points;
+
+        for (var i = 0; i < ribbonPoints.length - 1; i++) {
+          final a = ribbonPoints[i];
+          final b = ribbonPoints[i + 1];
           final delta = b - a;
           final segLen = delta.horizontalLength;
           if (segLen <= 1e-4) {

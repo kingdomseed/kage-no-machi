@@ -203,8 +203,6 @@ class ShukubaFrameHarness {
     await Scene.initializeStaticResources();
     await Scene.preload();
 
-    // Exercise 24 rapid hover preview updates + clear to verify removeAll()
-    // leaves zero residual ghost meshes in RenderScene before capturing.
     for (var i = 0; i < 24; i++) {
       final hx = -10.0 + i * 0.9;
       final hz = -4.0 + (i % 5) * 2.0;
@@ -301,8 +299,6 @@ class ShukubaFrameHarness {
       );
     }
 
-    // Also capture a single active hover preview frame so visual review can
-    // inspect the snapped ground-footprint marker directly on Metal.
     applyPreset(CameraPreset.duskOverview);
     final snappedHover = world.graph.snapStructure(
       kind: StructureKind.machiya,

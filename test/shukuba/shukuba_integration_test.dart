@@ -80,12 +80,30 @@ void main() {
         ..handlePrimaryPlotTap(const Vec3(-30, 0, -24));
       expect(audio.recentNotes.last.instrument, EdoInstrument.shakuhachi);
 
+      controller
+        ..selectTool(const DrawLaneTool(style: RoadStyle.gardenPath))
+        ..beginStrokeAt(const Vec3(-32, 0, 12))
+        ..extendStrokeTo(const Vec3(-29, 0, 14.5))
+        ..extendStrokeTo(const Vec3(-25, 0, 16));
+      expect(controller.finishDragStroke(), isTrue);
+      expect(
+        controller.graph.roads.any(
+          (r) => r.style == RoadStyle.gardenPath && r.controlPoints.length >= 3,
+        ),
+        isTrue,
+      );
+
+      controller
+        ..selectTool(const StampStructureTool(kind: StructureKind.rockOutcrop))
+        ..rotateStampYaw()
+        ..handlePrimaryPlotTap(const Vec3(-32, 0, 8));
+      expect(audio.recentNotes.last.instrument, EdoInstrument.bonsho);
+
       expect(controller.graph.lanternSpans.length, greaterThan(initialSpans));
       for (final span in controller.graph.lanternSpans) {
         expect(span.lengthMeters, lessThanOrEqualTo(LanternSpan.maxSpanMeters));
       }
 
-      // Demolish wall then undo
       controller
         ..selectTool(const DemolishTool())
         ..handlePrimaryPlotTap(const Vec3(-23, 0, -28));

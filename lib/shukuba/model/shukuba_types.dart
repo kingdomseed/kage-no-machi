@@ -197,6 +197,7 @@ enum StructureKind {
   marketStall,
   toriiGate,
   yaguraTower,
+  rockOutcrop,
   mapleCluster,
   bambooGrove,
   pineTree,
@@ -210,6 +211,9 @@ enum StructureKind {
     _ => false,
   };
 
+  bool get isNaturalFeature =>
+      isBotanicalTree || this == StructureKind.rockOutcrop;
+
   StructureSpec get spec => switch (this) {
     StructureKind.machiya => StructureSpec.machiya,
     StructureKind.chaya => StructureSpec.chaya,
@@ -217,6 +221,7 @@ enum StructureKind {
     StructureKind.marketStall => StructureSpec.marketStall,
     StructureKind.toriiGate => StructureSpec.toriiGate,
     StructureKind.yaguraTower => StructureSpec.yaguraTower,
+    StructureKind.rockOutcrop => StructureSpec.rockOutcrop,
     StructureKind.mapleCluster => StructureSpec.mapleCluster,
     StructureKind.bambooGrove => StructureSpec.bambooGrove,
     StructureKind.pineTree => StructureSpec.pineTree,
@@ -417,6 +422,19 @@ class StructureSpec {
     hasShojiWindows: true,
   );
 
+  static const StructureSpec rockOutcrop = StructureSpec(
+    kind: StructureKind.rockOutcrop,
+    displayName: 'Rock Outcrop',
+    edoSubtitle: 'Layered Iwa',
+    footprintWidth: 3.2,
+    footprintDepth: 3,
+    height: 2.5,
+    foundationSkirtDepth: 0.65,
+    eaveAnchors: [],
+    instrument: EdoInstrument.bonsho,
+    snapsToRoadTangent: false,
+  );
+
   static const StructureSpec mapleCluster = StructureSpec(
     kind: StructureKind.mapleCluster,
     displayName: 'Maple & Rocks',
@@ -476,6 +494,7 @@ class StructureSpec {
     StructureKind.marketStall: marketStall,
     StructureKind.toriiGate: toriiGate,
     StructureKind.yaguraTower: yaguraTower,
+    StructureKind.rockOutcrop: rockOutcrop,
     StructureKind.mapleCluster: mapleCluster,
     StructureKind.bambooGrove: bambooGrove,
     StructureKind.pineTree: pineTree,
@@ -562,19 +581,24 @@ final class ExploreTool extends PlacementTool {
   int get hashCode => (ExploreTool).hashCode;
 }
 
+enum RoadStyle { kaidoRoad, gardenPath }
+
 final class DrawLaneTool extends PlacementTool {
-  const new({this.widthMeters = 3.2})
+  const new({this.widthMeters = 3.2, this.style = RoadStyle.kaidoRoad})
     : assert(widthMeters > 0, 'widthMeters must be positive.');
 
   final double widthMeters;
+  final RoadStyle style;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is DrawLaneTool && other.widthMeters == widthMeters;
+      other is DrawLaneTool &&
+          other.widthMeters == widthMeters &&
+          other.style == style;
 
   @override
-  int get hashCode => widthMeters.hashCode;
+  int get hashCode => Object.hash(widthMeters, style);
 }
 
 final class BuildTerraceTool extends PlacementTool {
@@ -675,6 +699,7 @@ class RoadSpline {
     required this.id,
     required this.controlPoints,
     this.widthMeters = 3.2,
+    this.style = RoadStyle.kaidoRoad,
     this.isBridgeApproach = false,
   }) : assert(controlPoints.length >= 2, 'RoadSpline requires >= 2 points.'),
        assert(widthMeters > 0, 'widthMeters must be positive.');
@@ -683,6 +708,7 @@ class RoadSpline {
     required EntityId id,
     required Iterable<Vec3> controlPoints,
     double widthMeters = 3.2,
+    RoadStyle style = RoadStyle.kaidoRoad,
     bool isBridgeApproach = false,
   }) {
     if (!id.isValid) {
@@ -707,6 +733,7 @@ class RoadSpline {
       id: id,
       controlPoints: frozen,
       widthMeters: widthMeters,
+      style: style,
       isBridgeApproach: isBridgeApproach,
     );
   }
@@ -714,17 +741,81 @@ class RoadSpline {
   final EntityId id;
   final List<Vec3> controlPoints;
   final double widthMeters;
+  final RoadStyle style;
   final bool isBridgeApproach;
 
+  static Vec3 _lerpKnot(Vec3 a, Vec3 b, double ta, double tb, double t) {
+    final span = tb - ta;
+    if (span.abs() <= 1e-9) {
+      return a;
+    }
+    return Vec3.lerp(a, b, (t - ta) / span);
+  }
+
+  List<Vec3> smoothCenterline({double stepMeters = 0.65}) {
+    final step = stepMeters <= 0.05 ? 0.05 : stepMeters;
+    final clean = <Vec3>[controlPoints.first];
+    for (var i = 1; i < controlPoints.length; i++) {
+      final candidate = controlPoints[i];
+      if (candidate.horizontalDistanceTo(clean.last) > 1e-4) {
+        clean.add(candidate);
+      }
+    }
+    if (clean.length < 2) {
+      return [controlPoints.first, controlPoints.last];
+    }
+    if (clean.length == 2) {
+      final dist = clean.first.horizontalDistanceTo(clean.last);
+      final steps = math.max(1, (dist / step).ceil());
+      return [
+        for (var i = 0; i <= steps; i++)
+          Vec3.lerp(clean.first, clean.last, i / steps),
+      ];
+    }
+
+    final result = <Vec3>[clean.first];
+    final n = clean.length;
+    for (var i = 0; i < n - 1; i++) {
+      final p1 = clean[i];
+      final p2 = clean[i + 1];
+      final p0 = i == 0 ? p1 + (p1 - p2) : clean[i - 1];
+      final p3 = i + 2 < n ? clean[i + 2] : p2 + (p2 - p1);
+
+      final dt01 = math.max(0.05, math.sqrt(p0.horizontalDistanceTo(p1)));
+      final dt12 = math.max(0.05, math.sqrt(p1.horizontalDistanceTo(p2)));
+      final dt23 = math.max(0.05, math.sqrt(p2.horizontalDistanceTo(p3)));
+      const t0 = 0.0;
+      final t1 = dt01;
+      final t2 = t1 + dt12;
+      final t3 = t2 + dt23;
+
+      final chord = p1.horizontalDistanceTo(p2);
+      final segSteps = math.max(2, (chord / step).ceil());
+      for (var k = 1; k <= segSteps; k++) {
+        final t = t1 + (t2 - t1) * (k / segSteps);
+        final a1 = _lerpKnot(p0, p1, t0, t1, t);
+        final a2 = _lerpKnot(p1, p2, t1, t2, t);
+        final a3 = _lerpKnot(p2, p3, t2, t3, t);
+        final b1 = _lerpKnot(a1, a2, t0, t2, t);
+        final b2 = _lerpKnot(a2, a3, t1, t3, t);
+        result.add(_lerpKnot(b1, b2, t1, t2, t));
+      }
+    }
+    return result;
+  }
+
   RoadSample nearestSample(Vec3 query) {
-    var bestPoint = controlPoints.first;
+    final samples = controlPoints.length <= 2
+        ? controlPoints
+        : smoothCenterline(stepMeters: 0.75);
+    var bestPoint = samples.first;
     var bestTangent = Vec3.forward;
     var bestDistSq = double.infinity;
     var bestArcMeters = 0.0;
     var cumulativeMeters = 0.0;
-    for (var i = 0; i < controlPoints.length - 1; i++) {
-      final a = controlPoints[i];
-      final b = controlPoints[i + 1];
+    for (var i = 0; i < samples.length - 1; i++) {
+      final a = samples[i];
+      final b = samples[i + 1];
       final abX = b.x - a.x;
       final abZ = b.z - a.z;
       final segLenSq = abX * abX + abZ * abZ;
@@ -766,6 +857,7 @@ class RoadSpline {
           other.id == id &&
           listEquals(other.controlPoints, controlPoints) &&
           other.widthMeters == widthMeters &&
+          other.style == style &&
           other.isBridgeApproach == isBridgeApproach;
 
   @override
@@ -773,6 +865,7 @@ class RoadSpline {
     id,
     Object.hashAll(controlPoints),
     widthMeters,
+    style,
     isBridgeApproach,
   );
 }
@@ -890,8 +983,32 @@ class TerraceCourse {
 
   Vec3 dropNormalBetween(Vec3 a, Vec3 b) => platformNormalBetween(a, b) * -1;
 
-  double? samplePlatformElevation(Vec3 query) {
+  static double _quinticSmooth(double t) => t * t * t * (t * (t * 6 - 15) + 10);
+
+  (double inward, double wingOvershoot)? _projectQuery(double qx, double qz) {
+    var firstValid = -1;
+    var lastValid = -1;
     for (var i = 0; i < crestPoints.length - 1; i++) {
+      if (crestPoints[i].horizontalDistanceTo(crestPoints[i + 1]) > 1e-9) {
+        if (firstValid < 0) {
+          firstValid = i;
+        }
+        lastValid = i;
+      }
+    }
+    if (firstValid < 0) {
+      return null;
+    }
+
+    var bestIdx = firstValid;
+    var bestAlong = 0.0;
+    var bestClamped = 0.0;
+    var bestSegLen = 1.0;
+    var bestCx = 0.0;
+    var bestCz = 0.0;
+    var bestDistSq = double.infinity;
+
+    for (var i = firstValid; i <= lastValid; i++) {
       final a = crestPoints[i];
       final b = crestPoints[i + 1];
       final abX = b.x - a.x;
@@ -902,19 +1019,115 @@ class TerraceCourse {
       }
       final tx = abX / segLen;
       final tz = abZ / segLen;
-      final relX = query.x - a.x;
-      final relZ = query.z - a.z;
-      final along = relX * tx + relZ * tz;
-      if (along < 0 || along > segLen) {
-        continue;
-      }
-      final platformNormal = platformNormalBetween(a, b);
-      final inward = relX * platformNormal.x + relZ * platformNormal.z;
-      if (inward >= 0 && inward <= depthMeters) {
-        return topElevation;
+      final along = (qx - a.x) * tx + (qz - a.z) * tz;
+      final clamped = along.clamp(0.0, segLen);
+      final cx = a.x + tx * clamped;
+      final cz = a.z + tz * clamped;
+      final dx = qx - cx;
+      final dz = qz - cz;
+      final distSq = dx * dx + dz * dz;
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        bestIdx = i;
+        bestAlong = along;
+        bestClamped = clamped;
+        bestSegLen = segLen;
+        bestCx = cx;
+        bestCz = cz;
       }
     }
+
+    final segA = crestPoints[bestIdx];
+    final segB = crestPoints[bestIdx + 1];
+    final nBest = platformNormalBetween(segA, segB);
+
+    if (bestIdx == firstValid && bestAlong < 0) {
+      final inward = (qx - segA.x) * nBest.x + (qz - segA.z) * nBest.z;
+      return (inward, -bestAlong);
+    }
+    if (bestIdx == lastValid && bestAlong > bestSegLen) {
+      final inward = (qx - segB.x) * nBest.x + (qz - segB.z) * nBest.z;
+      return (inward, bestAlong - bestSegLen);
+    }
+
+    var effectiveNormal = nBest;
+    if (bestClamped <= 1e-5 && bestIdx > firstValid) {
+      var prevIdx = bestIdx - 1;
+      while (prevIdx > firstValid &&
+          crestPoints[prevIdx].horizontalDistanceTo(crestPoints[prevIdx + 1]) <=
+              1e-9) {
+        prevIdx--;
+      }
+      final nPrev = platformNormalBetween(
+        crestPoints[prevIdx],
+        crestPoints[prevIdx + 1],
+      );
+      effectiveNormal = (nPrev + nBest).normalizedHorizontal();
+    } else if (bestClamped >= bestSegLen - 1e-5 && bestIdx < lastValid) {
+      var nextIdx = bestIdx + 1;
+      while (nextIdx < lastValid &&
+          crestPoints[nextIdx].horizontalDistanceTo(crestPoints[nextIdx + 1]) <=
+              1e-9) {
+        nextIdx++;
+      }
+      final nNext = platformNormalBetween(
+        crestPoints[nextIdx],
+        crestPoints[nextIdx + 1],
+      );
+      effectiveNormal = (nBest + nNext).normalizedHorizontal();
+    }
+
+    final dx = qx - bestCx;
+    final dz = qz - bestCz;
+    final r = math.sqrt(bestDistSq);
+    if (r <= 1e-9) {
+      return (0, 0);
+    }
+    final sign = (dx * effectiveNormal.x + dz * effectiveNormal.z) >= -1e-9
+        ? 1.0
+        : -1.0;
+    return (sign * r, 0);
+  }
+
+  double? samplePlatformElevation(Vec3 query) {
+    final proj = _projectQuery(query.x, query.z);
+    if (proj == null) {
+      return null;
+    }
+    final (inward, wingOvershoot) = proj;
+    if (wingOvershoot <= 1e-6 && inward >= 0 && inward <= depthMeters) {
+      return topElevation;
+    }
     return null;
+  }
+
+  double sampleGradedElevation(
+    double x,
+    double z,
+    double rawY, {
+    double backBermMeters = 4.6,
+    double wingBermMeters = 3.8,
+  }) {
+    if (rawY >= topElevation) {
+      return rawY;
+    }
+    final proj = _projectQuery(x, z);
+    if (proj == null) {
+      return rawY;
+    }
+    final (inward, wingOvershoot) = proj;
+    if (inward <= 0.14 ||
+        inward >= depthMeters + backBermMeters ||
+        wingOvershoot >= wingBermMeters) {
+      return rawY;
+    }
+    final tFront = ((inward - 0.14) / 0.76).clamp(0.0, 1.0);
+    final tBack =
+        1.0 - ((inward - depthMeters) / backBermMeters).clamp(0.0, 1.0);
+    final tWing = 1.0 - (wingOvershoot / wingBermMeters).clamp(0.0, 1.0);
+    final weight =
+        _quinticSmooth(tFront) * _quinticSmooth(tBack) * _quinticSmooth(tWing);
+    return rawY + (topElevation - rawY) * weight;
   }
 
   @override
@@ -1415,7 +1628,7 @@ final class StampGhostPreview extends BuildPreview {
   final List<LanternSpan> lanternSpans;
 }
 
-enum StrokePreviewStyle { lane, terrace, wall }
+enum StrokePreviewStyle { lane, gardenPath, terrace, wall }
 
 final class StrokeRibbonPreview extends BuildPreview {
   const new({
@@ -1636,7 +1849,7 @@ class ShukubaGraph {
           id: road.id,
           center: sample.point,
           radiusMeters: road.widthMeters * 0.65,
-          label: 'Cobble Lane',
+          label: road.style == RoadStyle.gardenPath ? 'Garden Path' : 'Road',
         );
       }
     }
@@ -1925,12 +2138,12 @@ class CameraPreset {
 
   static const CameraPreset meadowCloseup = CameraPreset(
     id: 'meadow_closeup',
-    label: 'Sunlit Wildflower Meadow',
-    eye: Vec3(-7.6, 2.04, 22.4),
-    target: Vec3(2.4, 1.16, 1.4),
+    label: 'Riverbank & Garden Detail',
+    eye: Vec3(-9.2, 4.8, 18.4),
+    target: Vec3(2.6, 1.15, 0.8),
     timeOfDay: TimeOfDayRig(0.14),
-    verticalFovDegrees: 23,
-    nearMeters: 0.45,
+    verticalFovDegrees: 21,
+    nearMeters: 0.85,
     farMeters: 250,
   );
 

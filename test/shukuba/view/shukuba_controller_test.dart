@@ -215,12 +215,14 @@ void main() {
       expect(find.text('Storehouse'), findsOneWidget);
       expect(find.text('Market Stall'), findsOneWidget);
       expect(find.text('Lantern Gate'), findsOneWidget);
-      expect(find.text('Cobble Lane'), findsOneWidget);
+      expect(find.text('Road'), findsOneWidget);
+      expect(find.text('Garden Path'), findsOneWidget);
       expect(find.text('Stone Terrace'), findsOneWidget);
       expect(find.text('Courtyard Wall'), findsOneWidget);
+      expect(find.text('Rock Outcrop'), findsOneWidget);
       expect(find.text('Black Pine'), findsOneWidget);
       expect(find.text('Weeping Willow'), findsOneWidget);
-      expect(find.text('4 Living Meadow'), findsOneWidget);
+      expect(find.text('4 Gorge & Garden'), findsOneWidget);
       expect(find.text('Demolish'), findsOneWidget);
       expect(find.text('Undo [Z]'), findsOneWidget);
 
@@ -228,6 +230,17 @@ void main() {
       expect(find.text('Yagura'), findsNothing);
       expect(find.text('Watch'), findsNothing);
       expect(find.text('Done [Esc]'), findsNothing);
+
+      await tester.tap(find.text('Road'));
+      await tester.pump();
+      expect(controller.activeTool, const DrawLaneTool());
+
+      await tester.tap(find.text('Garden Path'));
+      await tester.pump();
+      expect(
+        controller.activeTool,
+        const DrawLaneTool(style: RoadStyle.gardenPath, widthMeters: 1.75),
+      );
 
       await tester.tap(find.text('Townhouse'));
       await tester.pump();
@@ -243,7 +256,7 @@ void main() {
       expect(find.text('Done [Esc]'), findsNothing);
     });
 
-    test('TacticalCameraRig raycasts viewport center onto target ground', () {
+    test('TacticalCameraRig raycasts center and orbits smoothly by delta', () {
       final rig = TacticalCameraRig();
       final hit = rig.raycastGround(
         const Offset(480, 270),
@@ -254,6 +267,30 @@ void main() {
       expect(hit!.x, closeTo(0, 0.25));
       expect(hit.z, closeTo(0, 0.25));
       expect(hit.y, closeTo(1.4, 1e-6));
+
+      final yawBefore = rig.yawRadians;
+      final pitchBefore = rig.pitchRadians;
+      rig.orbitByScreenDelta(const Offset(120, 60), const Size(960, 540));
+      expect(rig.yawRadians, isNot(closeTo(yawBefore, 1e-4)));
+      expect(rig.pitchRadians, greaterThan(pitchBefore));
+      expect(
+        rig.pitchRadians,
+        inInclusiveRange(
+          TacticalCameraRig.minPitchRadians,
+          TacticalCameraRig.maxPitchRadians,
+        ),
+      );
+
+      rig.orbitByScreenDelta(const Offset(0, 5000), const Size(960, 540));
+      expect(
+        rig.pitchRadians,
+        closeTo(TacticalCameraRig.maxPitchRadians, 1e-6),
+      );
+      rig.orbitByScreenDelta(const Offset(0, -5000), const Size(960, 540));
+      expect(
+        rig.pitchRadians,
+        closeTo(TacticalCameraRig.minPitchRadians, 1e-6),
+      );
     });
   });
 }

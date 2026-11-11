@@ -15,6 +15,8 @@ class TacticalCameraRig {
 
   static const double minDistanceMeters = 12;
   static const double maxDistanceMeters = 115;
+  static const double minPitchRadians = 11 * degrees2Radians;
+  static const double maxPitchRadians = 64 * degrees2Radians;
   static const double panBoundsMeters = 32;
   static const double keyPanSpeedMetersPerSec = 18;
 
@@ -31,6 +33,8 @@ class TacticalCameraRig {
 
   double get yawRadians => _yawRadians;
 
+  double get pitchRadians => _pitchRadians;
+
   double get distanceMeters => _distanceMeters;
 
   PerspectiveCamera applyPreset(CameraPreset preset) {
@@ -45,9 +49,22 @@ class TacticalCameraRig {
     return _camera;
   }
 
-  void orbitByRadians(double deltaYawRadians) {
+  void orbitByRadians(double deltaYawRadians, [double deltaPitchRadians = 0]) {
     _yawRadians = _wrapAngle(_yawRadians + deltaYawRadians);
+    if (deltaPitchRadians != 0) {
+      _pitchRadians = (_pitchRadians + deltaPitchRadians).clamp(
+        minPitchRadians,
+        maxPitchRadians,
+      );
+    }
     _applySphericalToCamera();
+  }
+
+  void orbitByScreenDelta(Offset screenDelta, Size viewSize) {
+    final refHeight = viewSize.height > 1 ? viewSize.height : 800.0;
+    final deltaYaw = screenDelta.dx * (math.pi * 1.15 / refHeight);
+    final deltaPitch = screenDelta.dy * (math.pi * 0.65 / refHeight);
+    orbitByRadians(deltaYaw, deltaPitch);
   }
 
   void zoomByScrollDelta(double scrollDeltaY) {

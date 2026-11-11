@@ -11,6 +11,7 @@ import 'package:flutter_scene/scene.dart'
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         GroundHeightSampler,
+        RoadStyle,
         ShukubaGraph,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
@@ -36,17 +37,43 @@ class AtmosphereBuilder {
     final haloMat = resolveMaterial(ShukubaSurfaceRole.lanternHaze);
     final moteMat = resolveMaterial(ShukubaSurfaceRole.airborneMotes);
 
-    final mistBuilder = GeometryBuilder();
-    _emitRiverGorgeMistRibbons(mistBuilder);
-    _emitCourtyardAlleyHaze(mistBuilder, graph, sampleGroundY);
-    _emitStructureSteamWisps(mistBuilder, graph);
-
-    root.add(
+    final mistGroup = Node(name: 'atmosphere_mist_ribbons');
+    final southRiverMist = GeometryBuilder();
+    _emitRiverGorgeMistRibbons(southRiverMist, zMin: -38, zMax: 0);
+    mistGroup.add(
       Node(
-        name: 'atmosphere_mist_ribbons',
-        mesh: Mesh(mistBuilder.build(), mistMat),
+        name: 'atmosphere_mist_river_south',
+        mesh: Mesh(southRiverMist.build(), mistMat),
       )..shadowCastingMode = ShadowCastingMode.off,
     );
+
+    final northRiverMist = GeometryBuilder();
+    _emitRiverGorgeMistRibbons(northRiverMist, zMin: 0, zMax: 38);
+    mistGroup.add(
+      Node(
+        name: 'atmosphere_mist_river_north',
+        mesh: Mesh(northRiverMist.build(), mistMat),
+      )..shadowCastingMode = ShadowCastingMode.off,
+    );
+
+    final westMist = GeometryBuilder();
+    final eastMist = GeometryBuilder();
+    _emitCourtyardAlleyHaze(westMist, eastMist, graph, sampleGroundY);
+    _emitStructureSteamWisps(westMist, eastMist, graph);
+    mistGroup
+      ..add(
+        Node(
+          name: 'atmosphere_mist_west_ward',
+          mesh: Mesh(westMist.build(), mistMat),
+        )..shadowCastingMode = ShadowCastingMode.off,
+      )
+      ..add(
+        Node(
+          name: 'atmosphere_mist_east_ward',
+          mesh: Mesh(eastMist.build(), mistMat),
+        )..shadowCastingMode = ShadowCastingMode.off,
+      );
+    root.add(mistGroup);
 
     final quadGeo = EdoKitBuilder.buildUnitBillboardQuad();
     final haloInstanced = InstancedMesh(geometry: quadGeo, material: haloMat);
@@ -72,11 +99,13 @@ class AtmosphereBuilder {
     return root;
   }
 
-  static void _emitRiverGorgeMistRibbons(GeometryBuilder builder) {
-    const zMin = -38.0;
-    const zMax = 38.0;
-    const segs = 60;
-    const dz = (zMax - zMin) / segs;
+  static void _emitRiverGorgeMistRibbons(
+    GeometryBuilder builder, {
+    required double zMin,
+    required double zMax,
+  }) {
+    const segs = 30;
+    final dz = (zMax - zMin) / segs;
 
     const tiers = [
       (-0.36, 3.65, 0.86, 0.0, 0.0),
@@ -95,12 +124,12 @@ class AtmosphereBuilder {
       final baseVertex = <int>[];
       for (var i = 0; i <= segs; i++) {
         final z = zMin + i * dz;
-        final endDist = math.min(z - zMin, zMax - z);
+        final endDist = math.min(z - (-38.0), 38.0 - z);
         final endFade = (endDist / 8.0).clamp(0.0, 1.0);
         final cX =
             TerrainConfig.riverCenterX(z) +
             swayAmp * math.sin(z * swayFreq + tierIdx);
-        final v = 0.2 + (i / segs) * 9.0 + tierIdx * 3.1;
+        final v = 0.2 + ((z + 38.0) / 76.0) * 9.0 + tierIdx * 3.1;
         final crownY = baseY + 0.08 * math.cos(z * 0.21 + tierIdx);
 
         builder
@@ -145,7 +174,8 @@ class AtmosphereBuilder {
   }
 
   static void _emitCourtyardAlleyHaze(
-    GeometryBuilder builder,
+    GeometryBuilder westBuilder,
+    GeometryBuilder eastBuilder,
     ShukubaGraph graph,
     GroundHeightSampler sampleGroundY,
   ) {
@@ -162,11 +192,17 @@ class AtmosphereBuilder {
       cx /= wall.controlPoints.length;
       cz /= wall.controlPoints.length;
       final gy = sampleGroundY(cx, cz) + 0.42;
-      _emitSoftHazePillow(builder, Vector3(cx, gy, cz), 4.6, 3.8, 0.44);
+      _emitSoftHazePillow(
+        cx < 0 ? westBuilder : eastBuilder,
+        Vector3(cx, gy, cz),
+        4.2,
+        3.4,
+        0.42,
+      );
     }
 
     for (final road in graph.roads) {
-      if (road.controlPoints.length < 2) {
+      if (road.controlPoints.length < 2 || road.style == RoadStyle.gardenPath) {
         continue;
       }
       final mid = Vec3.lerp(
@@ -176,7 +212,13 @@ class AtmosphereBuilder {
       );
       if (mid.x.abs() > 7.0) {
         final gy = sampleGroundY(mid.x, mid.z) + 0.36;
-        _emitSoftHazePillow(builder, Vector3(mid.x, gy, mid.z), 5.2, 4.2, 0.36);
+        _emitSoftHazePillow(
+          mid.x < 0 ? westBuilder : eastBuilder,
+          Vector3(mid.x, gy, mid.z),
+          4.6,
+          3.6,
+          0.34,
+        );
       }
     }
   }
@@ -209,7 +251,8 @@ class AtmosphereBuilder {
   }
 
   static void _emitStructureSteamWisps(
-    GeometryBuilder builder,
+    GeometryBuilder westBuilder,
+    GeometryBuilder eastBuilder,
     ShukubaGraph graph,
   ) {
     for (final s in graph.structures.values) {
@@ -229,6 +272,7 @@ class AtmosphereBuilder {
             StructureKind.kura ||
             StructureKind.toriiGate ||
             StructureKind.yaguraTower ||
+            StructureKind.rockOutcrop ||
             StructureKind.mapleCluster ||
             StructureKind.bambooGrove ||
             StructureKind.pineTree ||
@@ -237,15 +281,16 @@ class AtmosphereBuilder {
       }
 
       final origin = (s.position + localVent.rotateY(s.yawRadians)).toVector3();
+      final targetBuilder = origin.x < 0 ? westBuilder : eastBuilder;
       for (final planeYaw in const [0.35, 1.92]) {
         final rx = math.cos(planeYaw) * width * 0.5;
         final rz = math.sin(planeYaw) * width * 0.5;
 
         int emit(Vector3 p, double u, double v, double a) {
-          builder
+          targetBuilder
             ..color(Vector4(1, 0.96, 0.90, a))
             ..texCoord(Vector2(u, v));
-          return builder.addVertex(p);
+          return targetBuilder.addVertex(p);
         }
 
         final v0 = emit(origin + Vector3(-rx, 0, -rz), 0, -0.02, 0);
@@ -275,7 +320,7 @@ class AtmosphereBuilder {
           0,
         );
 
-        builder
+        targetBuilder
           ..addTriangle(v0, v1, v3)
           ..addTriangle(v0, v3, v2)
           ..addTriangle(v2, v3, v5)
@@ -324,6 +369,7 @@ class AtmosphereBuilder {
         StructureKind.toriiGate => 1.95,
         StructureKind.kura ||
         StructureKind.yaguraTower ||
+        StructureKind.rockOutcrop ||
         StructureKind.mapleCluster ||
         StructureKind.bambooGrove ||
         StructureKind.pineTree ||

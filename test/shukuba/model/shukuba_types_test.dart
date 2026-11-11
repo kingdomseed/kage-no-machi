@@ -301,11 +301,61 @@ void main() {
       );
       expect(StructureKind.pineTree.isBotanicalTree, isTrue);
       expect(StructureKind.weepingWillow.isBotanicalTree, isTrue);
-      expect(StructureKind.machiya.isBotanicalTree, isFalse);
+      expect(StructureKind.rockOutcrop.isBotanicalTree, isFalse);
+      expect(StructureKind.rockOutcrop.isNaturalFeature, isTrue);
+      expect(StructureKind.machiya.isNaturalFeature, isFalse);
       expect(
         CameraPreset.verificationPresets,
         contains(CameraPreset.meadowCloseup),
       );
     });
+
+    test(
+      'RoadSpline.smoothCenterline rounds sharp bends and preserves styles',
+      () {
+        final curved = RoadSpline.validated(
+          id: const EntityId('garden_walk'),
+          style: RoadStyle.gardenPath,
+          widthMeters: 1.75,
+          controlPoints: const [Vec3(-10, 0, 0), Vec3.zero, Vec3(0, 0, 10)],
+        );
+        final smooth = curved.smoothCenterline();
+        expect(smooth.first, const Vec3(-10, 0, 0));
+        expect(smooth.last, const Vec3(0, 0, 10));
+        expect(smooth.length, greaterThan(16));
+
+        final sampleAtCorner = curved.nearestSample(Vec3.zero);
+        expect(sampleAtCorner.point, Vec3.zero);
+        expect(smooth.any((p) => p.x > 0.15 && p.z > 0.2), isTrue);
+
+        final graph = ShukubaGraph.empty.putRoad(curved);
+        expect(
+          graph.findDemolishCandidate(const Vec3(-5, 0, 0.2))?.label,
+          'Garden Path',
+        );
+      },
+    );
+
+    test(
+      'TerraceCourse grades bastion corners and earthen berms continuously',
+      () {
+        final bastion = TerraceCourse.validated(
+          id: const EntityId('bastion_east'),
+          crestPoints: const [
+            Vec3(-8, 2.2, 0),
+            Vec3(0, 2.2, 0),
+            Vec3(6, 2.2, 4),
+          ],
+          topElevation: 2.2,
+          depthMeters: 6,
+        );
+        expect(bastion.samplePlatformElevation(const Vec3(0.4, 0, -2)), 2.2);
+        expect(bastion.sampleGradedElevation(0.4, -2, 0.4), closeTo(2.2, 1e-6));
+        final wingMid = bastion.sampleGradedElevation(-9.8, -2.5, 0.4);
+        expect(wingMid, greaterThan(0.45));
+        expect(wingMid, lessThan(2.15));
+        expect(bastion.sampleGradedElevation(-2, 1.5, 0.4), closeTo(0.4, 1e-9));
+      },
+    );
   });
 }

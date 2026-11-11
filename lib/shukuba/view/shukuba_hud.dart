@@ -112,7 +112,7 @@ class _WardPlaque extends StatelessWidget {
       ('1 Golden Dusk', CameraPreset.duskOverview),
       ('2 Night Market', CameraPreset.nightMarket),
       ('3 Gorge Crossing', CameraPreset.riverCrossing),
-      ('4 Living Meadow', CameraPreset.meadowCloseup),
+      ('4 Gorge & Garden', CameraPreset.meadowCloseup),
     ];
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -222,7 +222,7 @@ class _AtmospherePanel extends StatelessWidget {
               ),
             ),
             const Text(
-              'Right-drag or WASD pan · Scroll zoom · Q/E orbit',
+              'Right-drag rotate · Left-drag or WASD pan · Scroll zoom',
               style: TextStyle(color: ShukubaHud._mutedSand, fontSize: 10),
             ),
           ],
@@ -252,8 +252,8 @@ class _ToolGuidanceBar extends StatelessWidget {
   String _describeGuidance() {
     switch (activeTool) {
       case ExploreTool():
-        return 'Select any building, lane, wall, or tree below to start '
-            'building · Drag to pan · Scroll to zoom · Q/E orbit';
+        return 'Select any building, road, wall, rock, or tree below · '
+            'Right-drag to rotate · Left-drag or WASD to pan · Scroll to zoom';
       case StampStructureTool(:final kind):
         final spec = kind.spec;
         var spanHint = '';
@@ -264,27 +264,31 @@ class _ToolGuidanceBar extends StatelessWidget {
           }
         }
         final snapNote = spec.straddlesRoad
-            ? 'Straddles lanes automatically'
+            ? 'Straddles roads automatically'
             : (spec.snapsToRoadTangent
-                  ? 'Faces nearest lane automatically'
-                  : 'Free garden placement');
+                  ? 'Faces nearest road automatically'
+                  : 'Free landscape placement');
         return '${spec.displayName} (${spec.edoSubtitle}) · '
             'Left-click to place · $snapNote$spanHint · [R] Rotate';
-      case DrawLaneTool():
-        return 'Cobble Lane (Kaidō path) · '
-            'Click and drag on ground to paint a gravel & stepping-stone lane';
+      case DrawLaneTool(:final style):
+        if (style == RoadStyle.gardenPath) {
+          return 'Garden Path (Roji & tobi-ishi) · '
+              'Left-drag on ground to curve a raked-gravel stepping-stone path';
+        }
+        return 'Road (Kaidō thoroughfare) · '
+            'Left-drag on ground to paint a curved dirt & stone-curbed road';
       case BuildTerraceTool():
         return 'Stone Terrace (Ishigaki retaining wall) · '
-            'Click and drag to raise a fitted castle-stone platform';
+            'Left-drag to raise a fitted castle-stone plateau';
       case BuildWallTool():
         return 'Courtyard Wall (Hei plaster & tile wall) · '
-            'Click and drag to enclose compounds and gardens';
+            'Left-drag to enclose compounds and gardens';
       case DemolishTool():
         if (preview case DemolishHoverPreview(:final candidate)) {
           return 'Demolish · Left-click to remove ${candidate.label} · '
               '[Z] Undo';
         }
-        return 'Demolish · Hover any building, wall, terrace, or side lane '
+        return 'Demolish · Hover any building, road, wall, terrace, or rock '
             'and click to remove · [Z] Undo';
       case InspectWatchTool():
         return 'Town View';
@@ -409,9 +413,14 @@ class _CityBuilderDock extends StatelessWidget {
 
   static const List<_ToolCardSpec> _pathsAndWalls = [
     _ToolCardSpec(
-      title: 'Cobble Lane',
-      subtitle: 'Drag path',
+      title: 'Road',
+      subtitle: 'Dirt & stone',
       tool: DrawLaneTool(),
+    ),
+    _ToolCardSpec(
+      title: 'Garden Path',
+      subtitle: 'Stepping stones',
+      tool: DrawLaneTool(style: RoadStyle.gardenPath, widthMeters: 1.75),
     ),
     _ToolCardSpec(
       title: 'Stone Terrace',
@@ -427,14 +436,19 @@ class _CityBuilderDock extends StatelessWidget {
 
   static const List<_ToolCardSpec> _nature = [
     _ToolCardSpec(
-      title: 'Maple & Rocks',
-      subtitle: 'Momiji',
-      tool: StampStructureTool(kind: StructureKind.mapleCluster),
+      title: 'Rock Outcrop',
+      subtitle: 'Layered Iwa',
+      tool: StampStructureTool(kind: StructureKind.rockOutcrop),
     ),
     _ToolCardSpec(
       title: 'Black Pine',
       subtitle: 'Gnarled Matsu',
       tool: StampStructureTool(kind: StructureKind.pineTree),
+    ),
+    _ToolCardSpec(
+      title: 'Maple & Rocks',
+      subtitle: 'Momiji',
+      tool: StampStructureTool(kind: StructureKind.mapleCluster),
     ),
     _ToolCardSpec(
       title: 'Weeping Willow',
@@ -449,12 +463,12 @@ class _CityBuilderDock extends StatelessWidget {
   ];
 
   bool _matches(PlacementTool candidate) {
-    if (activeTool case StampStructureTool(kind: final a)) {
-      if (candidate case StampStructureTool(kind: final b)) {
-        return a == b;
-      }
-    }
-    return activeTool.runtimeType == candidate.runtimeType;
+    return switch ((activeTool, candidate)) {
+      (StampStructureTool(kind: final a), StampStructureTool(kind: final b)) =>
+        a == b,
+      (DrawLaneTool(style: final a), DrawLaneTool(style: final b)) => a == b,
+      _ => activeTool.runtimeType == candidate.runtimeType,
+    };
   }
 
   @override

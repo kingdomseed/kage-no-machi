@@ -106,6 +106,7 @@ class ShukubaController extends ChangeNotifier {
     final isSameKind = switch ((_activeTool, tool)) {
       (StampStructureTool(kind: final a), StampStructureTool(kind: final b)) =>
         a == b,
+      (DrawLaneTool(style: final a), DrawLaneTool(style: final b)) => a == b,
       _ => _activeTool.runtimeType == tool.runtimeType,
     };
     selectTool(isSameKind ? const ExploreTool() : tool);
@@ -261,13 +262,15 @@ class ShukubaController extends ChangeNotifier {
     _strokePoints.clear();
 
     switch (_activeTool) {
-      case DrawLaneTool(:final widthMeters):
+      case DrawLaneTool(:final widthMeters, :final style):
         _pushUndoSnapshot();
-        final id = EntityId.validated('lane_user_${_nextEntitySeq++}');
+        final prefix = style == RoadStyle.gardenPath ? 'path' : 'road';
+        final id = EntityId.validated('${prefix}_user_${_nextEntitySeq++}');
         final road = RoadSpline.validated(
           id: id,
           controlPoints: points,
           widthMeters: widthMeters,
+          style: style,
         );
         world.applyGraph(world.graph.putRoad(road));
         _emitStrokeChord(EdoInstrument.hyoshigi, points.last);
@@ -427,9 +430,11 @@ class ShukubaController extends ChangeNotifier {
             lanternSpans: world.graph.previewLanternSpansFor(candidate),
           );
         }
-      case DrawLaneTool(:final widthMeters):
+      case DrawLaneTool(:final widthMeters, :final style):
         next = _buildStrokePreview(
-          style: StrokePreviewStyle.lane,
+          style: style == RoadStyle.gardenPath
+              ? StrokePreviewStyle.gardenPath
+              : StrokePreviewStyle.lane,
           widthMeters: widthMeters,
           hover: hover,
         );

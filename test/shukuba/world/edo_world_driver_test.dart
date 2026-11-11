@@ -10,6 +10,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         EntityId,
         PlacedStructure,
         RoadSpline,
+        RoadStyle,
         StreetAgentRole,
         StructureKind,
         TerraceCourse,
@@ -74,37 +75,59 @@ void main() {
           ),
           isTrue,
         );
+        expect(
+          graph.structures.values.any(
+            (s) => s.kind == StructureKind.rockOutcrop,
+          ),
+          isTrue,
+        );
+        expect(graph.roads.any((r) => r.style == RoadStyle.gardenPath), isTrue);
+        expect(graph.terraces.every((t) => t.crestPoints.length >= 4), isTrue);
       },
     );
 
-    test('sampleGroundHeight resolves bridge arch and terrace platforms', () {
-      const terrain = TerrainBuilder();
-      final lowerTerrace = TerraceCourse(
-        id: const EntityId('terrace_lower_east'),
-        crestPoints: const [Vec3(4.8, 1.8, -24), Vec3(4.8, 1.8, 24)],
-        topElevation: 1.8,
-        depthMeters: 8.5,
-      );
+    test(
+      'sampleGroundHeight resolves bridge arch, terraces, and kaidan stairs',
+      () {
+        expect(TerrainConfig.gridStep, 0.5);
+        const terrain = TerrainBuilder();
+        final lowerTerrace = TerraceCourse(
+          id: const EntityId('terrace_lower_east'),
+          crestPoints: const [Vec3(4.8, 1.8, -24), Vec3(4.8, 1.8, 24)],
+          topElevation: 1.8,
+          depthMeters: 8.5,
+        );
 
-      final bridgeCenterY = terrain.sampleGroundHeight(0, 0);
-      expect(bridgeCenterY, closeTo(1.58, 0.05));
+        final bridgeCenterY = terrain.sampleGroundHeight(0, 0);
+        expect(bridgeCenterY, closeTo(1.58, 0.05));
 
-      final westApproachY = terrain.sampleGroundHeight(-5.2, 0);
-      expect(westApproachY, closeTo(0.40, 0.05));
+        final westApproachY = terrain.sampleGroundHeight(-5.2, 0);
+        expect(westApproachY, closeTo(0.40, 0.05));
 
-      final eastApproachY = terrain.sampleGroundHeight(5.2, 0);
-      expect(eastApproachY, closeTo(1.80, 0.05));
+        final eastApproachY = terrain.sampleGroundHeight(5.2, 0);
+        expect(eastApproachY, closeTo(1.80, 0.05));
 
-      final terraceY = terrain.sampleGroundHeight(
-        8,
-        0,
-        terraces: [lowerTerrace],
-      );
-      expect(terraceY, closeTo(1.80, 0.05));
+        final terraceY = terrain.sampleGroundHeight(
+          8,
+          0,
+          terraces: [lowerTerrace],
+        );
+        expect(terraceY, closeTo(1.80, 0.05));
 
-      final riverbedY = terrain.sampleRawTerrain(0, 10);
-      expect(riverbedY, closeTo(-1.85, 0.15));
-    });
+        final starter = buildStarterShukubaGraph(terrain.sampleGroundHeight);
+        final midStairY = terrain.sampleGroundHeight(
+          14.8,
+          -0.15,
+          terraces: starter.terraces,
+          roads: starter.roads,
+        );
+        expect(midStairY, greaterThan(1.90));
+        expect(midStairY, lessThan(3.30));
+
+        final riverbedY = terrain.sampleRawTerrain(0, 10);
+        expect(riverbedY, closeTo(-1.85, 0.15));
+      },
+    );
 
     test('60 step calls update townsfolk agents with finite positions', () {
       final driver = EdoWorldDriver()..initSimulation();
@@ -368,11 +391,21 @@ void main() {
             .putRoad(
               RoadSpline.validated(
                 id: EntityId.validated('road_upper_path'),
+                style: RoadStyle.gardenPath,
                 controlPoints: [
                   Vec3(16, driver.sampleGroundHeight(16, 15), 15),
+                  Vec3(21, driver.sampleGroundHeight(21, 16.5), 16.5),
                   Vec3(26, driver.sampleGroundHeight(26, 15), 15),
                 ],
-                widthMeters: 2.8,
+                widthMeters: 1.75,
+              ),
+            )
+            .putStructure(
+              PlacedStructure(
+                id: EntityId.validated('rock_extra_nw'),
+                kind: StructureKind.rockOutcrop,
+                position: Vec3(-28, driver.sampleGroundHeight(-28, 16), 16),
+                yawRadians: 0.9,
               ),
             )
             .putTerrace(
