@@ -1,0 +1,104 @@
+material {
+  name: "AtmosphereMist",
+  shading_model: unlit,
+  blending: alpha,
+  culling: none,
+  depth_write: false,
+  engine_inputs: [scene_depth],
+  parameters: [
+    { type: vec4, name: mist_cool, hint: source_color, default: [0.36, 0.58, 0.70, 1.0] },
+    { type: vec4, name: mist_warm, hint: source_color, default: [0.90, 0.68, 0.42, 1.0] },
+    { type: float, name: mist_opacity, default: 0.65 },
+    { type: float, name: night_mix, default: 0.0 },
+    { type: float, name: mist_mode, default: 0.0 },
+    { type: float, name: time_sec, default: 0.0 }
+  ]
+}
+
+vertex {
+  void Vertex(inout VertexInputs vertex) {
+    float t = material_params.time_sec;
+    if (material_params.mist_mode > 0.5) {
+      vec3 center = vertex.model_transform[3].xyz;
+      float scaleX = length(vertex.model_transform[0].xyz);
+      float scaleY = length(vertex.model_transform[1].xyz);
+      vec3 toCam = normalize(vertex.camera_position - center);
+      vec3 upHint = abs(toCam.y) > 0.96 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+      vec3 camRight = normalize(cross(upHint, toCam));
+      vec3 camUp = cross(toCam, camRight);
+      vertex.world_position =
+          center + camRight * (vertex.position.x * scaleX) + camUp * (vertex.position.y * scaleY);
+    } else {
+      float swell = sin(t * 0.55 + vertex.world_position.z * 0.16 + vertex.world_position.x * 0.24);
+      vertex.world_position.y += swell * 0.065;
+    }
+  }
+}
+
+fragment {
+  #include <noise.glsl>
+
+  void Surface(inout MaterialInputs material) {
+    vec3 P = GetWorldPosition();
+    vec2 uv = GetUV0();
+    vec4 vColor = GetVertexColor();
+    float t = material_params.time_sec;
+
+    highp float sceneDepth = GetSceneDepth(vec2(0.0));
+    highp float fragDepth = GetFragmentViewDepth();
+    float softDepth = smoothstep(0.0, 1.55, max(0.0, sceneDepth - fragDepth));
+
+    if (material_params.mist_mode > 0.5) {
+      float r = length(uv - vec2(0.5)) * 2.0;
+      float radial = pow(clamp(1.0 - r, 0.0, 1.0), 2.45);
+      float wisp = 0.86 + 0.14 * NoiseSimplex3(P * 1.4 - vec3(0.0, t * 0.28, 0.0), 911);
+      vec3 coreTint = mix(
+        vec3(0.96, 0.72, 0.36),
+        material_params.mist_warm.rgb,
+        clamp(r * 0.85, 0.0, 1.0)
+      );
+      float alpha = radial * wisp * softDepth * material_params.mist_opacity * vColor.a * 0.32;
+      material.base_color = vec4(coreTint * vColor.rgb, clamp(alpha, 0.0, 0.42));
+      PrepareMaterial(material);
+      return;
+    }
+
+    float edgeX = pow(sin(clamp(uv.x, 0.0, 1.0) * 3.14159265), 1.35);
+
+    if (uv.y < -0.001) {
+      float riseT = clamp(-uv.y, 0.0, 1.0);
+      float verticalEnv = sin(riseT * 3.14159265) * (1.0 - 0.45 * riseT);
+      float curlX = NoiseSimplex3(vec3(P.x * 1.8, P.y * 1.4 - t * 0.72, P.z * 1.8), 929);
+      float steamWisp = smoothstep(-0.18, 0.62, curlX + 0.25 * (1.0 - riseT));
+      vec3 steamTint = mix(
+        vec3(0.86, 0.82, 0.76),
+        vec3(0.52, 0.62, 0.76),
+        material_params.night_mix * 0.65
+      );
+      float steamAlpha =
+          edgeX * verticalEnv * steamWisp * softDepth * vColor.a * 0.28;
+      material.base_color = vec4(steamTint * vColor.rgb, clamp(steamAlpha, 0.0, 0.32));
+      PrepareMaterial(material);
+      return;
+    }
+
+    vec3 flowCoord = vec3(P.x * 0.20, P.y * 0.52, P.z * 0.15 - t * 0.11);
+    float warp = NoiseSimplex3(flowCoord * 1.4 + vec3(0.0, -t * 0.05, -t * 0.08), 941);
+    float fbm = NoiseFbm3(flowCoord + vec3(warp * 0.45), 953, 3, 2.0, 0.5);
+    float billow = smoothstep(0.24, 0.82, fbm * 0.5 + 0.52);
+
+    float bridgeClear = 0.42 + 0.58 * smoothstep(2.2, 9.2, abs(P.z));
+    vec3 duskVapor = mix(
+      material_params.mist_cool.rgb,
+      material_params.mist_warm.rgb,
+      clamp(0.22 + 0.38 * (fbm * 0.5 + 0.5), 0.0, 0.65)
+    );
+    vec3 nightVapor = vec3(0.14, 0.26, 0.42);
+    vec3 mistRgb = mix(duskVapor, nightVapor, material_params.night_mix);
+
+    float alpha =
+        edgeX * vColor.a * softDepth * billow * bridgeClear * material_params.mist_opacity * 0.42;
+    material.base_color = vec4(mistRgb * vColor.rgb, clamp(alpha, 0.0, 0.46));
+    PrepareMaterial(material);
+  }
+}

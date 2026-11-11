@@ -18,6 +18,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         Vec3,
         WatchSightcone,
         defaultShukubaMaterial;
+import 'package:kage_no_machi/shukuba/world/atmosphere_builder.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart';
 import 'package:kage_no_machi/shukuba/world/flora_scatter_builder.dart';
 import 'package:kage_no_machi/shukuba/world/starter_ward.dart';
@@ -67,6 +68,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final TerrainBuilder _terrainBuilder = const TerrainBuilder();
   late final EdoKitBuilder _kitBuilder = const EdoKitBuilder();
   late final FloraScatterBuilder _floraBuilder = const FloraScatterBuilder();
+  late final AtmosphereBuilder _atmosphereBuilder = const AtmosphereBuilder();
 
   late ShukubaGraph _graph = ShukubaGraph.empty;
   BuildPreview _activePreview = const NoBuildPreview();
@@ -83,6 +85,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final Node _structuresNode = Node();
   late final Node _lanternSpansNode = Node();
   late final Node _agentsNode = Node();
+  late final Node _atmosphereNode = Node();
   late final Node _previewNode = Node();
 
   final List<_SimAgent> _simAgents = [];
@@ -207,6 +210,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       ..add(_structuresNode)
       ..add(_lanternSpansNode)
       ..add(_agentsNode)
+      ..add(_atmosphereNode)
       ..add(_previewNode);
 
     _scene!.add(_worldRoot!);
@@ -398,6 +402,16 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         _kitBuilder.buildLanternSpanNode(span, _resolveMaterial),
       );
     }
+
+    _atmosphereNode
+      ..removeAll()
+      ..add(
+        _atmosphereBuilder.buildAtmosphereNode(
+          graph: _graph,
+          resolveMaterial: _resolveMaterial,
+          sampleGroundY: sampleGroundHeight,
+        ),
+      );
   }
 
   @override

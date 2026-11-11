@@ -2026,6 +2026,21 @@ enum ShukubaSurfaceRole {
     depthLayer: 0,
     defaultRoughness: 0.14,
     previewColor: Color(0xFF285864),
+  ),
+  riverMist(
+    depthLayer: 3,
+    defaultRoughness: 1,
+    previewColor: Color(0x6688B8C8),
+  ),
+  lanternHaze(
+    depthLayer: 4,
+    defaultRoughness: 1,
+    previewColor: Color(0x66FFB860),
+  ),
+  airborneMotes(
+    depthLayer: 4,
+    defaultRoughness: 1,
+    previewColor: Color(0x99FFD88A),
   );
 
   new({

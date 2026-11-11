@@ -9,6 +9,7 @@ material {
     { type: float, name: roughness_val, default: 0.85 },
     { type: float, name: grain_scale, default: 8.0 },
     { type: float, name: weathering, default: 0.25 },
+    { type: float, name: dew_sheen, default: 0.22 },
     { type: float, name: style_id, default: 0.0 }
   ]
 }
@@ -211,6 +212,11 @@ fragment {
     float dripNoise = NoiseSimplex2(vec2(P.x * 1.4 + P.z * 1.4, P.y * 2.6), 42);
     float drip = clamp(0.5 + 0.5 * dripNoise, 0.0, 1.0) * material_params.weathering;
     vec3 weathered = mix(albedo, albedo * 0.76, drip * 0.32);
+
+    float upMoisture = smoothstep(0.35, 0.92, perturbedN.y) * material_params.dew_sheen;
+    float dewHold = (style > 0.5 && style < 3.5) || style > 5.2 ? 0.44 : 0.18;
+    rough = mix(rough, 0.20, clamp(upMoisture * dewHold, 0.0, 0.64));
+    spec = mix(spec, 0.76, clamp(upMoisture * dewHold, 0.0, 0.56));
 
     material.base_color = vec4(weathered * vColor.rgb, 1.0);
     material.normal = perturbedN;

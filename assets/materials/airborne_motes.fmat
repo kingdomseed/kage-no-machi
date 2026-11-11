@@ -1,0 +1,120 @@
+material {
+  name: "AirborneMotes",
+  shading_model: unlit,
+  blending: alpha,
+  culling: none,
+  depth_write: false,
+  parameters: [
+    { type: float, name: dusk_gain, default: 1.0 },
+    { type: float, name: night_gain, default: 0.0 },
+    { type: float, name: time_sec, default: 0.0 }
+  ]
+}
+
+vertex {
+  void Vertex(inout VertexInputs vertex) {
+    float t = material_params.time_sec;
+    vec3 anchor = vertex.model_transform[3].xyz;
+    float baseScale = length(vertex.model_transform[0].xyz);
+    float family = vertex.color.a;
+    float phase = anchor.x * 1.37 + anchor.z * 2.11 + anchor.y * 3.07;
+
+    vec3 center = anchor;
+    float spin = 0.0;
+
+    if (family < 0.33) {
+      center.x += sin(t * 0.48 + phase) * 0.65;
+      center.y += sin(t * 0.36 + phase * 1.3) * 0.35;
+      center.z += cos(t * 0.42 + phase * 0.9) * 0.65;
+    } else if (family < 0.66) {
+      float fallCycle = fract(t * 0.095 + fract(phase * 0.173));
+      center.y = anchor.y + 1.8 - fallCycle * 3.8;
+      center.x += sin(t * 1.15 + phase) * 0.75 + fallCycle * 0.65;
+      center.z += cos(t * 0.92 + phase * 1.4) * 0.55 + fallCycle * 0.95;
+      spin = t * 1.85 + phase * 2.0;
+    } else {
+      bool isFirefly = vertex.color.g > vertex.color.b;
+      if (isFirefly) {
+        center.x += sin(t * 0.82 + phase) * 0.58;
+        center.y += sin(t * 1.25 + phase * 1.7) * 0.26;
+        center.z += cos(t * 0.74 + phase * 1.1) * 0.68;
+      } else {
+        float dewCycle = fract(t * 0.14 + fract(phase * 0.29));
+        center.y = anchor.y + 1.5 - dewCycle * 3.0;
+        center.x += sin(t * 0.45 + phase) * 0.22;
+        center.z += cos(t * 0.40 + phase) * 0.22;
+      }
+    }
+
+    vec3 toCam = normalize(vertex.camera_position - center);
+    vec3 upHint = abs(toCam.y) > 0.96 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+    vec3 camRight = normalize(cross(upHint, toCam));
+    vec3 camUp = cross(toCam, camRight);
+
+    float cs = cos(spin);
+    float sn = sin(spin);
+    vec2 rotQuad = vec2(
+      vertex.position.x * cs - vertex.position.y * sn,
+      vertex.position.x * sn + vertex.position.y * cs
+    );
+    float tilt = family >= 0.33 && family < 0.66
+        ? (0.58 + 0.42 * abs(cos(t * 1.4 + phase)))
+        : 1.0;
+
+    vertex.world_position =
+        center +
+        camRight * (rotQuad.x * baseScale) +
+        camUp * (rotQuad.y * baseScale * tilt);
+  }
+}
+
+fragment {
+  float FallingMapleMask(vec2 uv) {
+    vec2 p = uv - vec2(0.5);
+    float d = length(p);
+    if (d > 0.48) {
+      return 0.0;
+    }
+    float ang = atan(p.y, p.x);
+    float palmate = 0.62 + 0.36 * abs(cos(ang * 2.5));
+    float targetR = 0.36 * palmate;
+    return 1.0 - smoothstep(targetR * 0.68, targetR * 1.05, d);
+  }
+
+  void Surface(inout MaterialInputs material) {
+    vec2 uv = GetUV0();
+    vec4 vColor = GetVertexColor();
+    vec3 P = GetWorldPosition();
+    float t = material_params.time_sec;
+    float family = vColor.a;
+    float phase = P.x * 1.9 + P.z * 2.3;
+
+    if (family < 0.33) {
+      float r = length(uv - vec2(0.5)) * 2.0;
+      float softDot = pow(clamp(1.0 - r, 0.0, 1.0), 2.2);
+      float twinkle = 0.65 + 0.35 * sin(t * 2.1 + phase);
+      float alpha = softDot * twinkle * material_params.dusk_gain * 0.72;
+      material.base_color = vec4(vColor.rgb, clamp(alpha, 0.0, 0.80));
+    } else if (family < 0.66) {
+      float leafMask = FallingMapleMask(uv);
+      float vis = mix(0.32, 0.95, material_params.dusk_gain);
+      material.base_color = vec4(vColor.rgb, clamp(leafMask * vis, 0.0, 0.95));
+    } else {
+      float r = length(uv - vec2(0.5)) * 2.0;
+      bool isFirefly = vColor.g > vColor.b;
+      if (isFirefly) {
+        float pulse = pow(0.5 + 0.5 * sin(t * 2.35 + phase * 1.7), 2.6);
+        float glow = pow(clamp(1.0 - r, 0.0, 1.0), 2.0);
+        float alpha = glow * (0.20 + 0.80 * pulse) * material_params.night_gain * 0.88;
+        material.base_color = vec4(vColor.rgb * (0.85 + 0.55 * pulse), clamp(alpha, 0.0, 0.92));
+      } else {
+        float glint = pow(clamp(1.0 - r, 0.0, 1.0), 3.0);
+        float shimmer = 0.55 + 0.45 * sin(t * 3.2 + phase * 2.1);
+        float alpha = glint * shimmer * material_params.night_gain * 0.58;
+        material.base_color = vec4(vColor.rgb, clamp(alpha, 0.0, 0.65));
+      }
+    }
+
+    PrepareMaterial(material);
+  }
+}

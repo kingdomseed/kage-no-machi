@@ -181,14 +181,14 @@ class EdoLookDriver implements ShukubaLookDriver {
         ambientOcclusionPower: 1.75,
         ambientOcclusionRadius: 0.48,
         fogEnabled: true,
-        fogColor: Vector3(0.16, 0.28, 0.36),
-        fogDensity: 0.0078,
-        fogHeight: 0.85,
-        fogHeightFalloff: 0.38,
+        fogColor: Vector3(0.18, 0.30, 0.38),
+        fogDensity: 0.0086,
+        fogHeight: 1.35,
+        fogHeightFalloff: 0.34,
         godRaysEnabled: true,
-        godRaysIntensity: 0.28,
-        godRaysDensity: 0.55,
-        godRaysColor: Vector3(1, 0.82, 0.52),
+        godRaysIntensity: 0.42,
+        godRaysDensity: 0.66,
+        godRaysColor: Vector3(1, 0.80, 0.48),
         vignetteEnabled: true,
         vignetteIntensity: 0.24,
       );
@@ -197,25 +197,29 @@ class EdoLookDriver implements ShukubaLookDriver {
         skybox: skyboxInstance,
         skyEnvironment: skyEnvInstance,
         toneMapping: ToneMappingMode.aces,
-        exposure: 0.96,
+        exposure: 0.98,
         colorGradingEnabled: true,
         saturation: 1.18,
         contrast: 1.14,
         temperature: -0.05,
         bloomEnabled: true,
         bloomThreshold: 0.72,
-        bloomIntensity: 0.40,
-        bloomScatter: 0.80,
+        bloomIntensity: 0.42,
+        bloomScatter: 0.82,
         ambientOcclusionEnabled: true,
         ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
         ambientOcclusionIntensity: 1.48,
         ambientOcclusionPower: 1.85,
         ambientOcclusionRadius: 0.50,
         fogEnabled: true,
-        fogColor: Vector3(0.032, 0.082, 0.165),
-        fogDensity: 0.0105,
-        fogHeight: 1.15,
-        fogHeightFalloff: 0.32,
+        fogColor: Vector3(0.036, 0.088, 0.175),
+        fogDensity: 0.0112,
+        fogHeight: 1.75,
+        fogHeightFalloff: 0.30,
+        godRaysEnabled: true,
+        godRaysIntensity: 0.15,
+        godRaysDensity: 0.52,
+        godRaysColor: Vector3(0.42, 0.62, 0.94),
         vignetteEnabled: true,
         vignetteIntensity: 0.36,
       );
@@ -337,6 +341,57 @@ class EdoLookDriver implements ShukubaLookDriver {
     _setParamFloat(ShukubaSurfaceRole.riverWater, 'time_sec', elapsedSeconds);
     _setParamFloat(ShukubaSurfaceRole.ghostPreview, 'time_sec', elapsedSeconds);
 
+    const gouacheRoles = [
+      ShukubaSurfaceRole.packedEarth,
+      ShukubaSurfaceRole.ishigakiStone,
+      ShukubaSurfaceRole.laneOverlay,
+      ShukubaSurfaceRole.plasterWall,
+      ShukubaSurfaceRole.kuraPlaster,
+      ShukubaSurfaceRole.charredTimber,
+      ShukubaSurfaceRole.kawaraTile,
+      ShukubaSurfaceRole.fabricAwning,
+      ShukubaSurfaceRole.vermilionLacquer,
+    ];
+    for (final role in gouacheRoles) {
+      _setParamFloat(role, 'dew_sheen', rig.dewFactor);
+    }
+
+    _setParamFloat(
+      ShukubaSurfaceRole.riverMist,
+      'mist_opacity',
+      rig.riverMistOpacity,
+    );
+    _setParamFloat(ShukubaSurfaceRole.riverMist, 'night_mix', rig.nightFactor);
+    _setParamFloat(ShukubaSurfaceRole.riverMist, 'time_sec', elapsedSeconds);
+
+    _setParamFloat(
+      ShukubaSurfaceRole.lanternHaze,
+      'mist_opacity',
+      rig.lanternHaloOpacity,
+    );
+    _setParamFloat(
+      ShukubaSurfaceRole.lanternHaze,
+      'night_mix',
+      rig.nightFactor,
+    );
+    _setParamFloat(ShukubaSurfaceRole.lanternHaze, 'time_sec', elapsedSeconds);
+
+    _setParamFloat(
+      ShukubaSurfaceRole.airborneMotes,
+      'dusk_gain',
+      rig.duskMoteGain,
+    );
+    _setParamFloat(
+      ShukubaSurfaceRole.airborneMotes,
+      'night_gain',
+      rig.nightFireflyGain,
+    );
+    _setParamFloat(
+      ShukubaSurfaceRole.airborneMotes,
+      'time_sec',
+      elapsedSeconds,
+    );
+
     final duskBoostedIntensity = 1.6 + 11.8 * rig.nightFactor;
     for (var i = 0; i < _lanternNodes.length; i++) {
       if (i < lanternOrigins.length) {
@@ -436,6 +491,9 @@ class EdoLookDriver implements ShukubaLookDriver {
     ShukubaSurfaceRole.groundMeadow => 'assets/materials/foliage_canopy.fmat',
     ShukubaSurfaceRole.riverWater => 'assets/materials/river_water.fmat',
     ShukubaSurfaceRole.ghostPreview => 'assets/materials/ghost_preview.fmat',
+    ShukubaSurfaceRole.riverMist ||
+    ShukubaSurfaceRole.lanternHaze => 'assets/materials/atmosphere_mist.fmat',
+    ShukubaSurfaceRole.airborneMotes => 'assets/materials/airborne_motes.fmat',
   };
 
   static void _configureRoleParameters(
@@ -560,6 +618,27 @@ class EdoLookDriver implements ShukubaLookDriver {
       case ShukubaSurfaceRole.ghostPreview:
         mat.parameters
           ..setVec4('ghost_color', Vector4(0.96, 0.80, 0.42, 0.78))
+          ..setFloat('time_sec', 0);
+      case ShukubaSurfaceRole.riverMist:
+        mat.parameters
+          ..setVec4('mist_cool', Vector4(0.38, 0.62, 0.72, 1))
+          ..setVec4('mist_warm', Vector4(0.88, 0.68, 0.44, 1))
+          ..setFloat('mist_opacity', 0.68)
+          ..setFloat('night_mix', 0)
+          ..setFloat('mist_mode', 0)
+          ..setFloat('time_sec', 0);
+      case ShukubaSurfaceRole.lanternHaze:
+        mat.parameters
+          ..setVec4('mist_cool', Vector4(0.38, 0.62, 0.72, 1))
+          ..setVec4('mist_warm', Vector4(0.96, 0.56, 0.22, 1))
+          ..setFloat('mist_opacity', 0.24)
+          ..setFloat('night_mix', 0)
+          ..setFloat('mist_mode', 1)
+          ..setFloat('time_sec', 0);
+      case ShukubaSurfaceRole.airborneMotes:
+        mat.parameters
+          ..setFloat('dusk_gain', 1)
+          ..setFloat('night_gain', 0)
           ..setFloat('time_sec', 0);
     }
   }
