@@ -192,14 +192,20 @@ enum PentatonicScale {
 
 enum StructureKind {
   machiya,
+  chaya,
+  kura,
   marketStall,
+  toriiGate,
   yaguraTower,
   mapleCluster,
   bambooGrove;
 
   StructureSpec get spec => switch (this) {
     StructureKind.machiya => StructureSpec.machiya,
+    StructureKind.chaya => StructureSpec.chaya,
+    StructureKind.kura => StructureSpec.kura,
     StructureKind.marketStall => StructureSpec.marketStall,
+    StructureKind.toriiGate => StructureSpec.toriiGate,
     StructureKind.yaguraTower => StructureSpec.yaguraTower,
     StructureKind.mapleCluster => StructureSpec.mapleCluster,
     StructureKind.bambooGrove => StructureSpec.bambooGrove,
@@ -228,6 +234,8 @@ class EaveAnchor {
 class StructureSpec {
   const new({
     required this.kind,
+    required this.displayName,
+    required this.edoSubtitle,
     required this.footprintWidth,
     required this.footprintDepth,
     required this.height,
@@ -237,26 +245,29 @@ class StructureSpec {
     this.sightconeRange = 0,
     this.sightconeHalfAngleRad = 0,
     this.snapsToRoadTangent = true,
+    this.straddlesRoad = false,
     this.hasShojiWindows = false,
   });
 
   static const StructureSpec machiya = StructureSpec(
     kind: StructureKind.machiya,
+    displayName: 'Townhouse',
+    edoSubtitle: 'Machiya shop',
     footprintWidth: 5.4,
     footprintDepth: 6.8,
-    height: 5.6,
+    height: 5.8,
     foundationSkirtDepth: 1.4,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(-2.3, 3.15, 3.45),
+        localOffset: Vec3(-2.3, 3.05, 3.55),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(2.3, 3.15, 3.45),
+        localOffset: Vec3(2.3, 3.05, 3.55),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(0, 3.15, -3.45),
+        localOffset: Vec3(0, 3.05, -3.45),
         localOutwardNormal: Vec3(0, 0, -1),
       ),
     ],
@@ -264,35 +275,108 @@ class StructureSpec {
     hasShojiWindows: true,
   );
 
+  static const StructureSpec chaya = StructureSpec(
+    kind: StructureKind.chaya,
+    displayName: 'Teahouse',
+    edoSubtitle: 'Chaya rest inn',
+    footprintWidth: 6.2,
+    footprintDepth: 6,
+    height: 5.4,
+    foundationSkirtDepth: 1.4,
+    eaveAnchors: [
+      EaveAnchor(
+        localOffset: Vec3(-2.4, 2.95, 3.15),
+        localOutwardNormal: Vec3.forward,
+      ),
+      EaveAnchor(
+        localOffset: Vec3(2.4, 2.95, 3.15),
+        localOutwardNormal: Vec3.forward,
+      ),
+      EaveAnchor(
+        localOffset: Vec3(3.18, 2.95, 0),
+        localOutwardNormal: Vec3(1, 0, 0),
+      ),
+    ],
+    instrument: EdoInstrument.koto,
+    hasShojiWindows: true,
+  );
+
+  static const StructureSpec kura = StructureSpec(
+    kind: StructureKind.kura,
+    displayName: 'Storehouse',
+    edoSubtitle: 'Kura plaster vault',
+    footprintWidth: 4.8,
+    footprintDepth: 5.8,
+    height: 6.6,
+    foundationSkirtDepth: 1.5,
+    eaveAnchors: [
+      EaveAnchor(
+        localOffset: Vec3(0, 3.10, 3.02),
+        localOutwardNormal: Vec3.forward,
+      ),
+    ],
+    instrument: EdoInstrument.bonsho,
+  );
+
   static const StructureSpec marketStall = StructureSpec(
     kind: StructureKind.marketStall,
-    footprintWidth: 2.6,
-    footprintDepth: 2.2,
-    height: 2.7,
+    displayName: 'Market Stall',
+    edoSubtitle: 'Yatai booth',
+    footprintWidth: 2.8,
+    footprintDepth: 2.4,
+    height: 2.8,
     foundationSkirtDepth: 0.6,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(-1.15, 2.25, 1.15),
+        localOffset: Vec3(-1.2, 2.30, 1.22),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(1.15, 2.25, 1.15),
+        localOffset: Vec3(1.2, 2.30, 1.22),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(-1.3, 2.25, 0),
+        localOffset: Vec3(-1.35, 2.30, 0),
         localOutwardNormal: Vec3(-1, 0, 0),
       ),
       EaveAnchor(
-        localOffset: Vec3(1.3, 2.25, 0),
+        localOffset: Vec3(1.35, 2.30, 0),
         localOutwardNormal: Vec3(1, 0, 0),
       ),
     ],
     instrument: EdoInstrument.hyoshigi,
   );
 
+  static const StructureSpec toriiGate = StructureSpec(
+    kind: StructureKind.toriiGate,
+    displayName: 'Lantern Gate',
+    edoSubtitle: 'Highway archway',
+    footprintWidth: 4.6,
+    footprintDepth: 1.4,
+    height: 4.9,
+    foundationSkirtDepth: 1,
+    eaveAnchors: [
+      EaveAnchor(
+        localOffset: Vec3(-2, 3.35, 0.45),
+        localOutwardNormal: Vec3.forward,
+      ),
+      EaveAnchor(
+        localOffset: Vec3(2, 3.35, 0.45),
+        localOutwardNormal: Vec3.forward,
+      ),
+      EaveAnchor(
+        localOffset: Vec3(0, 3.35, -0.45),
+        localOutwardNormal: Vec3(0, 0, -1),
+      ),
+    ],
+    instrument: EdoInstrument.koto,
+    straddlesRoad: true,
+  );
+
   static const StructureSpec yaguraTower = StructureSpec(
     kind: StructureKind.yaguraTower,
+    displayName: 'Watchtower',
+    edoSubtitle: 'Yagura lookout',
     footprintWidth: 3.8,
     footprintDepth: 3.8,
     height: 8.8,
@@ -323,9 +407,11 @@ class StructureSpec {
 
   static const StructureSpec mapleCluster = StructureSpec(
     kind: StructureKind.mapleCluster,
-    footprintWidth: 3.2,
-    footprintDepth: 3.2,
-    height: 5.8,
+    displayName: 'Maple & Rocks',
+    edoSubtitle: 'Autumn momiji',
+    footprintWidth: 3.4,
+    footprintDepth: 3.4,
+    height: 6.2,
     foundationSkirtDepth: 0.5,
     eaveAnchors: [],
     instrument: EdoInstrument.koto,
@@ -334,9 +420,11 @@ class StructureSpec {
 
   static const StructureSpec bambooGrove = StructureSpec(
     kind: StructureKind.bambooGrove,
+    displayName: 'Bamboo Grove',
+    edoSubtitle: 'Take culms',
     footprintWidth: 3.6,
     footprintDepth: 3.6,
-    height: 7.2,
+    height: 7.4,
     foundationSkirtDepth: 0.5,
     eaveAnchors: [],
     instrument: EdoInstrument.shakuhachi,
@@ -345,13 +433,18 @@ class StructureSpec {
 
   static const Map<StructureKind, StructureSpec> byKind = {
     StructureKind.machiya: machiya,
+    StructureKind.chaya: chaya,
+    StructureKind.kura: kura,
     StructureKind.marketStall: marketStall,
+    StructureKind.toriiGate: toriiGate,
     StructureKind.yaguraTower: yaguraTower,
     StructureKind.mapleCluster: mapleCluster,
     StructureKind.bambooGrove: bambooGrove,
   };
 
   final StructureKind kind;
+  final String displayName;
+  final String edoSubtitle;
   final double footprintWidth;
   final double footprintDepth;
   final double height;
@@ -361,6 +454,7 @@ class StructureSpec {
   final double sightconeRange;
   final double sightconeHalfAngleRad;
   final bool snapsToRoadTangent;
+  final bool straddlesRoad;
   final bool hasShojiWindows;
 
   bool get castsSightcone => sightconeRange > 0 && sightconeHalfAngleRad > 0;
@@ -382,8 +476,15 @@ enum MagistrateVisionState {
 sealed class PlacementTool {
   const new();
 
+  bool get isStrokeTool => switch (this) {
+    DrawLaneTool() || BuildTerraceTool() || BuildWallTool() => true,
+    StampStructureTool() || DemolishTool() || InspectWatchTool() => false,
+  };
+
   EdoInstrument? get placementInstrument => switch (this) {
-    DrawLaneTool() => EdoInstrument.hyoshigi,
+    DrawLaneTool() ||
+    BuildWallTool() ||
+    DemolishTool() => EdoInstrument.hyoshigi,
     BuildTerraceTool() => EdoInstrument.bonsho,
     StampStructureTool(:final kind) => kind.spec.instrument,
     InspectWatchTool() => null,
@@ -397,7 +498,11 @@ sealed class PlacementTool {
       InspectWatchTool() => MagistrateVisionState.fullOverlay,
       StampStructureTool(kind: StructureKind.yaguraTower) =>
         MagistrateVisionState.watchtowerPreview,
-      DrawLaneTool() || BuildTerraceTool() || StampStructureTool() => explicit,
+      DrawLaneTool() ||
+      BuildTerraceTool() ||
+      BuildWallTool() ||
+      StampStructureTool() ||
+      DemolishTool() => explicit,
     };
   }
 }
@@ -436,6 +541,25 @@ final class BuildTerraceTool extends PlacementTool {
   int get hashCode => Object.hash(riseMeters, depthMeters);
 }
 
+final class BuildWallTool extends PlacementTool {
+  const new({this.heightMeters = 1.95, this.thicknessMeters = 0.30})
+    : assert(heightMeters > 0, 'heightMeters must be positive.'),
+      assert(thicknessMeters > 0, 'thicknessMeters must be positive.');
+
+  final double heightMeters;
+  final double thicknessMeters;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BuildWallTool &&
+          other.heightMeters == heightMeters &&
+          other.thicknessMeters == thicknessMeters;
+
+  @override
+  int get hashCode => Object.hash(heightMeters, thicknessMeters);
+}
+
 final class StampStructureTool extends PlacementTool {
   const new({required this.kind, this.yawOffsetRadians = 0});
 
@@ -451,6 +575,17 @@ final class StampStructureTool extends PlacementTool {
 
   @override
   int get hashCode => Object.hash(kind, yawOffsetRadians);
+}
+
+final class DemolishTool extends PlacementTool {
+  const new();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is DemolishTool;
+
+  @override
+  int get hashCode => (DemolishTool).hashCode;
 }
 
 final class InspectWatchTool extends PlacementTool {
@@ -746,6 +881,81 @@ class TerraceCourse {
     riseMeters,
     depthMeters,
     platformOnRight,
+  );
+}
+
+@immutable
+class CourtyardWall {
+  const new({
+    required this.id,
+    required this.controlPoints,
+    this.heightMeters = 1.95,
+    this.thicknessMeters = 0.30,
+  }) : assert(controlPoints.length >= 2, 'CourtyardWall requires >= 2 points.'),
+       assert(heightMeters > 0, 'heightMeters must be positive.'),
+       assert(thicknessMeters > 0, 'thicknessMeters must be positive.');
+
+  factory validated({
+    required EntityId id,
+    required Iterable<Vec3> controlPoints,
+    double heightMeters = 1.95,
+    double thicknessMeters = 0.30,
+  }) {
+    if (!id.isValid) {
+      throw ArgumentError.value(
+        id,
+        'id',
+        'CourtyardWall id must not be blank.',
+      );
+    }
+    final frozen = List<Vec3>.unmodifiable(controlPoints);
+    if (frozen.length < 2) {
+      throw ArgumentError.value(
+        frozen.length,
+        'controlPoints',
+        'CourtyardWall requires at least 2 control points.',
+      );
+    }
+    if (heightMeters <= 0 || thicknessMeters <= 0) {
+      throw ArgumentError('CourtyardWall dimensions must be positive.');
+    }
+    return CourtyardWall(
+      id: id,
+      controlPoints: frozen,
+      heightMeters: heightMeters,
+      thicknessMeters: thicknessMeters,
+    );
+  }
+
+  final EntityId id;
+  final List<Vec3> controlPoints;
+  final double heightMeters;
+  final double thicknessMeters;
+
+  RoadSample nearestSample(Vec3 query) {
+    final spline = RoadSpline(
+      id: id,
+      controlPoints: controlPoints,
+      widthMeters: thicknessMeters,
+    );
+    return spline.nearestSample(query);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CourtyardWall &&
+          other.id == id &&
+          listEquals(other.controlPoints, controlPoints) &&
+          other.heightMeters == heightMeters &&
+          other.thicknessMeters == thicknessMeters;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    Object.hashAll(controlPoints),
+    heightMeters,
+    thicknessMeters,
   );
 }
 
@@ -1113,20 +1323,81 @@ class SnappedPlacement {
 }
 
 @immutable
+class DemolishCandidate {
+  const new({
+    required this.id,
+    required this.center,
+    required this.radiusMeters,
+    required this.label,
+  });
+
+  final EntityId id;
+  final Vec3 center;
+  final double radiusMeters;
+  final String label;
+}
+
+@immutable
+sealed class BuildPreview {
+  const new();
+}
+
+final class NoBuildPreview extends BuildPreview {
+  const new();
+}
+
+final class StampGhostPreview extends BuildPreview {
+  const new({
+    required this.kind,
+    required this.position,
+    required this.yawRadians,
+    this.lanternSpans = const [],
+  });
+
+  final StructureKind kind;
+  final Vec3 position;
+  final double yawRadians;
+  final List<LanternSpan> lanternSpans;
+}
+
+enum StrokePreviewStyle { lane, terrace, wall }
+
+final class StrokeRibbonPreview extends BuildPreview {
+  const new({
+    required this.style,
+    required this.points,
+    required this.widthMeters,
+  });
+
+  final StrokePreviewStyle style;
+  final List<Vec3> points;
+  final double widthMeters;
+}
+
+final class DemolishHoverPreview extends BuildPreview {
+  const new({required this.candidate});
+
+  final DemolishCandidate candidate;
+}
+
+@immutable
 class ShukubaGraph {
   new({
     Iterable<RoadSpline> roads = const [],
     Iterable<TerraceCourse> terraces = const [],
+    Iterable<CourtyardWall> walls = const [],
     Iterable<PlacedStructure> structures = const [],
   }) : this._normalized(
          roads: _freezeRoads(roads),
          terraces: _freezeTerraces(terraces),
+         walls: _freezeWalls(walls),
          structures: _freezeStructures(structures),
        );
 
   new _normalized({
     required this.roads,
     required this.terraces,
+    required this.walls,
     required this.structures,
   }) : lanternSpans = List<LanternSpan>.unmodifiable(
          LanternSpan.deriveAll(structures.values),
@@ -1136,6 +1407,7 @@ class ShukubaGraph {
 
   final List<RoadSpline> roads;
   final List<TerraceCourse> terraces;
+  final List<CourtyardWall> walls;
   final Map<EntityId, PlacedStructure> structures;
   final List<LanternSpan> lanternSpans;
 
@@ -1155,6 +1427,7 @@ class ShukubaGraph {
       road,
     ]),
     terraces: terraces,
+    walls: walls,
     structures: structures,
   );
 
@@ -1164,6 +1437,18 @@ class ShukubaGraph {
       for (final existing in terraces)
         if (existing.id != terrace.id) existing,
       terrace,
+    ]),
+    walls: walls,
+    structures: structures,
+  );
+
+  ShukubaGraph putWall(CourtyardWall wall) => ShukubaGraph._normalized(
+    roads: roads,
+    terraces: terraces,
+    walls: _freezeWalls([
+      for (final existing in walls)
+        if (existing.id != wall.id) existing,
+      wall,
     ]),
     structures: structures,
   );
@@ -1176,6 +1461,7 @@ class ShukubaGraph {
     return ShukubaGraph._normalized(
       roads: roads,
       terraces: terraces,
+      walls: walls,
       structures: _freezeStructures([
         for (final entry in structures.values)
           if (entry.id != structure.id) entry,
@@ -1187,8 +1473,9 @@ class ShukubaGraph {
   ShukubaGraph removeEntity(EntityId id) {
     final hasRoad = roads.any((r) => r.id == id);
     final hasTerrace = terraces.any((t) => t.id == id);
+    final hasWall = walls.any((w) => w.id == id);
     final hasStructure = structures.containsKey(id);
-    if (!hasRoad && !hasTerrace && !hasStructure) {
+    if (!hasRoad && !hasTerrace && !hasWall && !hasStructure) {
       return this;
     }
     return ShukubaGraph._normalized(
@@ -1198,10 +1485,108 @@ class ShukubaGraph {
       terraces: hasTerrace
           ? List<TerraceCourse>.unmodifiable(terraces.where((t) => t.id != id))
           : terraces,
+      walls: hasWall
+          ? List<CourtyardWall>.unmodifiable(walls.where((w) => w.id != id))
+          : walls,
       structures: hasStructure
           ? _freezeStructures(structures.values.where((s) => s.id != id))
           : structures,
     );
+  }
+
+  List<LanternSpan> previewLanternSpansFor(PlacedStructure candidate) {
+    final combined = LanternSpan.deriveAll([...structures.values, candidate]);
+    return [
+      for (final span in combined)
+        if (span.endpointA.structureId == candidate.id ||
+            span.endpointB.structureId == candidate.id)
+          span,
+    ];
+  }
+
+  DemolishCandidate? findDemolishCandidate(
+    Vec3 query, {
+    double maxDistanceMeters = 4.2,
+  }) {
+    DemolishCandidate? best;
+    var bestDist = maxDistanceMeters;
+
+    for (final structure in structures.values) {
+      final d = structure.position.horizontalDistanceTo(query);
+      final hitRadius =
+          math.max(
+                structure.spec.footprintWidth,
+                structure.spec.footprintDepth,
+              ) *
+              0.55 +
+          0.9;
+      if (d <= math.min(maxDistanceMeters, hitRadius) && d < bestDist) {
+        bestDist = d;
+        best = DemolishCandidate(
+          id: structure.id,
+          center: structure.position,
+          radiusMeters:
+              math.max(
+                structure.spec.footprintWidth,
+                structure.spec.footprintDepth,
+              ) *
+              0.55,
+          label: structure.spec.displayName,
+        );
+      }
+    }
+
+    for (final wall in walls) {
+      final sample = wall.nearestSample(query);
+      if (sample.horizontalDistance < bestDist &&
+          sample.horizontalDistance <= 2.4) {
+        bestDist = sample.horizontalDistance;
+        best = DemolishCandidate(
+          id: wall.id,
+          center: sample.point,
+          radiusMeters: 1.6,
+          label: 'Courtyard Wall',
+        );
+      }
+    }
+
+    for (final terrace in terraces) {
+      final crestSpline = RoadSpline(
+        id: terrace.id,
+        controlPoints: terrace.crestPoints,
+        widthMeters: 1.2,
+      );
+      final sample = crestSpline.nearestSample(query);
+      if (sample.horizontalDistance < bestDist &&
+          sample.horizontalDistance <= 2.8) {
+        bestDist = sample.horizontalDistance;
+        best = DemolishCandidate(
+          id: terrace.id,
+          center: sample.point,
+          radiusMeters: 2.2,
+          label: 'Stone Terrace',
+        );
+      }
+    }
+
+    for (final road in roads) {
+      if (road.isBridgeApproach) {
+        continue;
+      }
+      final sample = road.nearestSample(query);
+      if (sample.horizontalDistance < bestDist &&
+          sample.horizontalDistance <= 2.4) {
+        bestDist = sample.horizontalDistance;
+        best = DemolishCandidate(
+          id: road.id,
+          center: sample.point,
+          radiusMeters: road.widthMeters * 0.65,
+          label: 'Cobble Lane',
+        );
+      }
+    }
+
+    return best;
   }
 
   SnappedPlacement snapStructure({
@@ -1234,23 +1619,30 @@ class ShukubaGraph {
           nearestSample.horizontalDistance <= snapRadiusMeters) {
         roadId = nearestRoad.id;
         arcMeters = nearestSample.arcMeters;
-        final minSetback =
-            nearestRoad.widthMeters * 0.5 + spec.footprintDepth * 0.5 + 0.35;
-        final toPlotX = rawPoint.x - nearestSample.point.x;
-        final toPlotZ = rawPoint.z - nearestSample.point.z;
-        final toPlotLen = math.sqrt(toPlotX * toPlotX + toPlotZ * toPlotZ);
-        final normalX = toPlotLen > 1e-6
-            ? toPlotX / toPlotLen
-            : nearestSample.tangent.z;
-        final normalZ = toPlotLen > 1e-6
-            ? toPlotZ / toPlotLen
-            : -nearestSample.tangent.x;
-        if (spec.snapsToRoadTangent) {
-          if (toPlotLen < minSetback) {
-            x = nearestSample.point.x + normalX * minSetback;
-            z = nearestSample.point.z + normalZ * minSetback;
+        if (spec.straddlesRoad &&
+            nearestSample.horizontalDistance <= nearestRoad.widthMeters + 1.8) {
+          x = nearestSample.point.x;
+          z = nearestSample.point.z;
+          yaw = math.atan2(nearestSample.tangent.x, nearestSample.tangent.z);
+        } else {
+          final minSetback =
+              nearestRoad.widthMeters * 0.5 + spec.footprintDepth * 0.5 + 0.35;
+          final toPlotX = rawPoint.x - nearestSample.point.x;
+          final toPlotZ = rawPoint.z - nearestSample.point.z;
+          final toPlotLen = math.sqrt(toPlotX * toPlotX + toPlotZ * toPlotZ);
+          final normalX = toPlotLen > 1e-6
+              ? toPlotX / toPlotLen
+              : nearestSample.tangent.z;
+          final normalZ = toPlotLen > 1e-6
+              ? toPlotZ / toPlotLen
+              : -nearestSample.tangent.x;
+          if (spec.snapsToRoadTangent) {
+            if (toPlotLen < minSetback) {
+              x = nearestSample.point.x + normalX * minSetback;
+              z = nearestSample.point.z + normalZ * minSetback;
+            }
+            yaw = math.atan2(-normalX, -normalZ);
           }
-          yaw = math.atan2(-normalX, -normalZ);
         }
       }
     }
@@ -1290,6 +1682,14 @@ class ShukubaGraph {
     return List<TerraceCourse>.unmodifiable(sorted);
   }
 
+  static List<CourtyardWall> _freezeWalls(Iterable<CourtyardWall> items) {
+    final byId = <EntityId, CourtyardWall>{
+      for (final wall in items) wall.id: wall,
+    };
+    final sorted = byId.values.toList()..sort((a, b) => a.id.compareTo(b.id));
+    return List<CourtyardWall>.unmodifiable(sorted);
+  }
+
   static Map<EntityId, PlacedStructure> _freezeStructures(
     Iterable<PlacedStructure> items,
   ) {
@@ -1309,12 +1709,14 @@ class ShukubaGraph {
       other is ShukubaGraph &&
           listEquals(other.roads, roads) &&
           listEquals(other.terraces, terraces) &&
+          listEquals(other.walls, walls) &&
           mapEquals(other.structures, structures);
 
   @override
   int get hashCode => Object.hash(
     Object.hashAll(roads),
     Object.hashAll(terraces),
+    Object.hashAll(walls),
     Object.hashAll(structures.values),
   );
 }
@@ -1434,6 +1836,14 @@ class CameraPreset {
     timeOfDay: TimeOfDayRig.blueHourNight,
   );
 
+  static const CameraPreset riverCrossing = CameraPreset(
+    id: 'river_crossing',
+    label: 'Misty Gorge Crossing',
+    eye: Vec3(-38.2, 44.8, 39.6),
+    target: Vec3(1.2, 1.4, -0.4),
+    timeOfDay: TimeOfDayRig(0.08),
+  );
+
   static const CameraPreset magistrateWatchtower = CameraPreset(
     id: 'magistrate_watchtower',
     label: "Magistrate's Eye Watch",
@@ -1446,16 +1856,15 @@ class CameraPreset {
   static const CameraPreset motionOffset = CameraPreset(
     id: 'motion_offset',
     label: 'Telephoto Motion Probe',
-    eye: Vec3(-34.1, 48.6, 46.8),
-    target: Vec3(6.8, 2, 3.2),
+    eye: Vec3(-33.4, 45.2, 43.2),
+    target: Vec3(5.6, 1.6, 2.8),
     timeOfDay: TimeOfDayRig.blueHourNight,
-    visionState: MagistrateVisionState.fullOverlay,
   );
 
   static const List<CameraPreset> verificationPresets = [
     duskOverview,
     nightMarket,
-    magistrateWatchtower,
+    riverCrossing,
     motionOffset,
   ];
 
@@ -1532,6 +1941,11 @@ enum ShukubaSurfaceRole {
     defaultRoughness: 0.85,
     previewColor: Color(0xFFD8CEBE),
   ),
+  kuraPlaster(
+    depthLayer: 0,
+    defaultRoughness: 0.80,
+    previewColor: Color(0xFFF3EFE6),
+  ),
   charredTimber(
     depthLayer: 0,
     defaultRoughness: 0.82,
@@ -1539,13 +1953,23 @@ enum ShukubaSurfaceRole {
   ),
   kawaraTile(
     depthLayer: 0,
-    defaultRoughness: 0.64,
-    previewColor: Color(0xFF28303B),
+    defaultRoughness: 0.62,
+    previewColor: Color(0xFF232B36),
   ),
   fabricAwning(
     depthLayer: 0,
     defaultRoughness: 0.86,
     previewColor: Color(0xFF9E3F2C),
+  ),
+  vermilionLacquer(
+    depthLayer: 0,
+    defaultRoughness: 0.56,
+    previewColor: Color(0xFFB53324),
+  ),
+  ghostPreview(
+    depthLayer: 2,
+    defaultRoughness: 0.50,
+    previewColor: Color(0xAAFFB85C),
   ),
   shojiScreen(
     depthLayer: 0,
@@ -1695,6 +2119,8 @@ abstract interface class ShukubaWorldDriver {
   });
 
   void applyGraph(ShukubaGraph nextGraph);
+
+  void syncPreview(BuildPreview preview);
 
   void step(double dtSeconds, {required TimeOfDayRig rig});
 

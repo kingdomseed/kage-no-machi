@@ -12,12 +12,12 @@ class ShukubaHud extends StatelessWidget {
   final ShukubaController controller;
   final ValueChanged<CameraPreset> onSelectPreset;
 
-  static const Color _lacquerBg = Color(0xCC141316);
-  static const Color _washiInk = Color(0xFFF2E8D5);
-  static const Color _mutedSand = Color(0xFFB9AC96);
-  static const Color _amberAccent = Color(0xFFE59A46);
-  static const Color _jadeSight = Color(0xFF39C494);
-  static const Color _borderStroke = Color(0x44D6C5A9);
+  static const Color _lacquerBg = Color(0xD6121318);
+  static const Color _washiInk = Color(0xFFF4EAD7);
+  static const Color _mutedSand = Color(0xFFBCAFA0);
+  static const Color _amberAccent = Color(0xFFE89B42);
+  static const Color _vermilionAccent = Color(0xFFD9533F);
+  static const Color _borderStroke = Color(0x42DECBAE);
 
   @override
   Widget build(BuildContext context) {
@@ -26,13 +26,11 @@ class ShukubaHud extends StatelessWidget {
       builder: (context, _) {
         final rig = controller.timeOfDay;
         final graph = controller.graph;
-        final visionActive =
-            controller.effectiveVision != MagistrateVisionState.hidden;
         final strokeCount = controller.strokePoints.length;
 
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -45,15 +43,13 @@ class ShukubaHud extends StatelessWidget {
                     children: [
                       _WardPlaque(
                         structureCount: graph.structures.length,
+                        wallCount: graph.walls.length,
                         lanternSpanCount: graph.lanternSpans.length,
-                        scaleLabel: rig.scale.label,
                         onSelectPreset: onSelectPreset,
                       ),
                       _AtmospherePanel(
                         rig: rig,
-                        visionActive: visionActive,
                         onChangedTime: controller.setTimeOfDay,
-                        onToggleVision: controller.toggleMagistrateEye,
                       ),
                     ],
                   ),
@@ -61,20 +57,22 @@ class ShukubaHud extends StatelessWidget {
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (strokeCount > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _StrokeBanner(
-                          pointCount: strokeCount,
-                          canCommit: strokeCount >= 2,
-                          onCommit: controller.commitActiveStroke,
-                          onCancel: controller.cancelActiveStroke,
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _ToolGuidanceBar(
+                        activeTool: controller.activeTool,
+                        preview: controller.activePreview,
+                        strokeCount: strokeCount,
+                        onCommitStroke: controller.commitActiveStroke,
+                        onCancelStroke: controller.cancelActiveStroke,
                       ),
-                    _PaletteBar(
+                    ),
+                    _CityBuilderDock(
                       activeTool: controller.activeTool,
+                      canUndo: controller.canUndo,
                       onSelectTool: controller.selectTool,
                       onRotateStamp: controller.rotateStampYaw,
+                      onUndo: controller.undo,
                     ),
                   ],
                 ),
@@ -90,22 +88,22 @@ class ShukubaHud extends StatelessWidget {
 class _WardPlaque extends StatelessWidget {
   const new({
     required this.structureCount,
+    required this.wallCount,
     required this.lanternSpanCount,
-    required this.scaleLabel,
     required this.onSelectPreset,
   });
 
   final int structureCount;
+  final int wallCount;
   final int lanternSpanCount;
-  final String scaleLabel;
   final ValueChanged<CameraPreset> onSelectPreset;
 
   @override
   Widget build(BuildContext context) {
     const presets = [
-      ('1 Dusk', CameraPreset.duskOverview),
-      ('2 Market', CameraPreset.nightMarket),
-      ('3 Watch', CameraPreset.magistrateWatchtower),
+      ('1 Golden Dusk', CameraPreset.duskOverview),
+      ('2 Night Market', CameraPreset.nightMarket),
+      ('3 Gorge Crossing', CameraPreset.riverCrossing),
     ];
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -120,36 +118,34 @@ class _WardPlaque extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'KAGE NO MACHI',
+              'KAGE NO MACHI · EDO POST-TOWN',
               style: TextStyle(
                 color: ShukubaHud._washiInk,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.8,
+                letterSpacing: 1.5,
               ),
             ),
             const SizedBox(height: 3),
             Text(
-              '$structureCount structures · $lanternSpanCount lantern spans · '
-              '$scaleLabel',
+              '$structureCount buildings & trees · $wallCount walls · '
+              '$lanternSpanCount lantern spans',
               style: const TextStyle(
                 color: ShukubaHud._mutedSand,
                 fontSize: 11,
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 for (final (label, preset) in presets)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: _CompactChip(
-                      label: label,
-                      active: false,
-                      accent: ShukubaHud._amberAccent,
-                      onTap: () => onSelectPreset(preset),
-                    ),
+                  _ActionChip(
+                    label: label,
+                    active: false,
+                    accent: ShukubaHud._amberAccent,
+                    onTap: () => onSelectPreset(preset),
                   ),
               ],
             ),
@@ -161,17 +157,10 @@ class _WardPlaque extends StatelessWidget {
 }
 
 class _AtmospherePanel extends StatelessWidget {
-  const new({
-    required this.rig,
-    required this.visionActive,
-    required this.onChangedTime,
-    required this.onToggleVision,
-  });
+  const new({required this.rig, required this.onChangedTime});
 
   final TimeOfDayRig rig;
-  final bool visionActive;
   final ValueChanged<double> onChangedTime;
-  final VoidCallback onToggleVision;
 
   @override
   Widget build(BuildContext context) {
@@ -192,31 +181,24 @@ class _AtmospherePanel extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.brightness_4,
+                  rig.isMoonlit ? Icons.nights_stay : Icons.wb_twilight,
                   size: 14,
                   color: rig.celestialHudColor,
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  phaseLabel,
+                  '$phaseLabel · ${rig.scale.label}',
                   style: const TextStyle(
                     color: ShukubaHud._washiInk,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
-                ),
-                const SizedBox(width: 10),
-                _CompactChip(
-                  label: "Magistrate's Eye [Tab]",
-                  active: visionActive,
-                  accent: ShukubaHud._jadeSight,
-                  onTap: onToggleVision,
                 ),
               ],
             ),
             SizedBox(
-              width: 240,
-              height: 28,
+              width: 230,
+              height: 26,
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   trackHeight: 3,
@@ -230,6 +212,10 @@ class _AtmospherePanel extends StatelessWidget {
                 child: Slider(value: rig.value, onChanged: onChangedTime),
               ),
             ),
+            const Text(
+              'Right-drag or WASD pan · Scroll zoom · Q/E orbit',
+              style: TextStyle(color: ShukubaHud._mutedSand, fontSize: 10),
+            ),
           ],
         ),
       ),
@@ -237,51 +223,104 @@ class _AtmospherePanel extends StatelessWidget {
   }
 }
 
-class _StrokeBanner extends StatelessWidget {
+class _ToolGuidanceBar extends StatelessWidget {
   const new({
-    required this.pointCount,
-    required this.canCommit,
-    required this.onCommit,
-    required this.onCancel,
+    required this.activeTool,
+    required this.preview,
+    required this.strokeCount,
+    required this.onCommitStroke,
+    required this.onCancelStroke,
   });
 
-  final int pointCount;
-  final bool canCommit;
-  final VoidCallback onCommit;
-  final VoidCallback onCancel;
+  final PlacementTool activeTool;
+  final BuildPreview preview;
+  final int strokeCount;
+  final VoidCallback onCommitStroke;
+  final VoidCallback onCancelStroke;
+
+  String _describeGuidance() {
+    switch (activeTool) {
+      case StampStructureTool(:final kind):
+        final spec = kind.spec;
+        var spanHint = '';
+        if (preview case StampGhostPreview(:final lanternSpans)) {
+          if (lanternSpans.isNotEmpty) {
+            final n = lanternSpans.length;
+            spanHint = ' · +$n lantern string${n == 1 ? '' : 's'} ready';
+          }
+        }
+        final snapNote = spec.straddlesRoad
+            ? 'Straddles lanes automatically'
+            : (spec.snapsToRoadTangent
+                  ? 'Faces nearest lane automatically'
+                  : 'Free garden placement');
+        return '${spec.displayName} (${spec.edoSubtitle}) · '
+            'Left-click to place · $snapNote$spanHint · [R] Rotate';
+      case DrawLaneTool():
+        return 'Cobble Lane (Kaidō path) · '
+            'Click and drag on ground to paint a gravel & stepping-stone lane';
+      case BuildTerraceTool():
+        return 'Stone Terrace (Ishigaki retaining wall) · '
+            'Click and drag to raise a fitted castle-stone platform';
+      case BuildWallTool():
+        return 'Courtyard Wall (Hei plaster & tile wall) · '
+            'Click and drag to enclose compounds and gardens';
+      case DemolishTool():
+        if (preview case DemolishHoverPreview(:final candidate)) {
+          return 'Demolish · Left-click to remove ${candidate.label} · '
+              '[Z] Undo · [Esc] Done';
+        }
+        return 'Demolish · Hover any building, wall, terrace, or side lane '
+            'and click to remove · [Z] Undo';
+      case InspectWatchTool():
+        return 'Town View';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDemolish = activeTool is DemolishTool;
+    final borderColor = isDemolish
+        ? ShukubaHud._vermilionAccent
+        : (strokeCount > 0
+              ? ShukubaHud._amberAccent
+              : ShukubaHud._borderStroke);
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: ShukubaHud._lacquerBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: ShukubaHud._amberAccent),
+        border: Border.all(color: borderColor),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              '$pointCount stroke anchor${pointCount == 1 ? '' : 's'} placed',
-              style: const TextStyle(color: ShukubaHud._washiInk, fontSize: 11),
+              _describeGuidance(),
+              style: const TextStyle(
+                color: ShukubaHud._washiInk,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            const SizedBox(width: 10),
-            if (canCommit)
-              _CompactChip(
-                label: 'Build [Enter]',
+            if (strokeCount >= 2)
+              _ActionChip(
+                label: 'Build [$strokeCount pts · Enter]',
                 active: true,
                 accent: ShukubaHud._amberAccent,
-                onTap: onCommit,
+                onTap: onCommitStroke,
               ),
-            const SizedBox(width: 6),
-            _CompactChip(
-              label: 'Cancel [Esc]',
-              active: false,
-              accent: ShukubaHud._mutedSand,
-              onTap: onCancel,
-            ),
+            if (strokeCount > 0)
+              _ActionChip(
+                label: 'Cancel [Esc]',
+                active: false,
+                accent: ShukubaHud._mutedSand,
+                onTap: onCancelStroke,
+              ),
           ],
         ),
       ),
@@ -289,26 +328,92 @@ class _StrokeBanner extends StatelessWidget {
   }
 }
 
-class _PaletteBar extends StatelessWidget {
+class _ToolCardSpec {
+  const new({
+    required this.title,
+    required this.subtitle,
+    required this.tool,
+    this.isDestructive = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final PlacementTool tool;
+  final bool isDestructive;
+}
+
+class _CityBuilderDock extends StatelessWidget {
   const new({
     required this.activeTool,
+    required this.canUndo,
     required this.onSelectTool,
     required this.onRotateStamp,
+    required this.onUndo,
   });
 
   final PlacementTool activeTool;
+  final bool canUndo;
   final ValueChanged<PlacementTool> onSelectTool;
   final VoidCallback onRotateStamp;
+  final VoidCallback onUndo;
 
-  static const List<(String, PlacementTool)> _entries = [
-    ('Machiya', StampStructureTool(kind: StructureKind.machiya)),
-    ('Stall', StampStructureTool(kind: StructureKind.marketStall)),
-    ('Yagura', StampStructureTool(kind: StructureKind.yaguraTower)),
-    ('Dirt Lane', DrawLaneTool()),
-    ('Terrace', BuildTerraceTool()),
-    ('Maple', StampStructureTool(kind: StructureKind.mapleCluster)),
-    ('Bamboo', StampStructureTool(kind: StructureKind.bambooGrove)),
-    ('Watch', InspectWatchTool()),
+  static const List<_ToolCardSpec> _buildings = [
+    _ToolCardSpec(
+      title: 'Townhouse',
+      subtitle: 'Machiya',
+      tool: StampStructureTool(kind: StructureKind.machiya),
+    ),
+    _ToolCardSpec(
+      title: 'Teahouse',
+      subtitle: 'Chaya inn',
+      tool: StampStructureTool(kind: StructureKind.chaya),
+    ),
+    _ToolCardSpec(
+      title: 'Storehouse',
+      subtitle: 'White Kura',
+      tool: StampStructureTool(kind: StructureKind.kura),
+    ),
+    _ToolCardSpec(
+      title: 'Market Stall',
+      subtitle: 'Yatai booth',
+      tool: StampStructureTool(kind: StructureKind.marketStall),
+    ),
+    _ToolCardSpec(
+      title: 'Lantern Gate',
+      subtitle: 'Torii arch',
+      tool: StampStructureTool(kind: StructureKind.toriiGate),
+    ),
+  ];
+
+  static const List<_ToolCardSpec> _pathsAndWalls = [
+    _ToolCardSpec(
+      title: 'Cobble Lane',
+      subtitle: 'Drag path',
+      tool: DrawLaneTool(),
+    ),
+    _ToolCardSpec(
+      title: 'Stone Terrace',
+      subtitle: 'Drag wall',
+      tool: BuildTerraceTool(),
+    ),
+    _ToolCardSpec(
+      title: 'Courtyard Wall',
+      subtitle: 'Tiled Hei',
+      tool: BuildWallTool(),
+    ),
+  ];
+
+  static const List<_ToolCardSpec> _nature = [
+    _ToolCardSpec(
+      title: 'Maple & Rocks',
+      subtitle: 'Momiji',
+      tool: StampStructureTool(kind: StructureKind.mapleCluster),
+    ),
+    _ToolCardSpec(
+      title: 'Bamboo Grove',
+      subtitle: 'Take culms',
+      tool: StampStructureTool(kind: StructureKind.bambooGrove),
+    ),
   ];
 
   bool _matches(PlacementTool candidate) {
@@ -323,6 +428,13 @@ class _PaletteBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isStamp = activeTool is StampStructureTool;
+    const demolishSpec = _ToolCardSpec(
+      title: 'Demolish',
+      subtitle: 'Remove [Del]',
+      tool: DemolishTool(),
+      isDestructive: true,
+    );
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: ShukubaHud._lacquerBg,
@@ -335,23 +447,50 @@ class _PaletteBar extends StatelessWidget {
           spacing: 6,
           runSpacing: 6,
           alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            for (final (label, tool) in _entries)
-              _CompactChip(
-                label: label,
-                active: _matches(tool),
-                accent: tool is InspectWatchTool
-                    ? ShukubaHud._jadeSight
-                    : ShukubaHud._amberAccent,
-                onTap: () => onSelectTool(tool),
+            for (final spec in _buildings)
+              _ToolCardButton(
+                spec: spec,
+                active: _matches(spec.tool),
+                onTap: () => onSelectTool(spec.tool),
               ),
+            const _DockDivider(),
+            for (final spec in _pathsAndWalls)
+              _ToolCardButton(
+                spec: spec,
+                active: _matches(spec.tool),
+                onTap: () => onSelectTool(spec.tool),
+              ),
+            const _DockDivider(),
+            for (final spec in _nature)
+              _ToolCardButton(
+                spec: spec,
+                active: _matches(spec.tool),
+                onTap: () => onSelectTool(spec.tool),
+              ),
+            const _DockDivider(),
             if (isStamp)
-              _CompactChip(
+              _ActionChip(
                 label: 'Rotate [R]',
                 active: false,
-                accent: ShukubaHud._mutedSand,
+                accent: ShukubaHud._amberAccent,
                 onTap: onRotateStamp,
               ),
+            _ToolCardButton(
+              spec: demolishSpec,
+              active: _matches(demolishSpec.tool),
+              onTap: () => onSelectTool(demolishSpec.tool),
+            ),
+            Opacity(
+              opacity: canUndo ? 1.0 : 0.42,
+              child: _ActionChip(
+                label: 'Undo [Z]',
+                active: false,
+                accent: ShukubaHud._mutedSand,
+                onTap: canUndo ? onUndo : () {},
+              ),
+            ),
           ],
         ),
       ),
@@ -359,7 +498,78 @@ class _PaletteBar extends StatelessWidget {
   }
 }
 
-class _CompactChip extends StatelessWidget {
+class _DockDivider extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 28,
+      child: VerticalDivider(
+        width: 8,
+        thickness: 1,
+        color: ShukubaHud._borderStroke,
+      ),
+    );
+  }
+}
+
+class _ToolCardButton extends StatelessWidget {
+  const new({required this.spec, required this.active, required this.onTap});
+
+  final _ToolCardSpec spec;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = spec.isDestructive
+        ? ShukubaHud._vermilionAccent
+        : ShukubaHud._amberAccent;
+    return GestureDetector(
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: active
+              ? accent.withValues(alpha: 0.24)
+              : const Color(0x22000000),
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: active ? accent : ShukubaHud._borderStroke,
+            width: active ? 1.3 : 1.0,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                spec.title,
+                style: TextStyle(
+                  color: active ? ShukubaHud._washiInk : ShukubaHud._mutedSand,
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                ),
+              ),
+              Text(
+                spec.subtitle,
+                style: TextStyle(
+                  color: active
+                      ? accent
+                      : ShukubaHud._mutedSand.withValues(alpha: 0.72),
+                  fontSize: 9.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionChip extends StatelessWidget {
   const new({
     required this.label,
     required this.active,

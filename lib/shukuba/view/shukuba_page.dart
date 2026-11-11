@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:io' show exit, stderr;
 
 import 'package:flutter/gestures.dart'
-    show PointerScrollEvent, kPrimaryMouseButton, kSecondaryMouseButton;
+    show
+        PointerScrollEvent,
+        kMiddleMouseButton,
+        kPrimaryMouseButton,
+        kSecondaryMouseButton;
 import 'package:flutter/material.dart' hide Matrix4;
 import 'package:flutter/services.dart'
     show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
@@ -39,6 +43,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
   int _activeButtons = 0;
   Offset? _primaryDownPos;
   bool _draggedDuringPrimary = false;
+  bool _strokeDragActive = false;
 
   @override
   void initState() {
@@ -128,8 +133,17 @@ class _ShukubaPageState extends State<ShukubaPage> {
     _controller.onFrameTick(elapsed, deltaSeconds);
   }
 
+  bool get _isSpacePressed => HardwareKeyboard.instance.logicalKeysPressed
+      .contains(LogicalKeyboardKey.space);
+
   void _pollPanKeys(double dtSeconds) {
     final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+    if (pressed.contains(LogicalKeyboardKey.metaLeft) ||
+        pressed.contains(LogicalKeyboardKey.metaRight) ||
+        pressed.contains(LogicalKeyboardKey.controlLeft) ||
+        pressed.contains(LogicalKeyboardKey.controlRight)) {
+      return;
+    }
     var right = 0.0;
     var forward = 0.0;
     if (pressed.contains(LogicalKeyboardKey.keyD) ||
@@ -149,12 +163,14 @@ class _ShukubaPageState extends State<ShukubaPage> {
       forward -= 1;
     }
     if (right != 0 || forward != 0) {
-      _cameraRig.panByAxes(
-        rightInput: right,
-        forwardInput: forward,
-        dtSeconds: dtSeconds <= 0 ? 1 / 60 : dtSeconds,
-        sampleGroundY: _controller.world.sampleGroundHeight,
-      );
+      setState(() {
+        _cameraRig.panByAxes(
+          rightInput: right,
+          forwardInput: forward,
+          dtSeconds: dtSeconds <= 0 ? 1 / 60 : dtSeconds,
+          sampleGroundY: _controller.world.sampleGroundHeight,
+        );
+      });
     }
   }
 
@@ -163,10 +179,6 @@ class _ShukubaPageState extends State<ShukubaPage> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.tab) {
-      _controller.toggleMagistrateEye();
-      return KeyEventResult.handled;
-    }
     if (key == LogicalKeyboardKey.keyQ) {
       setState(() => _cameraRig.orbitByRadians(-0.22));
       return KeyEventResult.handled;
@@ -179,13 +191,29 @@ class _ShukubaPageState extends State<ShukubaPage> {
       _controller.rotateStampYaw();
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.keyZ) {
+      _controller.undo();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.backspace ||
+        key == LogicalKeyboardKey.delete ||
+        key == LogicalKeyboardKey.keyX) {
+      _controller.selectTool(const DemolishTool());
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       _controller.commitActiveStroke();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.escape) {
-      _controller.cancelActiveStroke();
+      if (_controller.strokePoints.isNotEmpty) {
+        _controller.cancelActiveStroke();
+      } else if (_controller.activeTool is DemolishTool) {
+        _controller.selectTool(
+          const StampStructureTool(kind: StructureKind.machiya),
+        );
+      }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.digit1) {
@@ -197,7 +225,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.digit3) {
-      _selectPreset(CameraPreset.magistrateWatchtower);
+      _selectPreset(CameraPreset.riverCrossing);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.digit4) {
@@ -207,16 +235,12 @@ class _ShukubaPageState extends State<ShukubaPage> {
     return KeyEventResult.ignored;
   }
 
-  void _handleViewportTap(Offset localPosition, Size viewportSize) {
-    final hit = _cameraRig.raycastGround(
-      localPosition,
-      viewportSize,
-      _controller.world.sampleGroundHeight,
-    );
-    if (hit != null) {
-      _controller.handlePrimaryPlotTap(hit);
-    }
-  }
+  Vec3? _raycast(Offset localPosition, Size viewportSize) =>
+      _cameraRig.raycastGround(
+        localPosition,
+        viewportSize,
+        _controller.world.sampleGroundHeight,
+      );
 
   @override
   void dispose() {
@@ -241,59 +265,123 @@ class _ShukubaPageState extends State<ShukubaPage> {
             return Stack(
               fit: StackFit.expand,
               children: [
-                Listener(
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: (event) {
-                    _focusNode.requestFocus();
-                    _activeButtons = event.buttons;
-                    if ((event.buttons & kPrimaryMouseButton) != 0) {
-                      _primaryDownPos = event.localPosition;
-                      _draggedDuringPrimary = false;
+                MouseRegion(
+                  onHover: (event) {
+                    if (kShukubaCaptureDir.isNotEmpty) {
+                      return;
                     }
+                    _controller.updateHoverPoint(
+                      _raycast(event.localPosition, viewSize),
+                    );
                   },
-                  onPointerMove: (event) {
-                    final down = _primaryDownPos;
-                    if (down != null &&
-                        (event.localPosition - down).distance > 6) {
-                      _draggedDuringPrimary = true;
-                    }
-                    final isRightDrag =
-                        (_activeButtons & kSecondaryMouseButton) != 0;
-                    if (isRightDrag || _draggedDuringPrimary) {
-                      setState(() {
-                        _cameraRig.panByScreenDelta(
-                          event.delta,
-                          viewSize,
-                          sampleGroundY: _controller.world.sampleGroundHeight,
+                  onExit: (_) => _controller.updateHoverPoint(null),
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (event) {
+                      _focusNode.requestFocus();
+                      _activeButtons = event.buttons;
+                      final isPrimary =
+                          (event.buttons & kPrimaryMouseButton) != 0;
+                      if (isPrimary && !_isSpacePressed) {
+                        _primaryDownPos = event.localPosition;
+                        _draggedDuringPrimary = false;
+                        if (_controller.activeTool.isStrokeTool &&
+                            _controller.strokePoints.isEmpty) {
+                          final hit = _raycast(event.localPosition, viewSize);
+                          if (hit != null) {
+                            _strokeDragActive = true;
+                            _controller.beginStrokeAt(hit);
+                          }
+                        } else {
+                          _strokeDragActive = false;
+                        }
+                      } else {
+                        _primaryDownPos = null;
+                        _strokeDragActive = false;
+                      }
+                    },
+                    onPointerMove: (event) {
+                      final down = _primaryDownPos;
+                      if (down != null &&
+                          (event.localPosition - down).distance > 8) {
+                        _draggedDuringPrimary = true;
+                      }
+
+                      final isPanGesture =
+                          (_activeButtons & kSecondaryMouseButton) != 0 ||
+                          (_activeButtons & kMiddleMouseButton) != 0 ||
+                          ((_activeButtons & kPrimaryMouseButton) != 0 &&
+                              _isSpacePressed);
+
+                      if (isPanGesture) {
+                        setState(() {
+                          _cameraRig.panByScreenDelta(
+                            event.delta,
+                            viewSize,
+                            sampleGroundY: _controller.world.sampleGroundHeight,
+                          );
+                        });
+                        return;
+                      }
+
+                      if (_strokeDragActive && _draggedDuringPrimary) {
+                        final hit = _raycast(event.localPosition, viewSize);
+                        if (hit != null) {
+                          _controller.extendStrokeTo(hit);
+                        }
+                        return;
+                      }
+
+                      if (_draggedDuringPrimary &&
+                          !_controller.activeTool.isStrokeTool) {
+                        setState(() {
+                          _cameraRig.panByScreenDelta(
+                            event.delta,
+                            viewSize,
+                            sampleGroundY: _controller.world.sampleGroundHeight,
+                          );
+                        });
+                      }
+                    },
+                    onPointerUp: (event) {
+                      if (_strokeDragActive) {
+                        if (_draggedDuringPrimary) {
+                          _controller.finishDragStroke();
+                        }
+                      } else if (_primaryDownPos != null &&
+                          !_draggedDuringPrimary) {
+                        final hit = _raycast(event.localPosition, viewSize);
+                        if (hit != null) {
+                          _controller.handlePrimaryPlotTap(hit);
+                        }
+                      } else {
+                        _controller.updateHoverPoint(
+                          _raycast(event.localPosition, viewSize),
                         );
-                      });
-                    }
-                  },
-                  onPointerUp: (event) {
-                    if (_primaryDownPos != null && !_draggedDuringPrimary) {
-                      _handleViewportTap(event.localPosition, viewSize);
-                    }
-                    _primaryDownPos = null;
-                    _draggedDuringPrimary = false;
-                    _activeButtons = 0;
-                  },
-                  onPointerSignal: (signal) {
-                    if (signal is PointerScrollEvent) {
-                      setState(() {
-                        _cameraRig.zoomByScrollDelta(signal.scrollDelta.dy);
-                      });
-                    }
-                  },
-                  child: RepaintBoundary(
-                    key: _repaintBoundaryKey,
-                    child: _gpuAvailable && scene != null
-                        ? SceneView(
-                            scene,
-                            camera: _cameraRig.camera,
-                            autoTick: kShukubaCaptureDir.isEmpty,
-                            onTick: _onSceneTick,
-                          )
-                        : const ColoredBox(color: Color(0xFF0E131B)),
+                      }
+                      _primaryDownPos = null;
+                      _draggedDuringPrimary = false;
+                      _strokeDragActive = false;
+                      _activeButtons = 0;
+                    },
+                    onPointerSignal: (signal) {
+                      if (signal is PointerScrollEvent) {
+                        setState(() {
+                          _cameraRig.zoomByScrollDelta(signal.scrollDelta.dy);
+                        });
+                      }
+                    },
+                    child: RepaintBoundary(
+                      key: _repaintBoundaryKey,
+                      child: _gpuAvailable && scene != null
+                          ? SceneView(
+                              scene,
+                              camera: _cameraRig.camera,
+                              autoTick: kShukubaCaptureDir.isEmpty,
+                              onTick: _onSceneTick,
+                            )
+                          : const ColoredBox(color: Color(0xFF0E131B)),
+                    ),
                   ),
                 ),
                 if (kShukubaCaptureDir.isEmpty)
