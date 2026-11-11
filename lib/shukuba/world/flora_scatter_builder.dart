@@ -5,6 +5,7 @@ import 'package:flutter_scene/scene.dart'
         GeometryBuilder,
         InstancedMesh,
         InstancedMeshComponent,
+        Mesh,
         MeshGeometry,
         Node,
         ShadowCastingMode;
@@ -14,7 +15,10 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         ShukubaGraph,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
-        StructureKind;
+        StructureKind,
+        Vec3;
+import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
+    show EdoKitBuilder;
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart'
     show TerrainBuilder, TerrainConfig;
 import 'package:vector_math/vector_math.dart'
@@ -364,7 +368,96 @@ class FloraScatterBuilder {
       );
     }
 
+    final cobbleNode = _buildRoadsideCobblesNode(
+      graph: graph,
+      resolveMaterial: resolveMaterial,
+      sampleGroundY: sampleGroundY,
+    );
+    if (cobbleNode != null) {
+      root.add(cobbleNode);
+    }
+
     return root;
+  }
+
+  static Node? _buildRoadsideCobblesNode({
+    required ShukubaGraph graph,
+    required ShukubaMaterialResolver resolveMaterial,
+    required GroundHeightSampler sampleGroundY,
+  }) {
+    final builder = GeometryBuilder();
+    var count = 0;
+    var seedIdx = 0;
+
+    for (final road in graph.roads) {
+      final halfW = road.widthMeters * 0.5;
+      for (var i = 0; i < road.controlPoints.length - 1; i++) {
+        final pA = road.controlPoints[i];
+        final pB = road.controlPoints[i + 1];
+        final seg = pB - pA;
+        final len = seg.horizontalLength;
+        if (len < 1.8) {
+          continue;
+        }
+        final tangent = seg.normalizedHorizontal();
+        final normal = Vec3(-tangent.z, 0, tangent.x);
+        final steps = math.max(1, (len / 2.6).floor());
+
+        for (var k = 0; k < steps; k++) {
+          seedIdx++;
+          if (seedIdx % 3 == 0) {
+            continue;
+          }
+          final t = (k + 0.42) / steps;
+          final base = Vec3.lerp(pA, pB, t);
+          final side = seedIdx.isEven ? 1.0 : -1.0;
+          final h = (math.sin(seedIdx * 19.7 + 1.3) * 541.3).abs() % 1.0;
+          final offset = halfW + 0.54 + 0.24 * h;
+          final px = base.x + normal.x * side * offset;
+          final pz = base.z + normal.z * side * offset;
+
+          if ((px - TerrainConfig.riverCenterX(pz)).abs() < 7.4) {
+            continue;
+          }
+          if (!isClearForGroundFlora(px, pz, graph, footprintMargin: 0.90)) {
+            continue;
+          }
+
+          final gy = sampleGroundY(px, pz);
+          final slope =
+              (sampleGroundY(px + 0.25, pz) - sampleGroundY(px - 0.25, pz))
+                  .abs() +
+              (sampleGroundY(px, pz + 0.25) - sampleGroundY(px, pz - 0.25))
+                  .abs();
+          if (slope > 0.14) {
+            continue;
+          }
+
+          final rx = 0.15 + 0.08 * h;
+          final ry = 0.075 + 0.030 * ((seedIdx * 0.37) % 1.0);
+          final rz = 0.13 + 0.07 * ((seedIdx * 0.61) % 1.0);
+          EdoKitBuilder.addRockBoulder(
+            builder,
+            Vector3(px, gy + ry + 0.045, pz),
+            Vector3(rx, ry, rz),
+            yaw: h * math.pi * 2,
+            seed: seedIdx * 0.7,
+          );
+          count++;
+        }
+      }
+    }
+
+    if (count == 0) {
+      return null;
+    }
+    return Node(
+      name: 'flora_roadside_cobbles',
+      mesh: Mesh(
+        builder.build(),
+        resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+      ),
+    );
   }
 
   static MeshGeometry _buildTuftPrototypeGeometry() {

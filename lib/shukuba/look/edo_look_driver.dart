@@ -355,6 +355,7 @@ class EdoLookDriver implements ShukubaLookDriver {
     for (final role in gouacheRoles) {
       _setParamFloat(role, 'dew_sheen', rig.dewFactor);
     }
+    _setParamFloat(ShukubaSurfaceRole.fabricAwning, 'time_sec', elapsedSeconds);
 
     _setParamFloat(
       ShukubaSurfaceRole.riverMist,

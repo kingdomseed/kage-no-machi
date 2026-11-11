@@ -72,9 +72,9 @@ class AtmosphereBuilder {
   }
 
   static void _emitRiverGorgeMistRibbons(GeometryBuilder builder) {
-    const zMin = -36.5;
-    const zMax = 36.5;
-    const segs = 56;
+    const zMin = -38.0;
+    const zMax = 38.0;
+    const segs = 60;
     const dz = (zMax - zMin) / segs;
 
     const tiers = [
@@ -95,7 +95,7 @@ class AtmosphereBuilder {
       for (var i = 0; i <= segs; i++) {
         final z = zMin + i * dz;
         final endDist = math.min(z - zMin, zMax - z);
-        final endFade = (endDist / 5.5).clamp(0.0, 1.0);
+        final endFade = (endDist / 8.0).clamp(0.0, 1.0);
         final cX =
             TerrainConfig.riverCenterX(z) +
             swayAmp * math.sin(z * swayFreq + tierIdx);

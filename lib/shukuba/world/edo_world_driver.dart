@@ -107,7 +107,12 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     for (final agent in _simAgents) {
       if (agent.carriesLantern) {
-        origins.add(agent.position + Vec3.up + agent.forward * 0.45);
+        final heldOffset = const Vec3(
+          0.26,
+          1.18,
+          0.76,
+        ).rotateY(agent.yawRadians);
+        origins.add(agent.position + heldOffset);
       }
     }
 
@@ -456,17 +461,18 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           0.0,
           1.0,
         );
-        final bob =
-            math.sin(_walkTime * 7.2 + agent.bobPhase).abs() *
-            0.032 *
-            speedRatio;
+        final phase = _walkTime * 7.2 + agent.bobPhase;
+        final bob = math.sin(phase).abs() * 0.034 * speedRatio;
+        final strideRoll = math.sin(phase) * 0.042 * speedRatio;
+        final yawRot = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
+        final cadenceRot = Quaternion.axisAngle(Vector3(0, 0, 1), strideRoll);
         node
           ..position = Vector3(
             agent.position.x,
             agent.position.y + bob,
             agent.position.z,
           )
-          ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
+          ..rotation = yawRot * cadenceRot;
       }
     }
   }

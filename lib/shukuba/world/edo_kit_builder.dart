@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter_scene/scene.dart' show GeometryBuilder, Mesh, Node;
+import 'package:flutter_scene/scene.dart'
+    show GeometryBuilder, Mesh, Node, ShadowCastingMode;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         BuildPreview,
@@ -839,6 +840,57 @@ class EdoKitBuilder {
     );
   }
 
+  static void addNoboriBanner(
+    GeometryBuilder timberBuilder,
+    GeometryBuilder clothBuilder, {
+    required double xPole,
+    required double zPole,
+    required double dirX,
+    required Vector4 mainColor,
+    required Vector4 crestColor,
+    double topY = 2.52,
+    double bottomY = 0.86,
+    double bannerWidth = 0.34,
+  }) {
+    addBox(
+      timberBuilder,
+      Vector3(xPole - 0.085, 0.04, zPole - 0.085),
+      Vector3(xPole + 0.085, 0.22, zPole + 0.085),
+    );
+    addTaperedLimb(
+      timberBuilder,
+      Vec3(xPole, 0.24, zPole),
+      Vec3(xPole, topY, zPole),
+      0.026,
+      0.018,
+      sides: 6,
+    );
+    addCordSegment(
+      timberBuilder,
+      Vec3(xPole + dirX * 0.03, topY - 0.05, zPole),
+      Vec3(xPole + dirX * (bannerWidth + 0.08), topY - 0.05, zPole),
+      halfThick: 0.014,
+    );
+
+    final edgeNear = xPole + dirX * 0.055;
+    final edgeFar = xPole + dirX * (0.055 + bannerWidth);
+    final xMin = math.min(edgeNear, edgeFar);
+    final xMax = math.max(edgeNear, edgeFar);
+
+    addBox(
+      clothBuilder,
+      Vector3(xMin, bottomY, zPole - 0.016),
+      Vector3(xMax, bottomY + 0.36, zPole + 0.016),
+      color: crestColor,
+    );
+    addBox(
+      clothBuilder,
+      Vector3(xMin, bottomY + 0.39, zPole - 0.016),
+      Vector3(xMax, topY - 0.11, zPole + 0.016),
+      color: mainColor,
+    );
+  }
+
   Node buildStructureNode(
     PlacedStructure structure,
     ShukubaMaterialResolver resolveMaterial,
@@ -1110,6 +1162,15 @@ class EdoKitBuilder {
         radius: 0.15,
         height: 0.34,
       );
+      addNoboriBanner(
+        timberBuilder,
+        awningBuilder,
+        xPole: 2.26,
+        zPole: 4.14,
+        dirX: -1,
+        mainColor: Vector4(0.14, 0.24, 0.48, 0.5),
+        crestColor: Vector4(0.94, 0.88, 0.72, 0.5),
+      );
     } else {
       addBox(
         timberBuilder,
@@ -1122,6 +1183,15 @@ class EdoKitBuilder {
         Vector3(-1.08, 2.16, 3.86),
         radius: 0.15,
         height: 0.34,
+      );
+      addNoboriBanner(
+        timberBuilder,
+        awningBuilder,
+        xPole: -2.26,
+        zPole: 4.14,
+        dirX: 1,
+        mainColor: Vector4(0.58, 0.18, 0.12, 0.5),
+        crestColor: Vector4(0.92, 0.82, 0.62, 0.5),
       );
     }
 
@@ -1342,6 +1412,17 @@ class EdoKitBuilder {
       Vector3(1.58, 2.34, 2.84),
       radius: 0.18,
       height: 0.40,
+    );
+    addNoboriBanner(
+      timberBuilder,
+      awningBuilder,
+      xPole: -2.68,
+      zPole: 3.12,
+      dirX: 1,
+      mainColor: Vector4(0.68, 0.14, 0.09, 0.5),
+      crestColor: Vector4(0.96, 0.88, 0.70, 0.5),
+      topY: 2.58,
+      bottomY: 0.88,
     );
 
     root
@@ -1634,6 +1715,18 @@ class EdoKitBuilder {
       Vector3(1.12, 2.24, 1.08),
       radius: 0.16,
       height: 0.36,
+    );
+    addNoboriBanner(
+      timberBuilder,
+      awningBuilder,
+      xPole: -1.24,
+      zPole: 1.28,
+      dirX: 1,
+      mainColor: Vector4(0.84, 0.52, 0.14, 0.5),
+      crestColor: Vector4(0.18, 0.26, 0.46, 0.5),
+      topY: 2.46,
+      bottomY: 0.84,
+      bannerWidth: 0.32,
     );
 
     root
@@ -2233,98 +2326,352 @@ class EdoKitBuilder {
     final root = Node();
     final clothBuilder = GeometryBuilder();
     final timberBuilder = GeometryBuilder();
+    var hasTimber = false;
 
-    final (kimonoTint, haoriTint) = switch (role) {
+    final (kimonoTint, haoriTint, obiTint) = switch (role) {
       StreetAgentRole.townsfolk => (
-        Vector4(0.66, 0.46, 0.28, 1),
-        Vector4(0.32, 0.38, 0.48, 1),
+        Vector4(0.68, 0.46, 0.26, 1),
+        Vector4(0.24, 0.34, 0.48, 1),
+        Vector4(0.84, 0.68, 0.34, 1),
       ),
       StreetAgentRole.lanternWatchman => (
-        Vector4(0.18, 0.28, 0.46, 1),
-        Vector4(0.58, 0.22, 0.16, 1),
+        Vector4(0.18, 0.26, 0.44, 1),
+        Vector4(0.62, 0.20, 0.14, 1),
+        Vector4(0.90, 0.84, 0.68, 1),
       ),
       StreetAgentRole.nightSmuggler => (
-        Vector4(0.24, 0.32, 0.28, 1),
-        Vector4(0.46, 0.38, 0.26, 1),
+        Vector4(0.24, 0.34, 0.26, 1),
+        Vector4(0.48, 0.38, 0.24, 1),
+        Vector4(0.66, 0.24, 0.16, 1),
       ),
     };
+    final skinTint = Vector4(0.88, 0.72, 0.58, 1);
+    final creamCloth = Vector4(0.94, 0.90, 0.80, 1);
+    final hairTint = Vector4(0.09, 0.08, 0.09, 1);
+    final kyahanTint = Vector4(0.16, 0.20, 0.28, 1);
+    final sandalTint = Vector4(0.58, 0.46, 0.28, 1);
 
-    // Tapered kimono skirt + draped haori upper robe + obi sash
     addTaperedLimb(
       clothBuilder,
-      const Vec3(0, 0.04, 0),
-      const Vec3(0, 0.82, 0),
-      0.20,
-      0.15,
+      const Vec3(-0.085, 0.08, 0.05),
+      const Vec3(-0.075, 0.23, 0.03),
+      0.046,
+      0.054,
       sides: 6,
+      color: kyahanTint,
+    );
+    addTaperedLimb(
+      clothBuilder,
+      const Vec3(0.085, 0.08, -0.05),
+      const Vec3(0.075, 0.23, -0.03),
+      0.046,
+      0.054,
+      sides: 6,
+      color: kyahanTint,
+    );
+    addBox(
+      clothBuilder,
+      Vector3(-0.125, 0.025, -0.01),
+      Vector3(-0.045, 0.075, 0.16),
+      color: sandalTint,
+    );
+    addBox(
+      clothBuilder,
+      Vector3(0.045, 0.025, -0.14),
+      Vector3(0.125, 0.075, 0.03),
+      color: sandalTint,
+    );
+
+    addTaperedLimb(
+      clothBuilder,
+      const Vec3(0, 0.19, 0),
+      const Vec3(0, 0.74, 0),
+      0.205,
+      0.165,
+      sides: 7,
       color: kimonoTint,
     );
     addTaperedLimb(
       clothBuilder,
-      const Vec3(0, 0.84, 0),
-      const Vec3(0, 1.30, 0),
-      0.23,
-      0.13,
-      sides: 6,
-      color: haoriTint,
+      const Vec3(0, 0.74, 0),
+      const Vec3(0, 0.88, 0),
+      0.188,
+      0.184,
+      sides: 7,
+      color: obiTint,
     );
-    // Draped kimono sleeves on left and right
-    addTaperedLimb(
+    addBox(
       clothBuilder,
-      const Vec3(-0.14, 1.22, 0),
-      const Vec3(-0.26, 0.86, 0.05),
-      0.08,
-      0.10,
-      color: haoriTint,
-    );
-    addTaperedLimb(
-      clothBuilder,
-      const Vec3(0.14, 1.22, 0),
-      const Vec3(0.26, 0.86, 0.08),
-      0.08,
-      0.10,
-      color: haoriTint,
+      Vector3(-0.11, 0.75, -0.25),
+      Vector3(0.11, 0.89, -0.17),
+      color: obiTint,
     );
 
-    addSculptedEllipsoid(
+    addTaperedLimb(
       clothBuilder,
-      Vector3(0, 1.40, 0),
-      Vector3(0.11, 0.11, 0.11),
-      color: Vector4(0.86, 0.72, 0.58, 1),
+      const Vec3(0, 0.88, 0),
+      const Vec3(0, 1.30, 0),
+      0.225,
+      0.145,
+      sides: 7,
+      color: haoriTint,
+    );
+    addBox(
+      clothBuilder,
+      Vector3(-0.065, 1.18, 0.11),
+      Vector3(0.065, 1.32, 0.165),
+      color: creamCloth,
+    );
+
+    addTaperedLimb(
+      clothBuilder,
+      const Vec3(-0.16, 1.24, 0),
+      const Vec3(-0.31, 1.05, 0.08),
+      0.075,
+      0.068,
+      color: haoriTint,
+    );
+    addBox(
+      clothBuilder,
+      Vector3(-0.33, 0.83, -0.02),
+      Vector3(-0.22, 1.07, 0.15),
+      color: haoriTint,
     );
     addTaperedLimb(
       clothBuilder,
-      const Vec3(0, 1.48, 0),
-      const Vec3(0, 1.68, 0),
-      0.39,
-      0.03,
-      sides: 7,
-      color: Vector4(0.88, 0.74, 0.46, 1),
+      const Vec3(-0.29, 1.03, 0.09),
+      const Vec3(-0.21, 0.97, 0.24),
+      0.052,
+      0.042,
+      color: kimonoTint,
+    );
+    addSculptedEllipsoid(
+      clothBuilder,
+      Vector3(-0.20, 0.96, 0.26),
+      Vector3(0.042, 0.040, 0.048),
+      color: skinTint,
     );
 
     if (role == StreetAgentRole.lanternWatchman) {
-      addCordSegment(
-        timberBuilder,
-        const Vec3(0.22, 0.98, 0.06),
-        const Vec3(0.24, 1.14, 0.52),
-        halfThick: 0.018,
+      addTaperedLimb(
+        clothBuilder,
+        const Vec3(0.16, 1.24, 0.02),
+        const Vec3(0.28, 1.12, 0.20),
+        0.075,
+        0.068,
+        color: haoriTint,
       );
-      final lanternBuilder = GeometryBuilder();
-      addLanternBody(
-        lanternBuilder,
-        timberBuilder,
-        Vector3(0.24, 1.12, 0.50),
-        radius: 0.12,
-        height: 0.28,
+      addBox(
+        clothBuilder,
+        Vector3(0.21, 0.89, 0.08),
+        Vector3(0.32, 1.13, 0.24),
+        color: haoriTint,
       );
-      root.add(
-        Node(
-          mesh: Mesh(
-            lanternBuilder.build(),
-            resolveMaterial(ShukubaSurfaceRole.chochinLantern),
+      addTaperedLimb(
+        clothBuilder,
+        const Vec3(0.27, 1.12, 0.21),
+        const Vec3(0.25, 1.15, 0.38),
+        0.050,
+        0.040,
+        color: kimonoTint,
+      );
+      addSculptedEllipsoid(
+        clothBuilder,
+        Vector3(0.25, 1.15, 0.40),
+        Vector3(0.042, 0.040, 0.048),
+        color: skinTint,
+      );
+    } else {
+      addTaperedLimb(
+        clothBuilder,
+        const Vec3(0.16, 1.24, 0),
+        const Vec3(0.31, 1.04, 0.10),
+        0.075,
+        0.068,
+        color: haoriTint,
+      );
+      addBox(
+        clothBuilder,
+        Vector3(0.22, 0.83, 0),
+        Vector3(0.33, 1.07, 0.17),
+        color: haoriTint,
+      );
+      addTaperedLimb(
+        clothBuilder,
+        const Vec3(0.29, 1.02, 0.11),
+        const Vec3(0.24, 0.98, 0.26),
+        0.052,
+        0.042,
+        color: kimonoTint,
+      );
+      addSculptedEllipsoid(
+        clothBuilder,
+        Vector3(0.23, 0.97, 0.28),
+        Vector3(0.042, 0.040, 0.048),
+        color: skinTint,
+      );
+    }
+
+    addSculptedEllipsoid(
+      clothBuilder,
+      Vector3(0, 1.40, 0.01),
+      Vector3(0.105, 0.115, 0.108),
+      color: skinTint,
+    );
+    addSculptedEllipsoid(
+      clothBuilder,
+      Vector3(0, 1.43, -0.025),
+      Vector3(0.108, 0.095, 0.105),
+      color: hairTint,
+    );
+
+    switch (role) {
+      case StreetAgentRole.townsfolk:
+        final strawHat = Vector4(0.88, 0.74, 0.44, 1);
+        addTaperedLimb(
+          clothBuilder,
+          const Vec3(0, 1.48, 0),
+          const Vec3(0, 1.58, 0),
+          0.40,
+          0.20,
+          sides: 8,
+          color: strawHat,
+        );
+        addTaperedLimb(
+          clothBuilder,
+          const Vec3(0, 1.58, 0),
+          const Vec3(0, 1.66, 0),
+          0.20,
+          0.03,
+          sides: 8,
+          color: strawHat,
+        );
+        addSculptedEllipsoid(
+          clothBuilder,
+          Vector3(-0.08, 1.08, -0.21),
+          Vector3(0.16, 0.13, 0.12),
+          color: creamCloth,
+        );
+      case StreetAgentRole.lanternWatchman:
+        hasTimber = true;
+        addSculptedEllipsoid(
+          clothBuilder,
+          Vector3(0, 1.53, 0),
+          Vector3(0.038, 0.038, 0.085),
+          color: hairTint,
+        );
+        addTaperedLimb(
+          clothBuilder,
+          const Vec3(0, 1.44, 0),
+          const Vec3(0, 1.48, 0),
+          0.114,
+          0.114,
+          sides: 7,
+          color: creamCloth,
+        );
+        addCordSegment(
+          timberBuilder,
+          const Vec3(0.24, 1.04, 0.22),
+          const Vec3(0.26, 1.38, 0.78),
+          halfThick: 0.016,
+        );
+        final lanternBuilder = GeometryBuilder();
+        addLanternBody(
+          lanternBuilder,
+          timberBuilder,
+          Vector3(0.26, 1.34, 0.76),
+          radius: 0.125,
+          height: 0.28,
+        );
+        root.add(
+          Node(
+            mesh: Mesh(
+              lanternBuilder.build(),
+              resolveMaterial(ShukubaSurfaceRole.chochinLantern),
+            ),
           ),
-        ),
-      );
+        );
+
+        final haloBuilder = GeometryBuilder()
+          ..color(Vector4(1.06, 0.86, 0.64, 0.85))
+          ..texCoord(Vector2(0, 0))
+          ..addVertex(Vector3(-0.5, -0.5, 0))
+          ..texCoord(Vector2(1, 0))
+          ..addVertex(Vector3(0.5, -0.5, 0))
+          ..texCoord(Vector2(1, 1))
+          ..addVertex(Vector3(0.5, 0.5, 0))
+          ..texCoord(Vector2(0, 1))
+          ..addVertex(Vector3(-0.5, 0.5, 0))
+          ..addTriangle(0, 1, 2)
+          ..addTriangle(0, 2, 3);
+        root.add(
+          Node(
+              mesh: Mesh(
+                haloBuilder.build(),
+                resolveMaterial(ShukubaSurfaceRole.lanternHaze),
+              ),
+            )
+            ..position = Vector3(0.26, 1.18, 0.76)
+            ..scale = Vector3(1.28, 1.28, 1)
+            ..shadowCastingMode = ShadowCastingMode.off,
+        );
+      case StreetAgentRole.nightSmuggler:
+        hasTimber = true;
+        final travelHat = Vector4(0.68, 0.54, 0.32, 1);
+        addTaperedLimb(
+          clothBuilder,
+          const Vec3(0, 1.47, 0),
+          const Vec3(0, 1.55, 0),
+          0.42,
+          0.22,
+          sides: 8,
+          color: travelHat,
+        );
+        addTaperedLimb(
+          clothBuilder,
+          const Vec3(0, 1.55, 0),
+          const Vec3(0, 1.61, 0),
+          0.22,
+          0.04,
+          sides: 8,
+          color: travelHat,
+        );
+        for (final rx in const [-0.13, 0.13]) {
+          addBox(
+            timberBuilder,
+            Vector3(rx - 0.018, 0.68, -0.21),
+            Vector3(rx + 0.018, 1.48, -0.17),
+          );
+        }
+        addBox(
+          clothBuilder,
+          Vector3(-0.15, 0.74, -0.36),
+          Vector3(0.15, 1.05, -0.22),
+          color: Vector4(0.76, 0.62, 0.38, 1),
+        );
+        addBox(
+          clothBuilder,
+          Vector3(-0.14, 1.08, -0.35),
+          Vector3(0.14, 1.38, -0.22),
+          color: Vector4(0.62, 0.48, 0.28, 1),
+        );
+        addTaperedLimb(
+          clothBuilder,
+          const Vec3(-0.19, 1.45, -0.26),
+          const Vec3(0.19, 1.45, -0.26),
+          0.072,
+          0.072,
+          sides: 6,
+          color: creamCloth,
+        );
+        addTaperedLimb(
+          timberBuilder,
+          const Vec3(0.25, 0.04, 0.30),
+          const Vec3(0.22, 1.36, 0.22),
+          0.018,
+          0.022,
+          sides: 6,
+        );
     }
 
     root.add(
@@ -2335,7 +2682,7 @@ class EdoKitBuilder {
         ),
       ),
     );
-    if (role == StreetAgentRole.lanternWatchman) {
+    if (hasTimber) {
       root.add(
         Node(
           mesh: Mesh(

@@ -49,16 +49,34 @@ fragment {
       409
     );
 
-    float obstacleBand = clamp(1.0 - thickness / 0.46, 0.0, 1.0);
+    float obstacleBand = clamp(1.0 - thickness / 0.52, 0.0, 1.0);
+    float ringEnvelope = smoothstep(0.015, 0.09, thickness) *
+        (1.0 - smoothstep(0.32, 0.88, thickness));
+    float ringPhase = thickness * 26.0 - t * 3.7 + streakNoise * 2.1;
+    float concentricRing = smoothstep(0.38, 0.92, sin(ringPhase)) * ringEnvelope;
+    float wakeChevron = smoothstep(
+      0.42,
+      0.86,
+      NoiseSimplex2(vec2(crossU * 10.2, downstreamV * 0.92 - t * 0.52), 511) * 0.5 + 0.5
+    ) * smoothstep(0.82, 0.06, thickness);
+
     float bankFoamBand = clamp(1.0 - bankDist / 0.14, 0.0, 1.0) * 0.46;
     float currentRibbon = smoothstep(0.32, 0.76, streakNoise * 0.5 + 0.5) * 0.30;
     float wakeBreakup = clamp(0.55 + 0.55 * streakNoise + 0.32 * fineWake, 0.15, 1.25);
-    float foamMask = smoothstep(
-      0.38,
-      0.82,
-      max(obstacleBand * wakeBreakup, bankFoamBand) + currentRibbon * 0.65
+    float obstacleFoam = max(
+      obstacleBand * wakeBreakup,
+      concentricRing * 0.78 + wakeChevron * 0.54
     );
-    float foamStrength = clamp(foamMask * 0.78 + currentRibbon * (0.35 + 0.55 * obstacleBand), 0.0, 0.88);
+    float foamMask = smoothstep(
+      0.36,
+      0.80,
+      max(obstacleFoam, bankFoamBand) + currentRibbon * 0.65
+    );
+    float foamStrength = clamp(
+      foamMask * 0.78 + concentricRing * 0.34 + currentRibbon * (0.35 + 0.55 * obstacleBand),
+      0.0,
+      0.90
+    );
 
     vec4 finalColor = mix(waterColor, material_params.foam_color, foamStrength);
     finalColor.rgb += material_params.foam_color.rgb * (currentRibbon * (1.0 - depthT * 0.45) * 0.18);
@@ -71,9 +89,14 @@ fragment {
       vec2(crossU * 8.4 + 1.7, downstreamV * 3.2 - t * 0.6),
       617
     );
+    float ringSlope = cos(ringPhase) * ringEnvelope * 0.11;
     vec3 geomNormal = GetWorldNormal();
     vec3 rippledNormal = normalize(
-      geomNormal + vec3((rippleA + rippleB * 0.5) * 0.055, 0.0, (rippleA - rippleB * 0.5) * 0.085)
+      geomNormal + vec3(
+        (rippleA + rippleB * 0.5) * 0.055 + ringSlope,
+        0.0,
+        (rippleA - rippleB * 0.5) * 0.085 + ringSlope * 0.75
+      )
     );
 
     material.base_color = finalColor;

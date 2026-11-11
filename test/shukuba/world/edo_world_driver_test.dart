@@ -14,7 +14,8 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         StructureKind,
         TerraceCourse,
         TimeOfDayRig,
-        Vec3;
+        Vec3,
+        defaultShukubaMaterial;
 import 'package:kage_no_machi/shukuba/world/world.dart';
 
 bool _checkImpellerAvailable() {
@@ -174,6 +175,61 @@ void main() {
           isTrue,
         );
       },
+    );
+
+    test(
+      'activeLanternOrigins tracks held bamboo-pole lantern in world space',
+      () {
+        final driver = EdoWorldDriver()..initSimulation();
+        for (var i = 0; i < 30; i++) {
+          driver.step(1 / 60, rig: TimeOfDayRig.blueHourNight);
+        }
+        final bearer = driver.agents.firstWhere(
+          (a) => a.role == StreetAgentRole.lanternWatchman,
+        );
+        final expectedHeld =
+            bearer.position +
+            const Vec3(0.26, 1.18, 0.76).rotateY(bearer.yawRadians);
+        final matched = driver.activeLanternOrigins.any(
+          (o) => (o - expectedHeld).length < 1e-6,
+        );
+        expect(matched, isTrue);
+      },
+    );
+
+    test(
+      'AtmosphereBuilder and stylized townsfolk build expected child meshes',
+      () {
+        const terrain = TerrainBuilder();
+        const kit = EdoKitBuilder();
+        const atmosphere = AtmosphereBuilder();
+        final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
+
+        final atmosNode = atmosphere.buildAtmosphereNode(
+          graph: graph,
+          resolveMaterial: defaultShukubaMaterial,
+          sampleGroundY: terrain.sampleGroundHeight,
+        );
+        expect(atmosNode.children.length, 3);
+
+        final townsfolkNode = kit.buildStreetAgentNode(
+          StreetAgentRole.townsfolk,
+          defaultShukubaMaterial,
+        );
+        final watchmanNode = kit.buildStreetAgentNode(
+          StreetAgentRole.lanternWatchman,
+          defaultShukubaMaterial,
+        );
+        final merchantNode = kit.buildStreetAgentNode(
+          StreetAgentRole.nightSmuggler,
+          defaultShukubaMaterial,
+        );
+
+        expect(townsfolkNode.children.length, 1);
+        expect(watchmanNode.children.length, 4);
+        expect(merchantNode.children.length, 2);
+      },
+      skip: !impellerAvailable ? impellerSkipReason : false,
     );
   });
 
