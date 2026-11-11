@@ -17,17 +17,18 @@ fragment {
     vec3 V = GetViewDirection();
     vec4 vColor = GetVertexColor();
     float t = material_params.time_sec;
-    float pulse = 0.88 + 0.12 * sin(t * 4.2);
+    float pulse = 0.92 + 0.08 * sin(t * 3.4);
     float fresnel = pow(clamp(1.0 - abs(dot(N, V)), 0.0, 1.0), 1.6);
 
-    vec3 baseRgb = material_params.ghost_color.rgb * vColor.rgb;
+    vec3 linearRgb =
+        material_params.ghost_color.rgb * vColor.rgb * (0.76 + 0.18 * fresnel);
     float alpha = clamp(
-      (material_params.ghost_color.a * (0.58 + 0.62 * fresnel)) * vColor.a * pulse,
+      material_params.ghost_color.a * (0.78 + 0.22 * fresnel) * vColor.a * pulse,
       0.0,
-      0.92
+      0.84
     );
 
-    material.base_color = vec4(baseRgb * (1.15 + 0.55 * fresnel), alpha);
+    material.base_color = vec4(linearRgb, alpha);
     PrepareMaterial(material);
   }
 }

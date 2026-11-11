@@ -110,83 +110,90 @@ class _FakeAudioDriver implements ShukubaAudioDriver {
 
 void main() {
   group('ShukubaController, HUD, and TacticalCameraRig', () {
-    test(
-      'stamping lane, hover ghost preview, drag wall, demolish, and undo work',
-      () async {
-        final look = _FakeLookDriver();
-        final world = _FakeWorldDriver();
-        final audio = _FakeAudioDriver();
-        final controller = ShukubaController(
-          look: look,
-          world: world,
-          audio: audio,
-        );
-        await controller.initialize();
+    test('lane, hover ghost, drag wall, demolish, and undo work', () async {
+      final look = _FakeLookDriver();
+      final world = _FakeWorldDriver();
+      final audio = _FakeAudioDriver();
+      final controller = ShukubaController(
+        look: look,
+        world: world,
+        audio: audio,
+      );
+      await controller.initialize();
 
-        // Drag-paint a cobble lane
-        controller
-          ..selectTool(const DrawLaneTool())
-          ..beginStrokeAt(const Vec3(-12, 0, 0))
-          ..extendStrokeTo(const Vec3(-6, 0, 0))
-          ..extendStrokeTo(const Vec3(6, 0, 0))
-          ..extendStrokeTo(const Vec3(12, 0, 0));
-        expect(world.lastPreview, isA<StrokeRibbonPreview>());
-        expect(controller.finishDragStroke(), isTrue);
-        expect(controller.graph.roads, hasLength(1));
-        expect(controller.canUndo, isTrue);
+      // Starts in ExploreTool: moving mouse without picking a tool has no ghost
+      expect(controller.activeTool, isA<ExploreTool>());
+      controller.updateHoverPoint(Vec3.zero);
+      expect(world.lastPreview, isA<NoBuildPreview>());
 
-        // Stamp townhouse on south side (Yo scale)
-        controller
-          ..setTimeOfDay(0.20)
-          ..selectTool(const StampStructureTool(kind: StructureKind.machiya))
-          ..handlePrimaryPlotTap(const Vec3(0, 0, -2.5));
-        expect(audio.notes.last.scale, PentatonicScale.yo);
-        expect(audio.notes.last.instrument, EdoInstrument.koto);
+      // Drag-paint a cobble lane
+      controller
+        ..selectTool(const DrawLaneTool())
+        ..beginStrokeAt(const Vec3(-12, 0, 0))
+        ..extendStrokeTo(const Vec3(-6, 0, 0))
+        ..extendStrokeTo(const Vec3(6, 0, 0))
+        ..extendStrokeTo(const Vec3(12, 0, 0));
+      expect(world.lastPreview, isA<StrokeRibbonPreview>());
+      expect(controller.finishDragStroke(), isTrue);
+      expect(controller.graph.roads, hasLength(1));
+      expect(controller.canUndo, isTrue);
 
-        // Hover teahouse on north side and verify live ghost + lantern spans!
-        controller
-          ..selectTool(const StampStructureTool(kind: StructureKind.chaya))
-          ..updateHoverPoint(const Vec3(0, 0, 2.5));
-        expect(world.lastPreview, isA<StampGhostPreview>());
-        final ghost = world.lastPreview as StampGhostPreview;
-        expect(ghost.kind, StructureKind.chaya);
-        expect(ghost.lanternSpans, isNotEmpty);
+      // Stamp townhouse on south side (Yo scale)
+      controller
+        ..setTimeOfDay(0.20)
+        ..selectTool(const StampStructureTool(kind: StructureKind.machiya))
+        ..handlePrimaryPlotTap(const Vec3(0, 0, -2.5));
+      expect(audio.notes.last.scale, PentatonicScale.yo);
+      expect(audio.notes.last.instrument, EdoInstrument.koto);
 
-        // Stamp teahouse at night (In-sen scale)
-        controller
-          ..setTimeOfDay(0.85)
-          ..handlePrimaryPlotTap(const Vec3(0, 0, 2.5));
-        expect(audio.notes.last.scale, PentatonicScale.inSen);
-        expect(controller.graph.structures, hasLength(2));
-        expect(controller.graph.lanternSpans, isNotEmpty);
+      // Hover teahouse on north side and verify live ghost + lantern spans!
+      controller
+        ..selectTool(const StampStructureTool(kind: StructureKind.chaya))
+        ..updateHoverPoint(const Vec3(0, 0, 2.5));
+      expect(world.lastPreview, isA<StampGhostPreview>());
+      final ghost = world.lastPreview as StampGhostPreview;
+      expect(ghost.kind, StructureKind.chaya);
+      expect(ghost.lanternSpans, isNotEmpty);
 
-        // Drag-build a tiled courtyard wall
-        controller
-          ..selectTool(const BuildWallTool())
-          ..beginStrokeAt(const Vec3(6, 0, -8))
-          ..extendStrokeTo(const Vec3(12, 0, -8));
-        expect(controller.finishDragStroke(), isTrue);
-        expect(controller.graph.walls, hasLength(1));
+      // Stamp teahouse at night (In-sen scale)
+      controller
+        ..setTimeOfDay(0.85)
+        ..handlePrimaryPlotTap(const Vec3(0, 0, 2.5));
+      expect(audio.notes.last.scale, PentatonicScale.inSen);
+      expect(controller.graph.structures, hasLength(2));
+      expect(controller.graph.lanternSpans, isNotEmpty);
 
-        // Demolish the courtyard wall and undo back
-        controller
-          ..selectTool(const DemolishTool())
-          ..updateHoverPoint(const Vec3(9, 0, -8));
-        expect(world.lastPreview, isA<DemolishHoverPreview>());
-        controller.handlePrimaryPlotTap(const Vec3(9, 0, -8));
-        expect(controller.graph.walls, isEmpty);
+      // Drag-build a tiled courtyard wall
+      controller
+        ..selectTool(const BuildWallTool())
+        ..beginStrokeAt(const Vec3(6, 0, -8))
+        ..extendStrokeTo(const Vec3(12, 0, -8));
+      expect(controller.finishDragStroke(), isTrue);
+      expect(controller.graph.walls, hasLength(1));
 
-        expect(controller.undo(), isTrue);
-        expect(controller.graph.walls, hasLength(1));
+      // Demolish the courtyard wall and undo back
+      controller
+        ..selectTool(const DemolishTool())
+        ..updateHoverPoint(const Vec3(9, 0, -8));
+      expect(world.lastPreview, isA<DemolishHoverPreview>());
+      controller.handlePrimaryPlotTap(const Vec3(9, 0, -8));
+      expect(controller.graph.walls, isEmpty);
 
-        // Preset clears active hover preview so verification captures are clean
-        controller.applyCameraPresetState(CameraPreset.riverCrossing);
-        expect(world.lastPreview, isA<NoBuildPreview>());
-        expect(look.lastVision, MagistrateVisionState.hidden);
+      expect(controller.undo(), isTrue);
+      expect(controller.graph.walls, hasLength(1));
 
-        controller.dispose();
-      },
-    );
+      // Toggling the active tool card again returns to ExploreTool (no preview)
+      controller.toggleTool(const DemolishTool());
+      expect(controller.activeTool, isA<ExploreTool>());
+      expect(world.lastPreview, isA<NoBuildPreview>());
+
+      // Preset clears active hover preview so verification captures are clean
+      controller.applyCameraPresetState(CameraPreset.riverCrossing);
+      expect(world.lastPreview, isA<NoBuildPreview>());
+      expect(look.lastVision, MagistrateVisionState.hidden);
+
+      controller.dispose();
+    });
 
     testWidgets('ShukubaHud shows Edo city-builder tools with zero watch UI', (
       tester,
@@ -226,6 +233,20 @@ void main() {
       expect(find.textContaining('Magistrate'), findsNothing);
       expect(find.text('Yagura'), findsNothing);
       expect(find.text('Watch'), findsNothing);
+      expect(find.text('Done [Esc]'), findsNothing);
+
+      await tester.tap(find.text('Townhouse'));
+      await tester.pump();
+      expect(
+        controller.activeTool,
+        const StampStructureTool(kind: StructureKind.machiya),
+      );
+      expect(find.text('Done [Esc]'), findsOneWidget);
+
+      await tester.tap(find.text('Done [Esc]'));
+      await tester.pump();
+      expect(controller.activeTool, isA<ExploreTool>());
+      expect(find.text('Done [Esc]'), findsNothing);
     });
 
     test('TacticalCameraRig raycasts viewport center onto target ground', () {

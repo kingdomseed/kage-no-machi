@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_scene/scene.dart' show Scene;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
@@ -117,6 +119,26 @@ void main() {
       );
       expect(lanternBearer.carriesLantern, isTrue);
       expect(driver.activeLanternOrigins, isNotEmpty);
+    });
+
+    test('scene-graph updates never call Node.children.clear()', () {
+      final dartFiles = Directory('lib')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'));
+      final offenders = <String>[];
+      for (final file in dartFiles) {
+        if (file.readAsStringSync().contains('.children.clear()')) {
+          offenders.add(file.path);
+        }
+      }
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'Use Node.removeAll() instead of Node.children.clear() so '
+            'flutter_scene unmounts children from RenderScene.',
+      );
     });
   });
 

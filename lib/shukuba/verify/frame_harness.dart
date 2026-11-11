@@ -203,6 +203,22 @@ class ShukubaFrameHarness {
     await Scene.initializeStaticResources();
     await Scene.preload();
 
+    // Exercise 24 rapid hover preview updates + clear to verify removeAll()
+    // leaves zero residual ghost meshes in RenderScene before capturing.
+    for (var i = 0; i < 24; i++) {
+      final hx = -10.0 + i * 0.9;
+      final hz = -4.0 + (i % 5) * 2.0;
+      final hy = world.sampleGroundHeight(hx, hz);
+      world.syncPreview(
+        StampGhostPreview(
+          kind: StructureKind.machiya,
+          position: Vec3(hx, hy, hz),
+          yawRadians: (i % 4) * (math.pi / 4),
+        ),
+      );
+    }
+    world.syncPreview(const NoBuildPreview());
+
     final results = <PresetVerificationResult>[];
     var elapsedSeconds = 0.0;
 
@@ -284,6 +300,63 @@ class ShukubaFrameHarness {
         ),
       );
     }
+
+    // Also capture a single active hover preview frame so visual review can
+    // inspect the snapped ground-footprint marker directly on Metal.
+    applyPreset(CameraPreset.duskOverview);
+    final snappedHover = world.graph.snapStructure(
+      kind: StructureKind.machiya,
+      rawPoint: const Vec3(19.6, 0, -2.5),
+      sampleGroundY: world.sampleGroundHeight,
+    );
+    final candidate = PlacedStructure(
+      id: const EntityId('__harness_hover__'),
+      kind: StructureKind.machiya,
+      position: snappedHover.position,
+      yawRadians: snappedHover.yawRadians,
+    );
+    world.syncPreview(
+      StampGhostPreview(
+        kind: StructureKind.machiya,
+        position: snappedHover.position,
+        yawRadians: snappedHover.yawRadians,
+        lanternSpans: world.graph.previewLanternSpansFor(candidate),
+      ),
+    );
+    look.syncFrame(
+      rig: CameraPreset.duskOverview.timeOfDay,
+      vision: MagistrateVisionState.hidden,
+      sightcones: world.activeSightcones,
+      lanternOrigins: world.activeLanternOrigins,
+      elapsedSeconds: elapsedSeconds,
+    );
+    SchedulerBinding.instance.scheduleFrame();
+    await SchedulerBinding.instance.endOfFrame;
+    SchedulerBinding.instance.scheduleFrame();
+    await SchedulerBinding.instance.endOfFrame;
+    final hoverBoundary = repaintBoundaryKey.currentContext?.findRenderObject();
+    if (hoverBoundary is RenderRepaintBoundary) {
+      final hoverImg = await hoverBoundary.toImage(
+        pixelRatio: capturePixelRatio,
+      );
+      try {
+        final hoverPng = await hoverImg.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        if (hoverPng != null) {
+          await File('${directory.path}/hover_preview_sample.png').writeAsBytes(
+            hoverPng.buffer.asUint8List(
+              hoverPng.offsetInBytes,
+              hoverPng.lengthInBytes,
+            ),
+            flush: true,
+          );
+        }
+      } finally {
+        hoverImg.dispose();
+      }
+    }
+    world.syncPreview(const NoBuildPreview());
 
     final summary = HarnessSummary(outputDir: directory.path, results: results);
     final summaryFile = File('${directory.path}/summary.json');

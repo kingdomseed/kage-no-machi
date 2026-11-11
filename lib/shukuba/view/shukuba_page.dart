@@ -209,10 +209,8 @@ class _ShukubaPageState extends State<ShukubaPage> {
     if (key == LogicalKeyboardKey.escape) {
       if (_controller.strokePoints.isNotEmpty) {
         _controller.cancelActiveStroke();
-      } else if (_controller.activeTool is DemolishTool) {
-        _controller.selectTool(
-          const StampStructureTool(kind: StructureKind.machiya),
-        );
+      } else if (_controller.activeTool is! ExploreTool) {
+        _controller.selectTool(const ExploreTool());
       }
       return KeyEventResult.handled;
     }

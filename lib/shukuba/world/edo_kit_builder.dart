@@ -2211,33 +2211,34 @@ class EdoKitBuilder {
         final hw = spec.footprintWidth * 0.5;
         final hd = spec.footprintDepth * 0.5;
         final stampBuilder = GeometryBuilder();
-        final padTint = Vector4(1, 0.84, 0.46, 0.85);
-        final volTint = Vector4(0.95, 0.78, 0.44, 0.46);
+        final padTint = Vector4(1, 0.94, 0.78, 0.92);
+        final postTint = Vector4(0.98, 0.88, 0.64, 0.74);
+        final cordFrameTint = Vector4(0.98, 0.88, 0.64, 0.54);
 
-        // Ground footprint frame bars
-        const rim = 0.12;
+        // Ground footprint sill bars
+        const rim = 0.14;
         addBox(
           stampBuilder,
-          Vector3(-hw, 0.05, hd - rim),
-          Vector3(hw, 0.11, hd),
+          Vector3(-hw, 0.03, hd - rim),
+          Vector3(hw, 0.15, hd),
           color: padTint,
         );
         addBox(
           stampBuilder,
-          Vector3(-hw, 0.05, -hd),
-          Vector3(hw, 0.11, -hd + rim),
+          Vector3(-hw, 0.03, -hd),
+          Vector3(hw, 0.15, -hd + rim),
           color: padTint,
         );
         addBox(
           stampBuilder,
-          Vector3(-hw, 0.05, -hd + rim),
-          Vector3(-hw + rim, 0.11, hd - rim),
+          Vector3(-hw, 0.03, -hd + rim),
+          Vector3(-hw + rim, 0.15, hd - rim),
           color: padTint,
         );
         addBox(
           stampBuilder,
-          Vector3(hw - rim, 0.05, -hd + rim),
-          Vector3(hw, 0.11, hd - rim),
+          Vector3(hw - rim, 0.03, -hd + rim),
+          Vector3(hw, 0.15, hd - rim),
           color: padTint,
         );
 
@@ -2245,74 +2246,64 @@ class EdoKitBuilder {
         if (spec.snapsToRoadTangent || spec.straddlesRoad) {
           addTriangleOutward(
             stampBuilder,
-            Vector3(-0.65, 0.08, hd + 0.18),
-            Vector3(0.65, 0.08, hd + 0.18),
-            Vector3(0, 0.08, hd + 0.92),
+            Vector3(-0.62, 0.09, hd + 0.18),
+            Vector3(0.62, 0.09, hd + 0.18),
+            Vector3(0, 0.09, hd + 0.88),
             Vector3(0, 1, 0),
-            color: Vector4(1, 0.92, 0.56, 1),
+            color: Vector4(1, 0.96, 0.82, 0.98),
           );
         }
 
-        // Translucent silhouette mass
         if (kind == StructureKind.mapleCluster ||
             kind == StructureKind.bambooGrove) {
-          addFoliageCluster(
-            stampBuilder,
-            Vector3(0, spec.height * 0.62, 0),
-            Vector3(hw * 0.82, spec.height * 0.28, hd * 0.82),
-            color: Vector4(0.72, 1, 0.62, 0.52),
-          );
-        } else if (kind == StructureKind.toriiGate) {
-          addBox(
-            stampBuilder,
-            Vector3(-2.05, 0.14, -0.18),
-            Vector3(-1.75, spec.height * 0.90, 0.18),
-            color: volTint,
-          );
-          addBox(
-            stampBuilder,
-            Vector3(1.75, 0.14, -0.18),
-            Vector3(2.05, spec.height * 0.90, 0.18),
-            color: volTint,
-          );
-          addBox(
-            stampBuilder,
-            Vector3(-2.55, spec.height * 0.86, -0.24),
-            Vector3(2.55, spec.height, 0.24),
-            color: padTint,
-          );
+          const ringSegs = 8;
+          final rIn = math.max(0.45, hw * 0.62);
+          final rOut = rIn + 0.12;
+          final natureTint = Vector4(0.68, 0.95, 0.58, 0.86);
+          for (var i = 0; i < ringSegs; i++) {
+            final a0 = (i / ringSegs) * math.pi * 2;
+            final a1 = ((i + 1) / ringSegs) * math.pi * 2;
+            addQuadOutward(
+              stampBuilder,
+              Vector3(math.cos(a0) * rIn, 0.08, math.sin(a0) * rIn),
+              Vector3(math.cos(a1) * rIn, 0.08, math.sin(a1) * rIn),
+              Vector3(math.cos(a1) * rOut, 0.08, math.sin(a1) * rOut),
+              Vector3(math.cos(a0) * rOut, 0.08, math.sin(a0) * rOut),
+              Vector3(0, 1, 0),
+              color: natureTint,
+            );
+          }
         } else {
-          final eaveY = spec.height * 0.64;
-          addBox(
-            stampBuilder,
-            Vector3(-hw * 0.90, 0.14, -hd * 0.90),
-            Vector3(hw * 0.90, eaveY, hd * 0.90),
-            color: volTint,
-          );
-          final lEave0 = Vector3(-hw, eaveY + 0.04, -hd);
-          final lEave1 = Vector3(-hw, eaveY + 0.04, hd);
-          final rEave0 = Vector3(hw, eaveY + 0.04, -hd);
-          final rEave1 = Vector3(hw, eaveY + 0.04, hd);
-          final ridge0 = Vector3(0, spec.height, -hd);
-          final ridge1 = Vector3(0, spec.height, hd);
-          addQuadOutward(
-            stampBuilder,
-            lEave0,
-            lEave1,
-            ridge1,
-            ridge0,
-            Vector3(-0.5, 1, 0),
-            color: padTint,
-          );
-          addQuadOutward(
-            stampBuilder,
-            ridge0,
-            ridge1,
-            rEave1,
-            rEave0,
-            Vector3(0.5, 1, 0),
-            color: padTint,
-          );
+          final stakeTop = math.min(1.35, spec.height * 0.32);
+          final x0 = -hw + 0.06;
+          final x1 = hw - 0.06;
+          final z0 = -hd + 0.06;
+          final z1 = hd - 0.06;
+          for (final cx in [x0, x1]) {
+            for (final cz in [z0, z1]) {
+              addBox(
+                stampBuilder,
+                Vector3(cx - 0.04, 0.15, cz - 0.04),
+                Vector3(cx + 0.04, stakeTop, cz + 0.04),
+                color: postTint,
+              );
+            }
+          }
+          final railY = stakeTop - 0.08;
+          final corners = [
+            Vec3(x0, railY, z0),
+            Vec3(x1, railY, z0),
+            Vec3(x1, railY, z1),
+            Vec3(x0, railY, z1),
+          ];
+          for (var i = 0; i < corners.length; i++) {
+            addCordSegment(
+              stampBuilder,
+              corners[i],
+              corners[(i + 1) % corners.length],
+              color: cordFrameTint,
+            );
+          }
         }
 
         final stampNode = Node(mesh: Mesh(stampBuilder.build(), ghostMat))
@@ -2322,7 +2313,7 @@ class EdoKitBuilder {
 
         // Preview catenary lantern chords that will auto-string on placement
         if (lanternSpans.isNotEmpty) {
-          final chordTint = Vector4(1, 0.76, 0.28, 0.95);
+          final chordTint = Vector4(1, 0.76, 0.32, 0.85);
           for (final span in lanternSpans) {
             var prev = span.sampleCatenary(0);
             for (var i = 1; i <= 10; i++) {
@@ -2331,7 +2322,7 @@ class EdoKitBuilder {
                 builder,
                 prev,
                 curr,
-                halfThick: 0.04,
+                halfThick: 0.026,
                 color: chordTint,
               );
               prev = curr;

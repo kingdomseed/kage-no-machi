@@ -278,7 +278,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     if (_scene == null) {
       return;
     }
-    _agentsNode.children.clear();
+    _agentsNode.removeAll();
     _agentNodes.clear();
 
     for (final agent in _simAgents) {
@@ -318,7 +318,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     if (_scene == null) {
       return;
     }
-    _previewNode.children.clear();
+    _previewNode.removeAll();
     if (_activePreview is! NoBuildPreview) {
       _previewNode.add(
         _kitBuilder.buildPreviewNode(
@@ -335,7 +335,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       return;
     }
 
-    _roadsNode.children.clear();
+    _roadsNode.removeAll();
     for (final road in _graph.roads) {
       _roadsNode.add(
         _terrainBuilder.buildRoadNode(
@@ -346,14 +346,14 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
     }
 
-    _terracesNode.children.clear();
+    _terracesNode.removeAll();
     for (final terrace in _graph.terraces) {
       _terracesNode.add(
         _terrainBuilder.buildTerraceNode(terrace, _resolveMaterial),
       );
     }
 
-    _wallsNode.children.clear();
+    _wallsNode.removeAll();
     for (final wall in _graph.walls) {
       _wallsNode.add(
         _terrainBuilder.buildWallNode(
@@ -364,14 +364,14 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
     }
 
-    _structuresNode.children.clear();
+    _structuresNode.removeAll();
     for (final structure in _graph.structures.values) {
       _structuresNode.add(
         _kitBuilder.buildStructureNode(structure, _resolveMaterial),
       );
     }
 
-    _lanternSpansNode.children.clear();
+    _lanternSpansNode.removeAll();
     for (final span in _graph.lanternSpans) {
       _lanternSpansNode.add(
         _kitBuilder.buildLanternSpanNode(span, _resolveMaterial),

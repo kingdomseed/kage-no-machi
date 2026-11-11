@@ -478,7 +478,10 @@ sealed class PlacementTool {
 
   bool get isStrokeTool => switch (this) {
     DrawLaneTool() || BuildTerraceTool() || BuildWallTool() => true,
-    StampStructureTool() || DemolishTool() || InspectWatchTool() => false,
+    ExploreTool() ||
+    StampStructureTool() ||
+    DemolishTool() ||
+    InspectWatchTool() => false,
   };
 
   EdoInstrument? get placementInstrument => switch (this) {
@@ -487,7 +490,7 @@ sealed class PlacementTool {
     DemolishTool() => EdoInstrument.hyoshigi,
     BuildTerraceTool() => EdoInstrument.bonsho,
     StampStructureTool(:final kind) => kind.spec.instrument,
-    InspectWatchTool() => null,
+    ExploreTool() || InspectWatchTool() => null,
   };
 
   MagistrateVisionState resolveVision(MagistrateVisionState explicit) {
@@ -498,6 +501,7 @@ sealed class PlacementTool {
       InspectWatchTool() => MagistrateVisionState.fullOverlay,
       StampStructureTool(kind: StructureKind.yaguraTower) =>
         MagistrateVisionState.watchtowerPreview,
+      ExploreTool() ||
       DrawLaneTool() ||
       BuildTerraceTool() ||
       BuildWallTool() ||
@@ -505,6 +509,17 @@ sealed class PlacementTool {
       DemolishTool() => explicit,
     };
   }
+}
+
+final class ExploreTool extends PlacementTool {
+  const new();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is ExploreTool;
+
+  @override
+  int get hashCode => (ExploreTool).hashCode;
 }
 
 final class DrawLaneTool extends PlacementTool {

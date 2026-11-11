@@ -14,6 +14,7 @@ flutter run -d macos --enable-flutter-gpu
 
 ## Controls
 
+- **Free camera by default:** moving the mouse explores the scene without any placement ghost until you pick a tool on the bottom dock. Click an active card again, click `Done [Esc]`, or press `Esc` to exit the tool.
 - **Select a tool** on the bottom build bar:
   - **Stamp tools** (`Townhouse`, `Teahouse`, `Storehouse`, `Market Stall`, `Lantern Gate`, `Maple & Rocks`, `Bamboo Grove`): move the cursor over the terrain to preview the snapped 3D footprint and lantern connections, press `R` to rotate in 45-degree steps, and **left-click** to build.
   - **Paint tools** (`Cobble Lane`, `Stone Terrace`, `Courtyard Wall`): **left-press and drag** across the terrain to draw a live 3D ribbon, then release to build.

@@ -19,9 +19,7 @@ class ShukubaController extends ChangeNotifier {
   final ShukubaAudioDriver audio;
 
   TimeOfDayRig _timeOfDay;
-  PlacementTool _activeTool = const StampStructureTool(
-    kind: StructureKind.machiya,
-  );
+  PlacementTool _activeTool = const ExploreTool();
   MagistrateVisionState _explicitVision = MagistrateVisionState.hidden;
   final List<Vec3> _strokePoints = [];
   final List<ShukubaGraph> _undoStack = [];
@@ -102,6 +100,15 @@ class ShukubaController extends ChangeNotifier {
     _refreshPreview();
     _syncLookImmediate();
     notifyListeners();
+  }
+
+  void toggleTool(PlacementTool tool) {
+    final isSameKind = switch ((_activeTool, tool)) {
+      (StampStructureTool(kind: final a), StampStructureTool(kind: final b)) =>
+        a == b,
+      _ => _activeTool.runtimeType == tool.runtimeType,
+    };
+    selectTool(isSameKind ? const ExploreTool() : tool);
   }
 
   void rotateStampYaw([double deltaRadians = math.pi / 4]) {
@@ -239,6 +246,8 @@ class ShukubaController extends ChangeNotifier {
         notifyListeners();
       case DemolishTool():
         _demolishAt(rawWorldPoint);
+      case ExploreTool():
+        break;
       case InspectWatchTool():
         toggleMagistrateEye();
     }
@@ -291,7 +300,10 @@ class ShukubaController extends ChangeNotifier {
         );
         world.applyGraph(world.graph.putWall(wall));
         _emitStrokeChord(EdoInstrument.hyoshigi, points.last);
-      case StampStructureTool() || DemolishTool() || InspectWatchTool():
+      case ExploreTool() ||
+          StampStructureTool() ||
+          DemolishTool() ||
+          InspectWatchTool():
         return false;
     }
 
@@ -440,7 +452,7 @@ class ShukubaController extends ChangeNotifier {
             next = DemolishHoverPreview(candidate: hit);
           }
         }
-      case InspectWatchTool():
+      case ExploreTool() || InspectWatchTool():
         next = const NoBuildPreview();
     }
 

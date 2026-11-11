@@ -529,7 +529,7 @@ class EdoLookDriver implements ShukubaLookDriver {
           ..setFloat('flow_speed', 0.95);
       case ShukubaSurfaceRole.ghostPreview:
         mat.parameters
-          ..setVec4('ghost_color', Vector4(1, 0.72, 0.30, 0.46))
+          ..setVec4('ghost_color', Vector4(0.96, 0.80, 0.42, 0.78))
           ..setFloat('time_sec', 0);
     }
   }

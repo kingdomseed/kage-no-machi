@@ -34,47 +34,55 @@ class ShukubaHud extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
-                    alignment: WrapAlignment.spaceBetween,
+                MouseRegion(
+                  onEnter: (_) => controller.updateHoverPoint(null),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.spaceBetween,
+                      children: [
+                        _WardPlaque(
+                          structureCount: graph.structures.length,
+                          wallCount: graph.walls.length,
+                          lanternSpanCount: graph.lanternSpans.length,
+                          onSelectPreset: onSelectPreset,
+                        ),
+                        _AtmospherePanel(
+                          rig: rig,
+                          onChangedTime: controller.setTimeOfDay,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                MouseRegion(
+                  onEnter: (_) => controller.updateHoverPoint(null),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _WardPlaque(
-                        structureCount: graph.structures.length,
-                        wallCount: graph.walls.length,
-                        lanternSpanCount: graph.lanternSpans.length,
-                        onSelectPreset: onSelectPreset,
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _ToolGuidanceBar(
+                          activeTool: controller.activeTool,
+                          preview: controller.activePreview,
+                          strokeCount: strokeCount,
+                          onCommitStroke: controller.commitActiveStroke,
+                          onCancelStroke: controller.cancelActiveStroke,
+                          onExitTool: () =>
+                              controller.selectTool(const ExploreTool()),
+                        ),
                       ),
-                      _AtmospherePanel(
-                        rig: rig,
-                        onChangedTime: controller.setTimeOfDay,
+                      _CityBuilderDock(
+                        activeTool: controller.activeTool,
+                        canUndo: controller.canUndo,
+                        onSelectTool: controller.toggleTool,
+                        onRotateStamp: controller.rotateStampYaw,
+                        onUndo: controller.undo,
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _ToolGuidanceBar(
-                        activeTool: controller.activeTool,
-                        preview: controller.activePreview,
-                        strokeCount: strokeCount,
-                        onCommitStroke: controller.commitActiveStroke,
-                        onCancelStroke: controller.cancelActiveStroke,
-                      ),
-                    ),
-                    _CityBuilderDock(
-                      activeTool: controller.activeTool,
-                      canUndo: controller.canUndo,
-                      onSelectTool: controller.selectTool,
-                      onRotateStamp: controller.rotateStampYaw,
-                      onUndo: controller.undo,
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -230,6 +238,7 @@ class _ToolGuidanceBar extends StatelessWidget {
     required this.strokeCount,
     required this.onCommitStroke,
     required this.onCancelStroke,
+    required this.onExitTool,
   });
 
   final PlacementTool activeTool;
@@ -237,9 +246,13 @@ class _ToolGuidanceBar extends StatelessWidget {
   final int strokeCount;
   final VoidCallback onCommitStroke;
   final VoidCallback onCancelStroke;
+  final VoidCallback onExitTool;
 
   String _describeGuidance() {
     switch (activeTool) {
+      case ExploreTool():
+        return 'Select any building, lane, wall, or tree below to start '
+            'building · Drag to pan · Scroll to zoom · Q/E orbit';
       case StampStructureTool(:final kind):
         final spec = kind.spec;
         var spanHint = '';
@@ -268,7 +281,7 @@ class _ToolGuidanceBar extends StatelessWidget {
       case DemolishTool():
         if (preview case DemolishHoverPreview(:final candidate)) {
           return 'Demolish · Left-click to remove ${candidate.label} · '
-              '[Z] Undo · [Esc] Done';
+              '[Z] Undo';
         }
         return 'Demolish · Hover any building, wall, terrace, or side lane '
             'and click to remove · [Z] Undo';
@@ -280,6 +293,7 @@ class _ToolGuidanceBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDemolish = activeTool is DemolishTool;
+    final isToolActive = activeTool is! ExploreTool;
     final borderColor = isDemolish
         ? ShukubaHud._vermilionAccent
         : (strokeCount > 0
@@ -320,6 +334,13 @@ class _ToolGuidanceBar extends StatelessWidget {
                 active: false,
                 accent: ShukubaHud._mutedSand,
                 onTap: onCancelStroke,
+              )
+            else if (isToolActive)
+              _ActionChip(
+                label: 'Done [Esc]',
+                active: false,
+                accent: ShukubaHud._mutedSand,
+                onTap: onExitTool,
               ),
           ],
         ),
