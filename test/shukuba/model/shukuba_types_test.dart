@@ -24,6 +24,20 @@ void main() {
       expect(PentatonicScale.inSen.frequencyHzAt(4), closeTo(523.251, 1e-3));
       expect(PentatonicScale.yo.frequencyHzAt(5), closeTo(293.6648 * 2, 1e-3));
     });
+
+    test('computes bounded dew, mist, mote, firefly, and halo curves', () {
+      const dusk = TimeOfDayRig.goldenDusk;
+      const night = TimeOfDayRig.blueHourNight;
+
+      expect(dusk.dewFactor, inInclusiveRange(0.20, 0.40));
+      expect(night.dewFactor, greaterThan(0.85));
+      expect(dusk.riverMistOpacity, inInclusiveRange(0.50, 0.80));
+      expect(night.riverMistOpacity, inInclusiveRange(0.50, 0.80));
+      expect(dusk.duskMoteGain, greaterThan(0.90));
+      expect(night.duskMoteGain, lessThan(0.05));
+      expect(night.nightFireflyGain, greaterThan(0.95));
+      expect(night.lanternHaloOpacity, greaterThan(dusk.lanternHaloOpacity));
+    });
   });
 
   group('LanternSpan.deriveAll and ShukubaGraph', () {

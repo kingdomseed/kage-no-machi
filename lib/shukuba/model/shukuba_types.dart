@@ -1810,6 +1810,17 @@ class TimeOfDayRig {
 
   double get nightCricketGain => math.max(0, (value - 0.38) / 0.62) * 0.42;
 
+  double get dewFactor => 0.20 + 0.72 * nightFactor;
+
+  double get riverMistOpacity =>
+      0.50 + 0.28 * (1 - ((value - 0.42).abs() * 1.6).clamp(0.0, 1.0));
+
+  double get duskMoteGain => 1 - nightFactor;
+
+  double get nightFireflyGain => nightFactor;
+
+  double get lanternHaloOpacity => 0.14 + 0.62 * nightFactor;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) || other is TimeOfDayRig && other.value == value;
