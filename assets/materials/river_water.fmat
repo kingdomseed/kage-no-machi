@@ -10,6 +10,7 @@ material {
     { type: vec4, name: deep_color, hint: source_color, default: [0.015, 0.065, 0.11, 0.96] },
     { type: vec4, name: foam_color, hint: source_color, default: [0.84, 0.90, 0.90, 0.90] },
     { type: float, name: flow_speed, default: 0.95 },
+    { type: float, name: gust_strength, default: 1.0 },
     { type: float, name: time_sec, default: 0.0 }
   ]
 }
@@ -89,13 +90,20 @@ fragment {
       vec2(crossU * 8.4 + 1.7, downstreamV * 3.2 - t * 0.6),
       617
     );
+    vec3 wp = GetWorldPosition();
+    const vec2 windDir = vec2(0.7808688, 0.6246950);
+    float gustWave = 0.5 + 0.5 * sin(dot(wp.xz, windDir) * 0.135 - t * 0.86);
+    float gustChop = NoiseSimplex2(
+      wp.xz * 3.4 - windDir * (t * 2.2),
+      733
+    ) * pow(gustWave, 1.5) * 0.042 * material_params.gust_strength;
     float ringSlope = cos(ringPhase) * ringEnvelope * 0.11;
     vec3 geomNormal = GetWorldNormal();
     vec3 rippledNormal = normalize(
       geomNormal + vec3(
-        (rippleA + rippleB * 0.5) * 0.055 + ringSlope,
+        (rippleA + rippleB * 0.5) * 0.055 + ringSlope + gustChop,
         0.0,
-        (rippleA - rippleB * 0.5) * 0.085 + ringSlope * 0.75
+        (rippleA - rippleB * 0.5) * 0.085 + ringSlope * 0.75 + gustChop * 0.8
       )
     );
 

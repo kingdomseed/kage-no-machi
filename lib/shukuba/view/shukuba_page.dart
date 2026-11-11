@@ -227,6 +227,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.digit4) {
+      _selectPreset(CameraPreset.meadowCloseup);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.digit5) {
       _selectPreset(CameraPreset.motionOffset);
       return KeyEventResult.handled;
     }

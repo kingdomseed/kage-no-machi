@@ -64,6 +64,16 @@ void main() {
           graph.structures.values.any((s) => s.kind == StructureKind.toriiGate),
           isTrue,
         );
+        expect(
+          graph.structures.values.any((s) => s.kind == StructureKind.pineTree),
+          isTrue,
+        );
+        expect(
+          graph.structures.values.any(
+            (s) => s.kind == StructureKind.weepingWillow,
+          ),
+          isTrue,
+        );
       },
     );
 

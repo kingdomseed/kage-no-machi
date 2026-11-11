@@ -10,6 +10,7 @@ material {
     { type: float, name: grain_scale, default: 8.0 },
     { type: float, name: weathering, default: 0.25 },
     { type: float, name: dew_sheen, default: 0.22 },
+    { type: float, name: gust_strength, default: 1.0 },
     { type: float, name: time_sec, default: 0.0 },
     { type: float, name: style_id, default: 0.0 }
   ]
@@ -20,11 +21,16 @@ vertex {
     if (material_params.style_id > 5.75 && material_params.style_id < 6.25) {
       float t = material_params.time_sec;
       vec3 wp = vertex.world_position;
-      float gust = sin(t * 2.35 + wp.x * 0.85 + wp.z * 0.72 + wp.y * 1.9);
-      float ripple = cos(t * 3.80 - wp.y * 3.1 + wp.x * 1.4);
-      float amp = 0.022;
-      vertex.world_position.x += (gust * 0.68 + ripple * 0.32) * amp;
-      vertex.world_position.z += (gust * 0.52 - ripple * 0.48) * amp;
+      const vec2 windDir = vec2(0.7808688, 0.6246950);
+      const vec2 crossDir = vec2(-0.6246950, 0.7808688);
+      float advect = dot(wp.xz, windDir) * 0.135 - t * 0.86;
+      float swellA = 0.5 + 0.5 * sin(advect);
+      float swellB = 0.5 + 0.5 * sin(advect * 1.77 + dot(wp.xz, crossDir) * 0.17 - t * 0.49);
+      float gustEnv = pow(clamp(swellA * 0.64 + swellB * 0.36, 0.0, 1.0), 1.50);
+      float ripple = sin(t * 4.4 - wp.y * 3.2 + wp.x * 1.6);
+      float g = material_params.gust_strength;
+      float push = (0.010 + 0.032 * gustEnv + 0.008 * ripple) * g;
+      vertex.world_position.xz += windDir * push + crossDir * (ripple * 0.011 * (0.4 + gustEnv) * g);
     }
   }
 }

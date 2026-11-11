@@ -10,7 +10,6 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         RoadSpline,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
-        StructureKind,
         TerraceCourse,
         Vec3;
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
@@ -159,9 +158,7 @@ class TerrainBuilder {
     final terraceList = terraces.toList();
     final buildingList = [
       for (final s in structures)
-        if (s.kind != StructureKind.mapleCluster &&
-            s.kind != StructureKind.bambooGrove)
-          s,
+        if (!s.kind.isBotanicalTree) s,
     ];
 
     final cols = ((maxX - minX) / step).round() + 1;

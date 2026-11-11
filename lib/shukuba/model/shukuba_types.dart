@@ -198,7 +198,17 @@ enum StructureKind {
   toriiGate,
   yaguraTower,
   mapleCluster,
-  bambooGrove;
+  bambooGrove,
+  pineTree,
+  weepingWillow;
+
+  bool get isBotanicalTree => switch (this) {
+    StructureKind.mapleCluster ||
+    StructureKind.bambooGrove ||
+    StructureKind.pineTree ||
+    StructureKind.weepingWillow => true,
+    _ => false,
+  };
 
   StructureSpec get spec => switch (this) {
     StructureKind.machiya => StructureSpec.machiya,
@@ -209,6 +219,8 @@ enum StructureKind {
     StructureKind.yaguraTower => StructureSpec.yaguraTower,
     StructureKind.mapleCluster => StructureSpec.mapleCluster,
     StructureKind.bambooGrove => StructureSpec.bambooGrove,
+    StructureKind.pineTree => StructureSpec.pineTree,
+    StructureKind.weepingWillow => StructureSpec.weepingWillow,
   };
 }
 
@@ -431,6 +443,32 @@ class StructureSpec {
     snapsToRoadTangent: false,
   );
 
+  static const StructureSpec pineTree = StructureSpec(
+    kind: StructureKind.pineTree,
+    displayName: 'Black Pine',
+    edoSubtitle: 'Gnarled Matsu',
+    footprintWidth: 3.4,
+    footprintDepth: 3.4,
+    height: 6.8,
+    foundationSkirtDepth: 0.5,
+    eaveAnchors: [],
+    instrument: EdoInstrument.bonsho,
+    snapsToRoadTangent: false,
+  );
+
+  static const StructureSpec weepingWillow = StructureSpec(
+    kind: StructureKind.weepingWillow,
+    displayName: 'Weeping Willow',
+    edoSubtitle: 'Yanagi fronds',
+    footprintWidth: 3.6,
+    footprintDepth: 3.6,
+    height: 6.4,
+    foundationSkirtDepth: 0.5,
+    eaveAnchors: [],
+    instrument: EdoInstrument.shakuhachi,
+    snapsToRoadTangent: false,
+  );
+
   static const Map<StructureKind, StructureSpec> byKind = {
     StructureKind.machiya: machiya,
     StructureKind.chaya: chaya,
@@ -440,6 +478,8 @@ class StructureSpec {
     StructureKind.yaguraTower: yaguraTower,
     StructureKind.mapleCluster: mapleCluster,
     StructureKind.bambooGrove: bambooGrove,
+    StructureKind.pineTree: pineTree,
+    StructureKind.weepingWillow: weepingWillow,
   };
 
   final StructureKind kind;
@@ -1821,6 +1861,10 @@ class TimeOfDayRig {
 
   double get lanternHaloOpacity => 0.14 + 0.62 * nightFactor;
 
+  double get meadowTranslucency => 1 - nightFactor * 0.88;
+
+  double get windGustStrength => 0.88 + 0.14 * (1 - nightFactor);
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) || other is TimeOfDayRig && other.value == value;
@@ -1879,6 +1923,17 @@ class CameraPreset {
     visionState: MagistrateVisionState.fullOverlay,
   );
 
+  static const CameraPreset meadowCloseup = CameraPreset(
+    id: 'meadow_closeup',
+    label: 'Sunlit Wildflower Meadow',
+    eye: Vec3(-7.6, 2.04, 22.4),
+    target: Vec3(2.4, 1.16, 1.4),
+    timeOfDay: TimeOfDayRig(0.14),
+    verticalFovDegrees: 23,
+    nearMeters: 0.45,
+    farMeters: 250,
+  );
+
   static const CameraPreset motionOffset = CameraPreset(
     id: 'motion_offset',
     label: 'Telephoto Motion Probe',
@@ -1891,6 +1946,7 @@ class CameraPreset {
     duskOverview,
     nightMarket,
     riverCrossing,
+    meadowCloseup,
     motionOffset,
   ];
 
@@ -2017,10 +2073,25 @@ enum ShukubaSurfaceRole {
     defaultRoughness: 0.985,
     previewColor: Color(0xFF4F7942),
   ),
+  pineCanopy(
+    depthLayer: 0,
+    defaultRoughness: 0.985,
+    previewColor: Color(0xFF1F4438),
+  ),
+  willowCanopy(
+    depthLayer: 0,
+    defaultRoughness: 0.985,
+    previewColor: Color(0xFF6B8F56),
+  ),
   groundMeadow(
     depthLayer: 0,
     defaultRoughness: 0.985,
     previewColor: Color(0xFF6B8448),
+  ),
+  livingMeadow(
+    depthLayer: 0,
+    defaultRoughness: 0.992,
+    previewColor: Color(0xFF5A8038),
   ),
   riverWater(
     depthLayer: 0,

@@ -13,7 +13,7 @@ class TacticalCameraRig {
     _syncSphericalFromEye(initialPreset.eye.toVector3());
   }
 
-  static const double minDistanceMeters = 28;
+  static const double minDistanceMeters = 12;
   static const double maxDistanceMeters = 115;
   static const double panBoundsMeters = 32;
   static const double keyPanSpeedMetersPerSec = 18;
@@ -174,19 +174,22 @@ class TacticalCameraRig {
       return;
     }
     _distanceMeters = dist.clamp(minDistanceMeters, maxDistanceMeters);
-    final sinPitch = (offset.y / dist).clamp(0.25, 0.92);
+    final sinPitch = (offset.y / dist).clamp(0.02, 0.92);
     _pitchRadians = math.asin(sinPitch);
     _yawRadians = math.atan2(offset.x, offset.z);
   }
 
   void _applySphericalToCamera() {
     final horiz = math.cos(_pitchRadians) * _distanceMeters;
+    final sinPitch = math.sin(_pitchRadians);
     final eye = Vector3(
       _target.x + math.sin(_yawRadians) * horiz,
-      _target.y + math.sin(_pitchRadians) * _distanceMeters,
+      _target.y + sinPitch * _distanceMeters,
       _target.z + math.cos(_yawRadians) * horiz,
     );
     _camera
+      ..fovNear = (_distanceMeters * (0.017 + 0.095 * sinPitch.clamp(0.0, 1.0)))
+          .clamp(0.45, 6.0)
       ..target = _target.clone()
       ..position = eye;
   }

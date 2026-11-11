@@ -48,7 +48,9 @@ class EdoKitBuilder {
       case StructureKind.kura ||
           StructureKind.yaguraTower ||
           StructureKind.mapleCluster ||
-          StructureKind.bambooGrove:
+          StructureKind.bambooGrove ||
+          StructureKind.pineTree ||
+          StructureKind.weepingWillow:
         return const [];
     }
   }
@@ -951,6 +953,11 @@ class EdoKitBuilder {
       ),
       StructureKind.mapleCluster => buildMapleNode(structure, resolveMaterial),
       StructureKind.bambooGrove => buildBambooNode(structure, resolveMaterial),
+      StructureKind.pineTree => buildPineNode(structure, resolveMaterial),
+      StructureKind.weepingWillow => buildWillowNode(
+        structure,
+        resolveMaterial,
+      ),
     };
 
     structureNode.add(content);
@@ -2011,136 +2018,550 @@ class EdoKitBuilder {
     return root;
   }
 
+  static List<Vec3> sampleCubicSpine(
+    Vec3 p0,
+    Vec3 p1,
+    Vec3 p2,
+    Vec3 p3, {
+    int segments = 4,
+  }) {
+    final pts = <Vec3>[];
+    for (var i = 0; i <= segments; i++) {
+      final t = i / segments;
+      final inv = 1 - t;
+      final w0 = inv * inv * inv;
+      final w1 = 3 * inv * inv * t;
+      final w2 = 3 * inv * t * t;
+      final w3 = t * t * t;
+      pts.add(
+        Vec3(
+          p0.x * w0 + p1.x * w1 + p2.x * w2 + p3.x * w3,
+          p0.y * w0 + p1.y * w1 + p2.y * w2 + p3.y * w3,
+          p0.z * w0 + p1.z * w1 + p2.z * w2 + p3.z * w3,
+        ),
+      );
+    }
+    return pts;
+  }
+
+  static void addCurvedTube(
+    GeometryBuilder builder,
+    List<Vec3> spine,
+    double rStart,
+    double rEnd, {
+    int sides = 6,
+    Vector4? color,
+    bool nodalRings = false,
+  }) {
+    if (spine.length < 2) {
+      return;
+    }
+    final centers = [for (final p in spine) p.toVector3()];
+    final tangents = <Vector3>[];
+    for (var i = 0; i < centers.length; i++) {
+      final raw = i == 0
+          ? centers[1] - centers[0]
+          : (i == centers.length - 1
+                ? centers[i] - centers[i - 1]
+                : centers[i + 1] - centers[i - 1]);
+      tangents.add(raw.length > 1e-5 ? raw.normalized() : Vector3(0, 1, 0));
+    }
+
+    var u = (tangents[0].y.abs() < 0.92 ? Vector3(0, 1, 0) : Vector3(1, 0, 0))
+        .cross(tangents[0])
+        .normalized();
+    var w = tangents[0].cross(u).normalized();
+
+    final rings = <List<Vector3>>[];
+    for (var s = 0; s < centers.length; s++) {
+      if (s > 0) {
+        final tDir = tangents[s];
+        final proj = u - tDir * u.dot(tDir);
+        if (proj.length > 1e-4) {
+          u = proj.normalized();
+          w = tDir.cross(u).normalized();
+        }
+      }
+      final frac = s / (centers.length - 1);
+      final r = rStart + (rEnd - rStart) * math.pow(frac, 0.82);
+      final ring = <Vector3>[];
+      for (var i = 0; i < sides; i++) {
+        final ang = (i / sides) * math.pi * 2;
+        final radial = u * math.cos(ang) + w * math.sin(ang);
+        ring.add(centers[s] + radial * r);
+      }
+      rings.add(ring);
+    }
+
+    final baseCol = color ?? _whiteColor;
+    for (var s = 0; s < rings.length - 1; s++) {
+      final ringA = rings[s];
+      final ringB = rings[s + 1];
+      final segMid = (centers[s] + centers[s + 1]) * 0.5;
+      for (var i = 0; i < sides; i++) {
+        final next = (i + 1) % sides;
+        final outHint =
+            ((ringA[i] + ringA[next] + ringB[next] + ringB[i]) * 0.25) - segMid;
+        addQuadOutward(
+          builder,
+          ringA[i],
+          ringA[next],
+          ringB[next],
+          ringB[i],
+          outHint,
+          uvScale: 1.25,
+          color: baseCol,
+        );
+      }
+      if (nodalRings && s > 0) {
+        final nodeCol = Vector4(
+          baseCol.x * 0.62,
+          baseCol.y * 0.66,
+          baseCol.z * 0.56,
+          baseCol.w,
+        );
+        final cNode = centers[s];
+        final tNode = tangents[s];
+        final collarR =
+            (rStart +
+                (rEnd - rStart) * math.pow(s / (rings.length - 1), 0.82)) *
+            1.16;
+        addTaperedLimb(
+          builder,
+          Vec3(
+            cNode.x - tNode.x * 0.022,
+            cNode.y - tNode.y * 0.022,
+            cNode.z - tNode.z * 0.022,
+          ),
+          Vec3(
+            cNode.x + tNode.x * 0.022,
+            cNode.y + tNode.y * 0.022,
+            cNode.z + tNode.z * 0.022,
+          ),
+          collarR,
+          collarR * 0.98,
+          sides: sides,
+          color: nodeCol,
+        );
+      }
+    }
+
+    final lastRing = rings.last;
+    final tipCenter = centers.last;
+    final tipDir = tangents.last;
+    for (var i = 0; i < sides; i++) {
+      final next = (i + 1) % sides;
+      addTriangleOutward(
+        builder,
+        lastRing[i],
+        lastRing[next],
+        tipCenter,
+        tipDir,
+        color: baseCol,
+      );
+    }
+  }
+
+  static void addPineCloudPad(
+    GeometryBuilder builder,
+    Vector3 center,
+    Vector3 radii, {
+    required Vector4 color,
+    double phase = 0,
+  }) {
+    Vector4 tint(double mult, int salt) {
+      final jR = 1.0 + 0.05 * math.sin(phase * 1.7 + salt * 2.1);
+      final jG = 1.0 + 0.06 * math.cos(phase * 1.4 + salt * 2.9);
+      return Vector4(
+        (color.x * mult * jR).clamp(0.05, 1.45),
+        (color.y * mult * jG).clamp(0.05, 1.45),
+        (color.z * mult).clamp(0.05, 1.45),
+        color.w,
+      );
+    }
+
+    const lowerCount = 6;
+    for (var i = 0; i < lowerCount; i++) {
+      final yaw = phase + (i / lowerCount) * math.pi * 2;
+      final stem = Vector3(
+        center.x + math.cos(yaw) * radii.x * 0.16,
+        center.y - radii.y * 0.26,
+        center.z + math.sin(yaw) * radii.z * 0.16,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: 0.18 + 0.04 * math.sin(i * 1.9 + phase),
+        length: radii.x * 1.08,
+        width: radii.z * 1.04,
+        droop: radii.y * 0.44,
+        color: tint(0.76, i),
+      );
+    }
+
+    const midCount = 5;
+    for (var i = 0; i < midCount; i++) {
+      final yaw = phase + 0.52 + (i / midCount) * math.pi * 2;
+      final stem = Vector3(
+        center.x + math.cos(yaw) * radii.x * 0.10,
+        center.y + radii.y * 0.06,
+        center.z + math.sin(yaw) * radii.z * 0.10,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: 0.38 + 0.05 * math.cos(i * 2.3 + phase),
+        length: radii.x * 0.96,
+        width: radii.z * 0.96,
+        droop: radii.y * 0.36,
+        color: tint(1.02, i + 8),
+      );
+    }
+
+    for (var i = 0; i < 3; i++) {
+      final yaw = phase + 1.04 + (i / 3) * math.pi * 2;
+      final stem = Vector3(
+        center.x - math.cos(yaw) * radii.x * 0.22,
+        center.y + radii.y * 0.36,
+        center.z - math.sin(yaw) * radii.z * 0.22,
+      );
+      addArchedFoliageCard(
+        builder,
+        stem,
+        yaw: yaw,
+        pitchUp: 0.48,
+        length: radii.x * 0.84,
+        width: radii.z * 0.86,
+        droop: radii.y * 0.30,
+        color: tint(1.22, i + 17),
+      );
+    }
+  }
+
+  static void addWillowCurtainCluster(
+    GeometryBuilder builder, {
+    required double hangLen,
+    required double width,
+    required Vector4 color,
+    required double baseYaw,
+    required double phase,
+  }) {
+    int emit(Vector3 pos, double u, double v, Vector4 c) {
+      builder
+        ..color(c)
+        ..texCoord(Vector2(u, v));
+      return builder.addVertex(pos);
+    }
+
+    for (var k = 0; k < 3; k++) {
+      final yaw = baseYaw + (k / 3) * math.pi * 2 + 0.27;
+      final ca = math.cos(yaw);
+      final sa = math.sin(yaw);
+      final right = Vector3(-sa, 0, ca);
+      final capCol = Vector4(
+        (color.x * 1.10).clamp(0.05, 1.45),
+        (color.y * 1.12).clamp(0.05, 1.45),
+        (color.z * 1.04).clamp(0.05, 1.45),
+        color.w,
+      );
+      final hw = width * 0.48;
+      final p0 = Vector3(ca * 0.04, 0.06, sa * 0.04);
+      final p1 = Vector3(ca * width * 0.44, 0.14, sa * width * 0.44);
+      final p2 = Vector3(ca * width * 0.86, -0.22, sa * width * 0.86);
+      final v0 = emit(p0 - right * hw * 0.75, 0, 1, capCol);
+      final v1 = emit(p0 + right * hw * 0.75, 1, 1, capCol);
+      final v2 = emit(p1 - right * hw, 0, 0.55, capCol);
+      final v3 = emit(p1 + right * hw, 1, 0.55, capCol);
+      final v4 = emit(p2 - right * hw * 0.90, 0, 0, capCol);
+      final v5 = emit(p2 + right * hw * 0.90, 1, 0, capCol);
+      builder
+        ..addTriangle(v0, v1, v3)
+        ..addTriangle(v0, v3, v2)
+        ..addTriangle(v2, v3, v5)
+        ..addTriangle(v2, v5, v4);
+    }
+
+    const drapes = 5;
+    for (var i = 0; i < drapes; i++) {
+      final yaw =
+          baseYaw + (i / drapes) * math.pi * 2 + 0.13 * math.sin(phase + i);
+      final ca = math.cos(yaw);
+      final sa = math.sin(yaw);
+      final right = Vector3(-sa, 0, ca);
+      final curLen = hangLen * (0.82 + 0.24 * ((i * 37 % 11) / 10.0));
+      final flare = 0.14 + 0.06 * (i % 3);
+      final shade = 0.86 + 0.24 * (i / drapes);
+      final cCol = Vector4(
+        (color.x * shade).clamp(0.05, 1.45),
+        (color.y * (0.92 + 0.14 * (i % 2))).clamp(0.05, 1.45),
+        (color.z * shade).clamp(0.05, 1.45),
+        color.w,
+      );
+
+      final topC = Vector3(ca * 0.10, 0, sa * 0.10);
+      final midC = Vector3(
+        ca * (0.10 + flare * 0.68),
+        -curLen * 0.46,
+        sa * (0.10 + flare * 0.68),
+      );
+      final botC = Vector3(ca * (0.10 + flare), -curLen, sa * (0.10 + flare));
+
+      final hwTop = width * 0.44;
+      final hwMid = width * 0.54;
+      final hwBot = width * 0.46;
+
+      final v0 = emit(topC - right * hwTop, 0, 1, cCol);
+      final v1 = emit(topC + right * hwTop, 1, 1, cCol);
+      final v2 = emit(midC - right * hwMid, 0, 0.54, cCol);
+      final v3 = emit(midC + right * hwMid, 1, 0.54, cCol);
+      final v4 = emit(botC - right * hwBot, 0, 0, cCol);
+      final v5 = emit(botC + right * hwBot, 1, 0, cCol);
+
+      builder
+        ..addTriangle(v0, v1, v3)
+        ..addTriangle(v0, v3, v2)
+        ..addTriangle(v2, v3, v5)
+        ..addTriangle(v2, v5, v4);
+    }
+  }
+
   Node buildMapleNode(
     PlacedStructure structure,
     ShukubaMaterialResolver resolveMaterial,
   ) {
     final root = Node();
+    final dna = _TreeDna.fromStructure(structure);
     final timberBuilder = GeometryBuilder();
     final mapleBuilder = GeometryBuilder();
     final rockBuilder = GeometryBuilder();
     final fernBuilder = GeometryBuilder();
 
-    addTaperedLimb(
+    final phenotype = switch (structure.id.value) {
+      'maple_bridge_nw' => 0,
+      'maple_gorge_se' => 1,
+      'maple_alley_ne' => 2,
+      'maple_upper_ne' => 3,
+      _ => dna.bucket(4, 1),
+    };
+
+    final hScale = 0.88 + 0.30 * dna.unit(2);
+    final spread = 0.90 + 0.28 * dna.unit(3);
+    final leanX = 0.24 * dna.signed(4);
+    final leanZ = 0.24 * dna.signed(5);
+    final twist = dna.unit(6) * math.pi * 2;
+
+    final forkPt = Vec3(leanX * 0.72, 1.78 * hScale, leanZ * 0.72);
+    addCurvedTube(
       timberBuilder,
-      const Vec3(0, 0.04, 0),
-      const Vec3(0.14, 1.85, 0.08),
-      0.24,
+      sampleCubicSpine(
+        const Vec3(0, -0.04, 0),
+        Vec3(leanX * 0.28, 0.62 * hScale, leanZ * 0.28),
+        Vec3(leanX * 0.92, 1.24 * hScale, leanZ * 0.92),
+        forkPt,
+        segments: 5,
+      ),
+      0.27 * (0.92 + 0.14 * dna.unit(7)),
       0.16,
-      sides: 6,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(0.12, 1.72, 0.06),
-      const Vec3(-0.88, 3.35, -0.48),
-      0.13,
-      0.06,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(0.14, 1.80, 0.08),
-      const Vec3(0.96, 3.55, -0.36),
-      0.13,
-      0.06,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(0.10, 1.90, 0.10),
-      const Vec3(-0.46, 3.92, 0.84),
-      0.12,
-      0.055,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(0.16, 1.95, 0.06),
-      const Vec3(0.22, 4.88, 0.12),
-      0.13,
-      0.05,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(0.56, 2.86, -0.18),
-      const Vec3(0.84, 4.10, 0.68),
-      0.075,
-      0.032,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(-0.38, 2.95, 0.16),
-      const Vec3(-0.88, 4.32, 0.12),
-      0.070,
-      0.030,
-    );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(0.19, 3.85, 0.08),
-      const Vec3(0.24, 5.38, 0.14),
-      0.065,
-      0.026,
+      sides: 7,
     );
 
-    final pads = [
-      (
-        Vector3(-1.05, 3.38, -0.58),
-        Vector3(1.28, 0.44, 1.14),
-        Vector4(0.95, 0.65, 0.55, 1),
-        0.2,
-      ),
-      (
-        Vector3(1.08, 3.58, -0.44),
-        Vector3(1.24, 0.42, 1.10),
-        Vector4(1.18, 0.88, 0.52, 1),
-        1.1,
-      ),
-      (
-        Vector3(-0.56, 3.92, 0.88),
-        Vector3(1.32, 0.46, 1.18),
-        Vector4(1.06, 0.72, 0.50, 1),
-        2.0,
-      ),
-      (
-        Vector3(0.84, 4.16, 0.72),
-        Vector3(1.18, 0.42, 1.04),
-        Vector4(1.24, 0.96, 0.56, 1),
-        2.9,
-      ),
-      (
-        Vector3(-0.92, 4.38, 0.14),
-        Vector3(1.12, 0.40, 1.02),
-        Vector4(1.02, 0.68, 0.48, 1),
-        3.5,
-      ),
-      (
-        Vector3(0.12, 4.68, -0.18),
-        Vector3(1.42, 0.48, 1.28),
-        Vector4(1.14, 0.82, 0.52, 1),
-        4.1,
-      ),
-      (
-        Vector3(0.24, 5.42, 0.14),
-        Vector3(1.08, 0.42, 0.98),
-        Vector4(1.28, 1.02, 0.58, 1),
-        4.9,
-      ),
-    ];
-
-    for (final p in pads) {
-      addLeafSprayCloud(mapleBuilder, p.$1, p.$2, color: p.$3, phase: p.$4);
+    for (var r = 0; r < 4; r++) {
+      final rAng = twist + r * (math.pi * 0.5) + 0.24 * dna.signed(10 + r);
+      final reach = 0.56 + 0.22 * dna.unit(14 + r);
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          Vec3(math.cos(rAng) * 0.10, 0.38, math.sin(rAng) * 0.10),
+          Vec3(
+            math.cos(rAng) * reach * 0.55,
+            0.18,
+            math.sin(rAng) * reach * 0.55,
+          ),
+          Vec3(
+            math.cos(rAng) * reach * 0.85,
+            0.04,
+            math.sin(rAng) * reach * 0.85,
+          ),
+          Vec3(math.cos(rAng) * reach, -0.08, math.sin(rAng) * reach),
+          segments: 3,
+        ),
+        0.105,
+        0.036,
+        sides: 5,
+      );
     }
 
+    Vector4 padTint(double tierFrac, int salt) {
+      final j = 0.06 * dna.signed(30 + salt);
+      return switch (phenotype) {
+        0 => Vector4(
+          (0.86 + 0.32 * tierFrac + j).clamp(0.10, 1.38),
+          (0.11 + 0.15 * tierFrac).clamp(0.05, 1.38),
+          0.10,
+          1,
+        ),
+        1 => Vector4(
+          (0.78 + 0.42 * tierFrac + j).clamp(0.10, 1.38),
+          (0.32 + 0.44 * tierFrac + j * 0.5).clamp(0.08, 1.38),
+          0.15 + 0.08 * tierFrac,
+          1,
+        ),
+        2 => Vector4(
+          (0.92 + 0.30 * tierFrac + j).clamp(0.10, 1.38),
+          (0.64 + 0.34 * tierFrac + j).clamp(0.10, 1.38),
+          0.22 + 0.08 * tierFrac,
+          1,
+        ),
+        _ =>
+          tierFrac < 0.42
+              ? Vector4(0.50 + j, 0.78 + j, 0.28, 1)
+              : Vector4(
+                  0.88 + 0.24 * tierFrac + j,
+                  0.42 + 0.22 * tierFrac,
+                  0.18,
+                  1,
+                ),
+      };
+    }
+
+    const scaffoldCount = 5;
+    for (var b = 0; b < scaffoldCount; b++) {
+      final ang =
+          twist + (b / scaffoldCount) * math.pi * 2 + 0.22 * dna.signed(50 + b);
+      final tier = b / (scaffoldCount - 1);
+      final bReach = (1.18 + 0.56 * dna.unit(60 + b)) * spread;
+      final bHeight = (3.10 + tier * 1.45 + 0.28 * dna.signed(70 + b)) * hScale;
+      final tip = Vec3(
+        forkPt.x + math.cos(ang) * bReach,
+        bHeight,
+        forkPt.z + math.sin(ang) * bReach,
+      );
+      final mid1 = Vec3(
+        forkPt.x + math.cos(ang + 0.18) * bReach * 0.42,
+        forkPt.y + (bHeight - forkPt.y) * 0.56,
+        forkPt.z + math.sin(ang + 0.18) * bReach * 0.42,
+      );
+      final mid2 = Vec3(
+        forkPt.x + math.cos(ang - 0.12) * bReach * 0.82,
+        bHeight - 0.18,
+        forkPt.z + math.sin(ang - 0.12) * bReach * 0.82,
+      );
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(forkPt, mid1, mid2, tip),
+        0.115,
+        0.042,
+      );
+
+      addLeafSprayCloud(
+        mapleBuilder,
+        Vector3(tip.x, tip.y + 0.06, tip.z),
+        Vector3(
+          (1.24 + 0.24 * dna.unit(80 + b)) * spread,
+          0.38 + 0.08 * dna.unit(85 + b),
+          (1.12 + 0.22 * dna.unit(90 + b)) * spread,
+        ),
+        color: padTint(tier * 0.72, b),
+        phase: twist + b * 1.37,
+      );
+
+      if (b.isEven) {
+        final subAng = ang + 0.48 * (b == 0 ? 1 : -1);
+        final subTip = Vec3(
+          mid1.x + math.cos(subAng) * 0.82 * spread,
+          mid1.y + 0.92 * hScale,
+          mid1.z + math.sin(subAng) * 0.82 * spread,
+        );
+        addCurvedTube(
+          timberBuilder,
+          sampleCubicSpine(
+            mid1,
+            Vec3(
+              (mid1.x + subTip.x) * 0.5,
+              mid1.y + 0.58 * hScale,
+              (mid1.z + subTip.z) * 0.5,
+            ),
+            Vec3(subTip.x * 0.92, subTip.y - 0.08, subTip.z * 0.92),
+            subTip,
+            segments: 3,
+          ),
+          0.068,
+          0.028,
+          sides: 5,
+        );
+        addLeafSprayCloud(
+          mapleBuilder,
+          Vector3(subTip.x, subTip.y + 0.05, subTip.z),
+          Vector3(1.06 * spread, 0.36, 0.98 * spread),
+          color: padTint(0.55 + tier * 0.35, b + 10),
+          phase: twist + b * 2.1 + 0.7,
+        );
+      }
+    }
+
+    final apex = Vec3(
+      forkPt.x + leanX * 0.65,
+      (5.15 + 0.45 * dna.unit(95)) * hScale,
+      forkPt.z + leanZ * 0.65,
+    );
+    addCurvedTube(
+      timberBuilder,
+      sampleCubicSpine(
+        forkPt,
+        Vec3(forkPt.x - leanX * 0.35, 3.10 * hScale, forkPt.z - leanZ * 0.35),
+        Vec3(apex.x + 0.16, apex.y - 0.85, apex.z - 0.14),
+        apex,
+        segments: 5,
+      ),
+      0.125,
+      0.036,
+    );
+    addLeafSprayCloud(
+      mapleBuilder,
+      Vector3(apex.x * 0.7, apex.y - 0.62, apex.z * 0.7),
+      Vector3(1.38 * spread, 0.44, 1.26 * spread),
+      color: padTint(0.82, 21),
+      phase: twist + 3.8,
+    );
+    addLeafSprayCloud(
+      mapleBuilder,
+      Vector3(apex.x, apex.y + 0.04, apex.z),
+      Vector3(1.08 * spread, 0.38, 1.00 * spread),
+      color: padTint(1, 22),
+      phase: twist + 4.9,
+    );
+
+    final rockAng = twist + 0.85;
     addRockBoulder(
       rockBuilder,
-      Vector3(0.68, 0.26, 0.46),
-      Vector3(0.56, 0.22, 0.46),
-      yaw: 0.7,
-      seed: 1.9,
+      Vector3(math.cos(rockAng) * 0.76, 0.24, math.sin(rockAng) * 0.76),
+      Vector3(0.58, 0.24, 0.46),
+      yaw: rockAng,
+      seed: dna.unit(97) * 6.0,
+    );
+    addRockBoulder(
+      rockBuilder,
+      Vector3(
+        math.cos(rockAng + 2.3) * 0.62,
+        0.16,
+        math.sin(rockAng + 2.3) * 0.62,
+      ),
+      Vector3(0.38, 0.16, 0.32),
+      yaw: rockAng + 1.1,
+      seed: dna.unit(98) * 6.0,
     );
     addShrubRosette(
       fernBuilder,
-      Vector3(-0.54, 0.10, 0.52),
-      Vector3(0.76, 0.34, 0.72),
-      color: Vector4(0.86, 0.98, 0.74, 1),
-      phase: 0.8,
+      Vector3(
+        math.cos(rockAng + 3.6) * 0.68,
+        0.09,
+        math.sin(rockAng + 3.6) * 0.68,
+      ),
+      Vector3(0.80, 0.34, 0.74),
+      color: Vector4(0.84, 0.98, 0.72, 1),
+      phase: twist + 0.8,
     );
 
     root
@@ -2185,77 +2606,101 @@ class EdoKitBuilder {
     ShukubaMaterialResolver resolveMaterial,
   ) {
     final root = Node();
+    final dna = _TreeDna.fromStructure(structure);
     final culmBuilder = GeometryBuilder();
     final foliageBuilder = GeometryBuilder();
     final rockBuilder = GeometryBuilder();
 
-    const culmSpecs = [
-      (-0.82, -0.58, -1.04, -0.76, 6.25, 0.92),
-      (0.72, -0.68, 0.94, -0.88, 6.65, 1.04),
-      (-0.48, 0.72, -0.66, 0.96, 5.95, 0.88),
-      (0.74, 0.54, 0.96, 0.74, 6.45, 0.98),
-      (0.06, 0.04, 0.12, 0.08, 7.15, 1.08),
-      (-0.22, -0.34, -0.30, -0.44, 6.10, 0.95),
-      (0.32, -0.18, 0.44, -0.26, 6.80, 1.02),
-      (-0.68, 0.12, -0.90, 0.18, 5.65, 0.86),
-      (0.24, 0.76, 0.34, 0.98, 5.85, 0.90),
-      (-0.12, 0.42, -0.18, 0.56, 6.50, 1.00),
-    ];
+    final culmCount = 12 + dna.bucket(4, 1);
+    final baseTwist = dna.unit(2) * math.pi * 2;
+    final hScale = 0.88 + 0.28 * dna.unit(3);
 
-    for (final c in culmSpecs) {
-      final shade = c.$6;
-      addTaperedLimb(
+    for (var i = 0; i < culmCount; i++) {
+      final ringFrac = i / culmCount;
+      final ang =
+          baseTwist + ringFrac * math.pi * 2 + 0.24 * dna.signed(10 + i);
+      final rBase = 0.16 + 0.78 * math.sqrt((i % 7 + 0.4) / 7.4);
+      final archOut = rBase + 0.42 + 0.56 * dna.unit(30 + i);
+      final height = (5.45 + 2.15 * dna.unit(50 + i)) * hScale;
+
+      final bx = math.cos(ang) * rBase;
+      final bz = math.sin(ang) * rBase;
+      final tx = math.cos(ang) * archOut;
+      final tz = math.sin(ang) * archOut;
+
+      final age = dna.unit(70 + i);
+      final culmColor = age < 0.35
+          ? Vector4(0.42, 0.68, 0.34, 1)
+          : (age < 0.76
+                ? Vector4(0.56, 0.72, 0.28, 1)
+                : Vector4(0.76, 0.68, 0.25, 1));
+
+      final spine = sampleCubicSpine(
+        Vec3(bx, 0.02, bz),
+        Vec3(bx * 1.08, height * 0.36, bz * 1.08),
+        Vec3(bx + (tx - bx) * 0.54, height * 0.72, bz + (tz - bz) * 0.54),
+        Vec3(tx, height, tz),
+        segments: 5,
+      );
+      addCurvedTube(
         culmBuilder,
-        Vec3(c.$1, 0.04, c.$2),
-        Vec3(c.$3, c.$5, c.$4),
-        0.044,
-        0.024,
-        sides: 6,
-        color: Vector4(0.56 * shade, 0.72 * shade, 0.30 * shade, 1),
+        spine,
+        0.046 - 0.008 * dna.unit(90 + i),
+        0.020,
+        color: culmColor,
+        nodalRings: true,
       );
+
+      if (i.isEven || i == culmCount - 1) {
+        final upperPt = spine[4];
+        final tipPt = spine[5];
+        final shade = 0.90 + 0.26 * dna.unit(110 + i);
+        addLeafSprayCloud(
+          foliageBuilder,
+          Vector3(upperPt.x, upperPt.y - 0.12, upperPt.z),
+          Vector3(1.16, 0.38, 1.08),
+          color: Vector4(shade * 0.90, shade * 1.04, shade * 0.80, 1),
+          phase: baseTwist + i * 0.93,
+        );
+        addLeafSprayCloud(
+          foliageBuilder,
+          Vector3(tipPt.x, tipPt.y + 0.04, tipPt.z),
+          Vector3(1.02, 0.34, 0.96),
+          color: Vector4(shade * 1.02, shade * 1.12, shade * 0.86, 1),
+          phase: baseTwist + i * 1.47 + 0.6,
+        );
+      } else if (i % 3 == 1) {
+        final midPt = spine[3];
+        final shade = 0.84 + 0.20 * dna.unit(130 + i);
+        addLeafSprayCloud(
+          foliageBuilder,
+          Vector3(midPt.x * 1.12, midPt.y, midPt.z * 1.12),
+          Vector3(1.06, 0.36, 0.98),
+          color: Vector4(shade * 0.88, shade * 1.02, shade * 0.78, 1),
+          phase: baseTwist + i * 1.19,
+        );
+      }
     }
 
-    final sprays = [
-      (Vector3(-0.78, 4.55, -0.52), Vector3(1.28, 0.44, 1.16), 0.92, 0.4),
-      (Vector3(0.74, 4.95, 0.48), Vector3(1.26, 0.42, 1.12), 1.04, 1.5),
-      (Vector3(-0.42, 5.52, 0.66), Vector3(1.20, 0.40, 1.08), 0.98, 2.2),
-      (Vector3(0.58, 5.92, -0.56), Vector3(1.22, 0.42, 1.10), 1.08, 2.9),
-      (Vector3(-0.14, 6.36, 0.08), Vector3(1.36, 0.46, 1.22), 1.12, 3.6),
-      (Vector3(0.10, 6.98, -0.06), Vector3(1.06, 0.40, 0.98), 1.18, 4.4),
-    ];
-
-    for (final s in sprays) {
-      final shade = s.$3;
-      addLeafSprayCloud(
+    for (var s = 0; s < 3; s++) {
+      final sAng = baseTwist + s * 2.1 + 0.4;
+      final sr = 0.58 + 0.22 * s;
+      addShrubRosette(
         foliageBuilder,
-        s.$1,
-        s.$2,
-        color: Vector4(shade * 0.94, shade * 1.06, shade * 0.84, 1),
-        phase: s.$4,
+        Vector3(math.cos(sAng) * sr, 0.08, math.sin(sAng) * sr),
+        Vector3(0.84, 0.36, 0.78),
+        color: Vector4(0.82 + 0.06 * s, 0.98, 0.72, 1),
+        phase: baseTwist + s * 1.5,
       );
     }
 
-    addShrubRosette(
-      foliageBuilder,
-      Vector3(-0.52, 0.08, -0.38),
-      Vector3(0.82, 0.36, 0.78),
-      color: Vector4(0.82, 0.96, 0.72, 1),
-      phase: 0.9,
-    );
-    addShrubRosette(
-      foliageBuilder,
-      Vector3(0.26, 0.08, 0.56),
-      Vector3(0.70, 0.32, 0.66),
-      color: Vector4(0.90, 1.04, 0.78, 1),
-      phase: 2.3,
-    );
-
+    final rAng = baseTwist + 1.15;
     addRockBoulder(
       rockBuilder,
-      Vector3(0.56, 0.24, -0.48),
-      Vector3(0.50, 0.20, 0.42),
-      yaw: 1.2,
-      seed: 3.1,
+      Vector3(math.cos(rAng) * 0.68, 0.22, math.sin(rAng) * 0.68),
+      Vector3(0.52, 0.20, 0.42),
+      yaw: rAng,
+      seed: dna.unit(150) * 6.0,
     );
 
     root
@@ -2279,6 +2724,405 @@ class EdoKitBuilder {
         Node(
           mesh: Mesh(
             foliageBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
+          ),
+        ),
+      );
+
+    return root;
+  }
+
+  Node buildPineNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final dna = _TreeDna.fromStructure(structure);
+    final timberBuilder = GeometryBuilder();
+    final pineBuilder = GeometryBuilder();
+    final rockBuilder = GeometryBuilder();
+    final fernBuilder = GeometryBuilder();
+
+    final hScale = 0.92 + 0.24 * dna.unit(1);
+    final sweepAng = dna.unit(2) * math.pi * 2;
+    final sweepCos = math.cos(sweepAng);
+    final sweepSin = math.sin(sweepAng);
+    final barkColor = Vector4(0.86, 0.82, 0.80, 1);
+
+    final elbow1 = Vec3(sweepCos * 0.88, 1.95 * hScale, sweepSin * 0.88);
+    final elbow2 = Vec3(-sweepCos * 0.42, 3.85 * hScale, -sweepSin * 0.42);
+    final crownApex = Vec3(sweepCos * 0.28, 5.65 * hScale, sweepSin * 0.28);
+
+    addCurvedTube(
+      timberBuilder,
+      sampleCubicSpine(
+        const Vec3(0, -0.06, 0),
+        elbow1,
+        elbow2,
+        crownApex,
+        segments: 7,
+      ),
+      0.30,
+      0.068,
+      sides: 7,
+      color: barkColor,
+    );
+
+    for (var r = 0; r < 4; r++) {
+      final rAng = sweepAng + r * 1.57 + 0.28 * dna.signed(10 + r);
+      final rr = 0.72 + 0.24 * dna.unit(15 + r);
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          Vec3(math.cos(rAng) * 0.14, 0.44, math.sin(rAng) * 0.14),
+          Vec3(math.cos(rAng) * rr * 0.52, 0.26, math.sin(rAng) * rr * 0.52),
+          Vec3(math.cos(rAng) * rr * 0.86, 0.06, math.sin(rAng) * rr * 0.86),
+          Vec3(math.cos(rAng) * rr, -0.10, math.sin(rAng) * rr),
+          segments: 3,
+        ),
+        0.12,
+        0.042,
+        sides: 5,
+        color: barkColor,
+      );
+    }
+
+    final shelfSpecs = [
+      (0.32, sweepAng + 0.12, 1.72, 1.44, 0.26),
+      (0.46, sweepAng + 2.38, 1.58, 1.32, 0.25),
+      (0.60, sweepAng - 1.85, 1.48, 1.24, 0.24),
+      (0.73, sweepAng + 1.05, 1.34, 1.16, 0.23),
+      (0.85, sweepAng + 3.25, 1.18, 1.04, 0.22),
+    ];
+
+    final trunkPts = sampleCubicSpine(
+      const Vec3(0, -0.06, 0),
+      elbow1,
+      elbow2,
+      crownApex,
+      segments: 20,
+    );
+
+    for (var s = 0; s < shelfSpecs.length; s++) {
+      final spec = shelfSpecs[s];
+      final idx = (spec.$1 * 20).round().clamp(2, 19);
+      final origin = trunkPts[idx];
+      final bAng = spec.$2 + 0.18 * dna.signed(30 + s);
+      final reach = spec.$3 * (0.90 + 0.22 * dna.unit(40 + s));
+      final padR = spec.$4 * (0.92 + 0.18 * dna.unit(50 + s));
+
+      final tip = Vec3(
+        origin.x + math.cos(bAng) * reach,
+        origin.y + (0.12 - 0.06 * s) * hScale,
+        origin.z + math.sin(bAng) * reach,
+      );
+      final dip = Vec3(
+        origin.x + math.cos(bAng + 0.16) * reach * 0.52,
+        origin.y - 0.18,
+        origin.z + math.sin(bAng + 0.16) * reach * 0.52,
+      );
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          origin,
+          dip,
+          Vec3(
+            origin.x + math.cos(bAng) * reach * 0.84,
+            tip.y - 0.06,
+            origin.z + math.sin(bAng) * reach * 0.84,
+          ),
+          tip,
+        ),
+        0.115 - 0.012 * s,
+        0.038,
+        color: barkColor,
+      );
+
+      final shade = 0.88 + 0.22 * (s / shelfSpecs.length);
+      addPineCloudPad(
+        pineBuilder,
+        Vector3(tip.x, tip.y + 0.08, tip.z),
+        Vector3(padR, spec.$5, padR * 0.92),
+        color: Vector4(shade * 0.94, shade * 1.04, shade * 0.96, 1),
+        phase: sweepAng + s * 1.63,
+      );
+
+      if (s < 3) {
+        final subAng = bAng + (s.isEven ? 0.62 : -0.62);
+        final subTip = Vec3(
+          dip.x + math.cos(subAng) * reach * 0.56,
+          dip.y + 0.28,
+          dip.z + math.sin(subAng) * reach * 0.56,
+        );
+        addTaperedLimb(
+          timberBuilder,
+          dip,
+          subTip,
+          0.058,
+          0.026,
+          color: barkColor,
+        );
+        addPineCloudPad(
+          pineBuilder,
+          Vector3(subTip.x, subTip.y + 0.06, subTip.z),
+          Vector3(padR * 0.72, spec.$5 * 0.86, padR * 0.68),
+          color: Vector4(shade * 0.88, shade * 0.98, shade * 0.92, 1),
+          phase: sweepAng + s * 2.41 + 0.9,
+        );
+      }
+    }
+
+    addPineCloudPad(
+      pineBuilder,
+      Vector3(crownApex.x, crownApex.y + 0.10, crownApex.z),
+      Vector3(1.36, 0.26, 1.24),
+      color: Vector4(1.08, 1.16, 1.02, 1),
+      phase: sweepAng + 5.1,
+    );
+
+    addRockBoulder(
+      rockBuilder,
+      Vector3(sweepCos * 0.74, 0.28, sweepSin * 0.74),
+      Vector3(0.68, 0.28, 0.54),
+      yaw: sweepAng + 0.4,
+      seed: dna.unit(70) * 6.0,
+    );
+    addRockBoulder(
+      rockBuilder,
+      Vector3(-sweepSin * 0.64, 0.18, sweepCos * 0.64),
+      Vector3(0.46, 0.19, 0.38),
+      yaw: sweepAng + 1.9,
+      seed: dna.unit(71) * 6.0,
+    );
+    addShrubRosette(
+      fernBuilder,
+      Vector3(-sweepCos * 0.62, 0.09, -sweepSin * 0.62),
+      Vector3(0.76, 0.30, 0.72),
+      color: Vector4(0.78, 0.94, 0.70, 1),
+      phase: sweepAng + 1.2,
+    );
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            rockBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            fernBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            pineBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.pineCanopy),
+          ),
+        ),
+      );
+
+    return root;
+  }
+
+  Node buildWillowNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final dna = _TreeDna.fromStructure(structure);
+    final timberBuilder = GeometryBuilder();
+    final rockBuilder = GeometryBuilder();
+    final fernBuilder = GeometryBuilder();
+
+    final hScale = 0.92 + 0.22 * dna.unit(1);
+    final leanAng = dna.unit(2) * math.pi * 2;
+    final leanCos = math.cos(leanAng);
+    final leanSin = math.sin(leanAng);
+
+    final fork = Vec3(leanCos * 0.58, 2.55 * hScale, leanSin * 0.58);
+    addCurvedTube(
+      timberBuilder,
+      sampleCubicSpine(
+        const Vec3(0, -0.06, 0),
+        Vec3(leanCos * 0.18, 0.85 * hScale, leanSin * 0.18),
+        Vec3(leanCos * 0.48, 1.75 * hScale, leanSin * 0.48),
+        fork,
+        segments: 5,
+      ),
+      0.29,
+      0.17,
+      sides: 7,
+    );
+
+    for (var r = 0; r < 4; r++) {
+      final rAng = leanAng + r * 1.57 + 0.25 * dna.signed(8 + r);
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          Vec3(math.cos(rAng) * 0.14, 0.36, math.sin(rAng) * 0.14),
+          Vec3(math.cos(rAng) * 0.48, 0.16, math.sin(rAng) * 0.48),
+          Vec3(math.cos(rAng) * 0.68, 0.02, math.sin(rAng) * 0.68),
+          Vec3(math.cos(rAng) * 0.78, -0.08, math.sin(rAng) * 0.78),
+          segments: 3,
+        ),
+        0.11,
+        0.038,
+        sides: 5,
+      );
+    }
+
+    final willowMat = resolveMaterial(ShukubaSurfaceRole.willowCanopy);
+    const boughCount = 8;
+    for (var b = 0; b < boughCount; b++) {
+      final bAng =
+          leanAng + (b / boughCount) * math.pi * 2 + 0.16 * dna.signed(20 + b);
+      final isOuter = b.isEven;
+      final reach = (isOuter ? 2.05 : 1.38) * (0.90 + 0.22 * dna.unit(30 + b));
+      final peakY = (isOuter ? 4.25 : 4.88) * hScale;
+      final tipY = (isOuter ? 3.55 : 4.35) * hScale;
+
+      final tip = Vec3(
+        fork.x + math.cos(bAng) * reach,
+        tipY,
+        fork.z + math.sin(bAng) * reach,
+      );
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          fork,
+          Vec3(
+            fork.x + math.cos(bAng) * reach * 0.34,
+            peakY,
+            fork.z + math.sin(bAng) * reach * 0.34,
+          ),
+          Vec3(
+            fork.x + math.cos(bAng) * reach * 0.78,
+            peakY + 0.08,
+            fork.z + math.sin(bAng) * reach * 0.78,
+          ),
+          tip,
+          segments: 5,
+        ),
+        0.105,
+        0.028,
+      );
+
+      final curtainBuilder = GeometryBuilder();
+      final shade = 0.90 + 0.22 * dna.unit(45 + b);
+      addWillowCurtainCluster(
+        curtainBuilder,
+        hangLen: (isOuter ? 2.38 : 2.15) * hScale,
+        width: isOuter ? 1.06 : 0.96,
+        color: Vector4(shade * 0.96, shade * 1.06, shade * 0.88, 1),
+        baseYaw: bAng + b * 0.193,
+        phase: leanAng + b * 1.31,
+      );
+      root.add(
+        Node(mesh: Mesh(curtainBuilder.build(), willowMat))
+          ..position = tip.toVector3(),
+      );
+
+      final archMid = Vec3(
+        fork.x + math.cos(bAng) * reach * 0.56,
+        peakY + 0.10,
+        fork.z + math.sin(bAng) * reach * 0.56,
+      );
+      final archCrownBuilder = GeometryBuilder();
+      addWillowCurtainCluster(
+        archCrownBuilder,
+        hangLen: 1.45 * hScale,
+        width: 0.88,
+        color: Vector4(shade * 1.04, shade * 1.12, shade * 0.92, 1),
+        baseYaw: bAng + 0.62,
+        phase: leanAng + b * 2.13,
+      );
+      root.add(
+        Node(mesh: Mesh(archCrownBuilder.build(), willowMat))
+          ..position = archMid.toVector3(),
+      );
+    }
+
+    final crownTip = Vec3(
+      fork.x + leanCos * 0.22,
+      5.05 * hScale,
+      fork.z + leanSin * 0.22,
+    );
+    addCurvedTube(
+      timberBuilder,
+      sampleCubicSpine(
+        fork,
+        Vec3(fork.x, 3.65 * hScale, fork.z),
+        Vec3(crownTip.x, 4.55 * hScale, crownTip.z),
+        crownTip,
+      ),
+      0.11,
+      0.032,
+    );
+    final topBuilder = GeometryBuilder();
+    addWillowCurtainCluster(
+      topBuilder,
+      hangLen: 1.95 * hScale,
+      width: 1.14,
+      color: Vector4(1.08, 1.14, 0.94, 1),
+      baseYaw: leanAng + 1.717,
+      phase: leanAng + 5.4,
+    );
+    root.add(
+      Node(mesh: Mesh(topBuilder.build(), willowMat))
+        ..position = crownTip.toVector3(),
+    );
+
+    addRockBoulder(
+      rockBuilder,
+      Vector3(-leanCos * 0.68, 0.22, -leanSin * 0.68),
+      Vector3(0.56, 0.22, 0.44),
+      yaw: leanAng + 0.8,
+      seed: dna.unit(80) * 6.0,
+    );
+    addShrubRosette(
+      fernBuilder,
+      Vector3(leanSin * 0.66, 0.08, -leanCos * 0.66),
+      Vector3(0.82, 0.34, 0.76),
+      color: Vector4(0.84, 1, 0.74, 1),
+      phase: leanAng + 1.6,
+    );
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            rockBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            fernBuilder.build(),
             resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
           ),
         ),
@@ -2758,8 +3602,7 @@ class EdoKitBuilder {
           );
         }
 
-        if (kind == StructureKind.mapleCluster ||
-            kind == StructureKind.bambooGrove) {
+        if (kind.isBotanicalTree) {
           const ringSegs = 8;
           final rIn = math.max(0.45, hw * 0.62);
           final rOut = rIn + 0.12;
@@ -2957,4 +3800,34 @@ class EdoKitBuilder {
 
     return root;
   }
+}
+
+class _TreeDna {
+  factory fromStructure(PlacedStructure structure) {
+    var h = 0x45d9f3b;
+    for (final code in structure.id.value.codeUnits) {
+      h = ((h ^ code) * 0x119de1f3) & 0x7fffffff;
+    }
+    final px = (structure.position.x * 137).round();
+    final pz = (structure.position.z * 193).round();
+    h = (h ^ (px * 73856093) ^ (pz * 19349663)) & 0x7fffffff;
+    return _TreeDna._(h);
+  }
+
+  const new _(this._seed);
+
+  final int _seed;
+
+  int _mix(int salt) {
+    var x = (_seed ^ (salt * 0x9e3779b9)) & 0x7fffffff;
+    x = ((x ^ (x >> 16)) * 0x45d9f3b) & 0x7fffffff;
+    x = ((x ^ (x >> 16)) * 0x45d9f3b) & 0x7fffffff;
+    return (x ^ (x >> 16)) & 0x7fffffff;
+  }
+
+  double unit(int salt) => (_mix(salt) % 100003) / 100003.0;
+
+  double signed(int salt) => unit(salt) * 2 - 1;
+
+  int bucket(int count, int salt) => _mix(salt) % count;
 }

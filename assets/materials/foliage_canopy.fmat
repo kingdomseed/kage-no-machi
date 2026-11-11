@@ -19,18 +19,41 @@ vertex {
   void Vertex(inout VertexInputs vertex) {
     float t = material_params.time_sec;
     float kind = material_params.foliage_kind;
-    float cantilever;
+    vec3 wp = vertex.world_position;
     float h = max(0.0, vertex.position.y);
-    if (kind < 1.5) {
-      cantilever = clamp(h * h * 0.045, 0.0, 1.8);
+
+    float cantilever;
+    if (kind > 3.5) {
+      float hang = max(0.0, -vertex.position.y);
+      cantilever = pow(clamp(hang * 0.48, 0.0, 1.35), 1.55) * 2.15;
+    } else if (kind > 2.5) {
+      cantilever = clamp(h * h * 0.024, 0.0, 0.95);
+    } else if (kind < 1.5) {
+      cantilever = clamp(h * h * 0.046, 0.0, 1.85);
     } else {
-      cantilever = smoothstep(0.04, 0.85, h) * 1.15;
+      cantilever = smoothstep(0.04, 0.85, h) * 1.22;
     }
-    float gust = 0.72 + 0.28 * sin(t * 0.65 + vertex.world_position.x * 0.14 - vertex.world_position.z * 0.11);
-    float swayX = sin(t * 1.85 + vertex.world_position.x * 0.62 + vertex.world_position.z * 0.48);
-    float swayZ = cos(t * 1.45 + vertex.world_position.x * 0.38 + vertex.world_position.z * 0.72);
-    vertex.world_position.x += swayX * material_params.wind_strength * cantilever * gust * 0.18;
-    vertex.world_position.z += swayZ * material_params.wind_strength * cantilever * gust * 0.14;
+
+    const vec2 windDir = vec2(0.7808688, 0.6246950);
+    const vec2 crossDir = vec2(-0.6246950, 0.7808688);
+    float advect = dot(wp.xz, windDir) * 0.135 - t * 0.86;
+    float swellA = 0.5 + 0.5 * sin(advect);
+    float swellB = 0.5 + 0.5 * sin(
+      advect * 1.77 + dot(wp.xz, crossDir) * 0.17 - t * 0.49
+    );
+    float gustEnv = pow(clamp(swellA * 0.64 + swellB * 0.36, 0.0, 1.0), 1.50);
+    float eddy = sin(t * 2.15 + wp.x * 0.58 + wp.z * 0.46);
+    float flutter = sin(t * 6.8 + wp.x * 1.9 - wp.z * 1.7) * gustEnv * 0.06;
+
+    float push = (0.10 + 0.54 * gustEnv + 0.14 * eddy)
+      * material_params.wind_strength
+      * cantilever;
+    vec2 dispXZ = windDir * push + crossDir * ((eddy * 0.11 + flutter) * material_params.wind_strength * cantilever);
+    wp.xz += dispXZ;
+    if (kind > 3.5) {
+      wp.y += min(0.16, dot(dispXZ, dispXZ) * 0.42);
+    }
+    vertex.world_position = wp;
   }
 }
 
@@ -175,6 +198,80 @@ fragment {
     return alpha;
   }
 
+  float PineNeedleFan(vec2 p, float baseAng, float radius, float seed) {
+    float r = length(p);
+    if (r > radius * 1.06) {
+      return 0.0;
+    }
+    float core = 1.0 - smoothstep(radius * 0.14, radius * 0.28, r);
+    float ang = atan(p.y, p.x) - baseAng;
+    float wrapped = mod(ang + 3.14159265, 6.2831853) - 3.14159265;
+    if (abs(wrapped) > 1.52) {
+      return core;
+    }
+    float rays = abs(cos(wrapped * 9.5 + 0.35 * sin(seed * 3.7 + r * 8.0)));
+    float reach = radius * (0.36 + 0.64 * pow(rays, 1.35)) * (1.0 - 0.16 * abs(wrapped));
+    float needle = (1.0 - smoothstep(reach * 0.74, reach, r)) * smoothstep(0.04, 0.14, r);
+    return max(core, needle);
+  }
+
+  float PineSprayCoverage(vec2 uv, float seed, out float leafTone) {
+    float alpha = 0.0;
+    float toneAcc = 0.35;
+    const vec2 hubs[5] = vec2[5](
+      vec2(0.50, 0.26),
+      vec2(0.27, 0.34),
+      vec2(0.73, 0.35),
+      vec2(0.38, 0.54),
+      vec2(0.63, 0.55)
+    );
+    const float fanAngles[5] = float[5](1.57, 1.92, 1.22, 1.70, 1.44);
+    const float fanRadii[5] = float[5](0.42, 0.35, 0.35, 0.36, 0.36);
+    for (int i = 0; i < 5; i++) {
+      float fi = float(i);
+      vec2 jit = vec2(0.025 * sin(seed + fi * 2.3), 0.025 * cos(seed * 1.4 + fi * 1.7));
+      vec2 rel = uv - (hubs[i] + jit);
+      float m = PineNeedleFan(rel, fanAngles[i], fanRadii[i], seed + fi * 1.9);
+      if (m > alpha) {
+        alpha = m;
+        toneAcc = clamp(length(rel) / fanRadii[i] * 0.78 + uv.y * 0.28, 0.0, 1.0);
+      }
+    }
+    leafTone = toneAcc;
+    return alpha;
+  }
+
+  float WillowFrondCoverage(vec2 uv, float seed, out float leafTone) {
+    float alpha = 0.0;
+    float toneAcc = 0.45;
+    float hang = 1.0 - uv.y;
+    for (int i = 0; i < 8; i++) {
+      float fi = float(i);
+      float xBase = 0.09 + (fi / 7.0) * 0.82 + 0.022 * sin(seed * 2.1 + fi * 3.3);
+      float maxLen = 0.72 + 0.25 * fract(sin(fi * 17.3 + seed) * 213.7);
+      if (hang <= maxLen) {
+        float hFrac = clamp(hang / maxLen, 0.0, 1.0);
+        float sway = 0.038 * sin(hang * 8.5 + seed + fi * 1.9) * hFrac;
+        float stemX = xBase + sway;
+        float dx = uv.x - stemX;
+        float stemMask = 1.0 - smoothstep(0.007, 0.018, abs(dx));
+        float pairCell = hang * 16.0 + fi * 0.7;
+        float cellFrac = fract(pairCell) - 0.5;
+        float leafReach = (0.078 - 0.030 * hFrac) * sin(clamp(hFrac * 3.14159265, 0.14, 3.0));
+        float leafCurve = abs(cellFrac) - 0.24 * (1.0 - clamp(abs(dx) / max(0.012, leafReach), 0.0, 1.0));
+        float leafMask = (1.0 - smoothstep(0.18, 0.36, leafCurve))
+          * (1.0 - smoothstep(leafReach * 0.68, leafReach, abs(dx)));
+        float m = max(stemMask * (1.0 - hFrac * 0.35), leafMask);
+        if (m > alpha) {
+          alpha = m;
+          toneAcc = 0.30 + 0.50 * (1.0 - hFrac * 0.45) + 0.20 * fract(sin(fi * 7.1 + seed) * 19.3);
+        }
+      }
+    }
+    leafTone = clamp(toneAcc, 0.0, 1.0);
+    return alpha;
+  }
+
   void Surface(inout MaterialInputs material) {
     vec2 uv = GetUV0();
     vec4 vColor = GetVertexColor();
@@ -189,8 +286,12 @@ fragment {
       coverage = MapleSprayCoverage(uv, seed, leafTone);
     } else if (kind < 1.5) {
       coverage = BambooSprayCoverage(uv, seed, leafTone);
-    } else {
+    } else if (kind < 2.5) {
       coverage = MeadowTuftCoverage(uv, seed, leafTone);
+    } else if (kind < 3.5) {
+      coverage = PineSprayCoverage(uv, seed, leafTone);
+    } else {
+      coverage = WillowFrondCoverage(uv, seed, leafTone);
     }
 
     float clusterNoise = NoiseSimplex3(worldPos * 2.2, 77) * 0.5 + 0.5;
@@ -216,9 +317,16 @@ fragment {
     float skyFacing = leafNormal.y * 0.5 + 0.5;
     float rim = pow(clamp(1.0 - abs(dot(leafNormal, viewDir)), 0.0, 1.0), 1.8);
 
-    float rootShade = kind > 1.5 && uv.y < 1.5
-        ? mix(0.46, 1.18, clamp(uv.y, 0.0, 1.0))
-        : (0.48 + 0.62 * skyFacing);
+    float rootShade;
+    if (kind > 1.5 && kind < 2.5 && uv.y < 1.5) {
+      rootShade = mix(0.46, 1.18, clamp(uv.y, 0.0, 1.0));
+    } else if (kind > 2.5 && kind < 3.5) {
+      rootShade = mix(0.38, 1.16, skyFacing);
+    } else if (kind > 3.5) {
+      rootShade = (0.54 + 0.56 * skyFacing) * mix(0.88, 1.08, clamp(uv.y, 0.0, 1.0));
+    } else {
+      rootShade = 0.48 + 0.62 * skyFacing;
+    }
     leafColor *= rootShade;
 
     float sunGain = material_params.sun_translucency;

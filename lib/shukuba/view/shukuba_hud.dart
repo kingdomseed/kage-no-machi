@@ -112,6 +112,7 @@ class _WardPlaque extends StatelessWidget {
       ('1 Golden Dusk', CameraPreset.duskOverview),
       ('2 Night Market', CameraPreset.nightMarket),
       ('3 Gorge Crossing', CameraPreset.riverCrossing),
+      ('4 Living Meadow', CameraPreset.meadowCloseup),
     ];
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -429,6 +430,16 @@ class _CityBuilderDock extends StatelessWidget {
       title: 'Maple & Rocks',
       subtitle: 'Momiji',
       tool: StampStructureTool(kind: StructureKind.mapleCluster),
+    ),
+    _ToolCardSpec(
+      title: 'Black Pine',
+      subtitle: 'Gnarled Matsu',
+      tool: StampStructureTool(kind: StructureKind.pineTree),
+    ),
+    _ToolCardSpec(
+      title: 'Weeping Willow',
+      subtitle: 'Yanagi fronds',
+      tool: StampStructureTool(kind: StructureKind.weepingWillow),
     ),
     _ToolCardSpec(
       title: 'Bamboo Grove',

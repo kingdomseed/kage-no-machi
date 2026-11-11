@@ -121,12 +121,10 @@ void main() {
       );
       await controller.initialize();
 
-      // Starts in ExploreTool: moving mouse without picking a tool has no ghost
       expect(controller.activeTool, isA<ExploreTool>());
       controller.updateHoverPoint(Vec3.zero);
       expect(world.lastPreview, isA<NoBuildPreview>());
 
-      // Drag-paint a cobble lane
       controller
         ..selectTool(const DrawLaneTool())
         ..beginStrokeAt(const Vec3(-12, 0, 0))
@@ -138,7 +136,6 @@ void main() {
       expect(controller.graph.roads, hasLength(1));
       expect(controller.canUndo, isTrue);
 
-      // Stamp townhouse on south side (Yo scale)
       controller
         ..setTimeOfDay(0.20)
         ..selectTool(const StampStructureTool(kind: StructureKind.machiya))
@@ -146,7 +143,6 @@ void main() {
       expect(audio.notes.last.scale, PentatonicScale.yo);
       expect(audio.notes.last.instrument, EdoInstrument.koto);
 
-      // Hover teahouse on north side and verify live ghost + lantern spans!
       controller
         ..selectTool(const StampStructureTool(kind: StructureKind.chaya))
         ..updateHoverPoint(const Vec3(0, 0, 2.5));
@@ -155,7 +151,6 @@ void main() {
       expect(ghost.kind, StructureKind.chaya);
       expect(ghost.lanternSpans, isNotEmpty);
 
-      // Stamp teahouse at night (In-sen scale)
       controller
         ..setTimeOfDay(0.85)
         ..handlePrimaryPlotTap(const Vec3(0, 0, 2.5));
@@ -163,7 +158,6 @@ void main() {
       expect(controller.graph.structures, hasLength(2));
       expect(controller.graph.lanternSpans, isNotEmpty);
 
-      // Drag-build a tiled courtyard wall
       controller
         ..selectTool(const BuildWallTool())
         ..beginStrokeAt(const Vec3(6, 0, -8))
@@ -171,7 +165,6 @@ void main() {
       expect(controller.finishDragStroke(), isTrue);
       expect(controller.graph.walls, hasLength(1));
 
-      // Demolish the courtyard wall and undo back
       controller
         ..selectTool(const DemolishTool())
         ..updateHoverPoint(const Vec3(9, 0, -8));
@@ -182,12 +175,10 @@ void main() {
       expect(controller.undo(), isTrue);
       expect(controller.graph.walls, hasLength(1));
 
-      // Toggling the active tool card again returns to ExploreTool (no preview)
       controller.toggleTool(const DemolishTool());
       expect(controller.activeTool, isA<ExploreTool>());
       expect(world.lastPreview, isA<NoBuildPreview>());
 
-      // Preset clears active hover preview so verification captures are clean
       controller.applyCameraPresetState(CameraPreset.riverCrossing);
       expect(world.lastPreview, isA<NoBuildPreview>());
       expect(look.lastVision, MagistrateVisionState.hidden);
@@ -227,6 +218,9 @@ void main() {
       expect(find.text('Cobble Lane'), findsOneWidget);
       expect(find.text('Stone Terrace'), findsOneWidget);
       expect(find.text('Courtyard Wall'), findsOneWidget);
+      expect(find.text('Black Pine'), findsOneWidget);
+      expect(find.text('Weeping Willow'), findsOneWidget);
+      expect(find.text('4 Living Meadow'), findsOneWidget);
       expect(find.text('Demolish'), findsOneWidget);
       expect(find.text('Undo [Z]'), findsOneWidget);
 

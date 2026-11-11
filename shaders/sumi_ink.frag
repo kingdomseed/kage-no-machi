@@ -69,7 +69,9 @@ void main() {
     centerSample.a,
     max(max(sLeft.a, sRight.a), max(sBottom.a, sTop.a))
   );
-  float botanicalDamp = 1.0 - 0.78 * smoothstep(0.960, 0.980, maxRough);
+  float botanicalDamp = 1.0
+      - 0.78 * smoothstep(0.960, 0.980, maxRough)
+      - 0.16 * smoothstep(0.986, 0.992, maxRough);
   float edge =
       clamp(max(depthEdge, normalCrease * 0.58), 0.0, 1.0) * botanicalDamp;
   vec3 inkModulated = mix(

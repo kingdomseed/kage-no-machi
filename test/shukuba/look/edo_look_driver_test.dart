@@ -70,6 +70,9 @@ void main() {
         final groundMat = driver.materialFor(ShukubaSurfaceRole.packedEarth);
         final kitMat = driver.materialFor(ShukubaSurfaceRole.ishigakiStone);
         final meadowMat = driver.materialFor(ShukubaSurfaceRole.groundMeadow);
+        final livingMat = driver.materialFor(ShukubaSurfaceRole.livingMeadow);
+        final pineMat = driver.materialFor(ShukubaSurfaceRole.pineCanopy);
+        final willowMat = driver.materialFor(ShukubaSurfaceRole.willowCanopy);
         final laneMat = driver.materialFor(ShukubaSurfaceRole.laneOverlay);
         final wallMat = driver.materialFor(ShukubaSurfaceRole.plasterWall);
         final waterMat = driver.materialFor(ShukubaSurfaceRole.riverWater);
@@ -80,6 +83,9 @@ void main() {
         expect(groundMat.depthLayer, -1);
         expect(kitMat.depthLayer, 0);
         expect(meadowMat.depthLayer, 0);
+        expect(livingMat.depthLayer, 0);
+        expect(pineMat.depthLayer, 0);
+        expect(willowMat.depthLayer, 0);
         expect(wallMat.depthLayer, 0);
         expect(waterMat.depthLayer, 0);
         expect(laneMat.depthLayer, 1);

@@ -205,9 +205,45 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       yawRadians: -1.10,
     ),
     PlacedStructure(
+      id: EntityId.validated('maple_west_courtyard'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-14.6, wardY(-14.6, -11.6), -11.6),
+      yawRadians: 1.45,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_teahouse_garden'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-8.8, wardY(-8.8, 14.2), 14.2),
+      yawRadians: -0.35,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_west_torii'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-24.8, wardY(-24.8, -5.2), -5.2),
+      yawRadians: 0.85,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_kura_ridge'),
+      kind: StructureKind.pineTree,
+      position: Vec3(24.4, wardY(24.4, -15.8), -15.8),
+      yawRadians: -1.25,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_west_bank'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(-5.3, wardY(-5.3, 8.6), 8.6),
+      yawRadians: 0.40,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_east_foreshore'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(4.6, wardY(4.6, -11.2), -11.2),
+      yawRadians: -2.45,
+    ),
+    PlacedStructure(
       id: EntityId.validated('bamboo_west_garden'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(-12.6, wardY(-12.6, 11.8), 11.8),
+      position: Vec3(-18.2, wardY(-18.2, 22.8), 22.8),
       yawRadians: 0.25,
     ),
     PlacedStructure(

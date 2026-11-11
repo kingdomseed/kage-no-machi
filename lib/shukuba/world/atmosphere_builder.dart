@@ -230,7 +230,9 @@ class AtmosphereBuilder {
             StructureKind.toriiGate ||
             StructureKind.yaguraTower ||
             StructureKind.mapleCluster ||
-            StructureKind.bambooGrove:
+            StructureKind.bambooGrove ||
+            StructureKind.pineTree ||
+            StructureKind.weepingWillow:
           continue;
       }
 
@@ -323,7 +325,9 @@ class AtmosphereBuilder {
         StructureKind.kura ||
         StructureKind.yaguraTower ||
         StructureKind.mapleCluster ||
-        StructureKind.bambooGrove => 0.0,
+        StructureKind.bambooGrove ||
+        StructureKind.pineTree ||
+        StructureKind.weepingWillow => 0.0,
       };
       final tint = isGate ? Vector4(1, 0.78, 0.52, 0.88) : warmHalo;
       for (final local in EdoKitBuilder.structureLanternLocalOffsets(s)) {

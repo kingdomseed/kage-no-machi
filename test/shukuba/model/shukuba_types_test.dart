@@ -291,6 +291,21 @@ void main() {
         ),
         closeTo(-1, 1e-9),
       );
+      expect(
+        TimeOfDayRig.goldenDusk.meadowTranslucency,
+        greaterThan(TimeOfDayRig.blueHourNight.meadowTranslucency),
+      );
+      expect(
+        TimeOfDayRig.goldenDusk.windGustStrength,
+        greaterThan(TimeOfDayRig.blueHourNight.windGustStrength),
+      );
+      expect(StructureKind.pineTree.isBotanicalTree, isTrue);
+      expect(StructureKind.weepingWillow.isBotanicalTree, isTrue);
+      expect(StructureKind.machiya.isBotanicalTree, isFalse);
+      expect(
+        CameraPreset.verificationPresets,
+        contains(CameraPreset.meadowCloseup),
+      );
     });
   });
 }
