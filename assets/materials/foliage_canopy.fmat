@@ -6,8 +6,8 @@ material {
   parameters: [
     { type: vec4, name: leaf_primary, hint: source_color, default: [0.82, 0.22, 0.14, 1.0] },
     { type: vec4, name: leaf_secondary, hint: source_color, default: [0.94, 0.52, 0.18, 1.0] },
-    { type: float, name: rim_warmth, default: 0.35 },
-    { type: float, name: wind_strength, default: 0.18 },
+    { type: float, name: rim_warmth, default: 0.45 },
+    { type: float, name: wind_strength, default: 0.16 },
     { type: float, name: time_sec, default: 0.0 }
   ]
 }
@@ -15,11 +15,12 @@ material {
 vertex {
   void Vertex(inout VertexInputs vertex) {
     float t = material_params.time_sec;
-    float heightWeight = clamp(vertex.position.y * 0.35, 0.0, 2.5);
-    float swayX = sin(t * 1.8 + vertex.world_position.x * 0.6 + vertex.world_position.z * 0.4);
-    float swayZ = cos(t * 1.4 + vertex.world_position.x * 0.3 + vertex.world_position.z * 0.7);
-    vertex.world_position.x += swayX * material_params.wind_strength * heightWeight * 0.2;
-    vertex.world_position.z += swayZ * material_params.wind_strength * heightWeight * 0.15;
+    float h = max(0.0, vertex.position.y);
+    float cantilever = clamp(h * h * 0.045, 0.0, 1.8);
+    float swayX = sin(t * 1.65 + vertex.world_position.x * 0.55 + vertex.world_position.z * 0.42);
+    float swayZ = cos(t * 1.30 + vertex.world_position.x * 0.32 + vertex.world_position.z * 0.68);
+    vertex.world_position.x += swayX * material_params.wind_strength * cantilever * 0.18;
+    vertex.world_position.z += swayZ * material_params.wind_strength * cantilever * 0.14;
   }
 }
 
@@ -28,27 +29,41 @@ fragment {
 
   void Surface(inout MaterialInputs material) {
     vec3 worldPos = GetWorldPosition();
-    float clusterNoise = NoiseFbm3(worldPos * 1.4, 77, 3, 2.0, 0.5);
+    float clusterNoise = NoiseFbm3(worldPos * 1.8, 77, 3, 2.0, 0.5);
+    float leafDetail = NoiseSimplex3(worldPos * 6.8, 191) * 0.5 + 0.5;
     float cluster = clamp(0.5 + 0.5 * clusterNoise, 0.0, 1.0);
 
     vec3 leafColor = mix(
       material_params.leaf_primary.rgb,
       material_params.leaf_secondary.rgb,
-      cluster
+      clamp(cluster * 0.72 + leafDetail * 0.28, 0.0, 1.0)
     );
 
-    vec3 normal = GetWorldNormal();
+    vec3 normal = normalize(GetWorldNormal());
     vec3 viewDir = GetViewDirection();
-    float rim = pow(clamp(1.0 - abs(dot(normal, viewDir)), 0.0, 1.0), 2.2);
-    leafColor += material_params.leaf_secondary.rgb * (rim * material_params.rim_warmth);
+    float skyFacing = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
+    float rim = pow(clamp(1.0 - abs(dot(normal, viewDir)), 0.0, 1.0), 1.9);
+
+    leafColor *= 0.62 + 0.54 * skyFacing * (0.78 + 0.36 * leafDetail);
+    vec3 backlitGlow = material_params.leaf_secondary.rgb *
+        ((rim * 0.65 + skyFacing * 0.35) * material_params.rim_warmth);
 
     vec4 vColor = GetVertexColor();
+    vec3 upRef = abs(normal.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(upRef, normal));
+    vec3 B = normalize(cross(normal, T));
+    vec3 leafNormal = normalize(
+      normal + T * ((leafDetail - 0.5) * 0.32) + B * (clusterNoise * 0.22)
+    );
+
     material.base_color = vec4(
-      leafColor * vColor.rgb,
+      (leafColor + backlitGlow * 0.45) * vColor.rgb,
       material_params.leaf_primary.a * vColor.a
     );
+    material.emissive = backlitGlow * vColor.rgb * 0.22;
+    material.normal = leafNormal;
     material.metallic = 0.0;
-    material.roughness = 0.82;
+    material.roughness = 0.76;
 
     PrepareMaterial(material);
   }

@@ -62,6 +62,27 @@ void main() {
       expect(reversedGraph.lanternSpans, equals(graph.lanternSpans));
     });
 
+    test(
+      'previewLanternSpansFor returns spans that a ghost candidate adds',
+      () {
+        const northHouse = PlacedStructure(
+          id: EntityId('machiya_north'),
+          kind: StructureKind.machiya,
+          position: Vec3(0, 0, -5.6),
+        );
+        final graph = ShukubaGraph(structures: const [northHouse]);
+        const ghostChaya = PlacedStructure(
+          id: EntityId('__ghost_preview__'),
+          kind: StructureKind.chaya,
+          position: Vec3(0, 0, 5.4),
+          yawRadians: math.pi,
+        );
+
+        final previewSpans = graph.previewLanternSpansFor(ghostChaya);
+        expect(previewSpans, hasLength(2));
+      },
+    );
+
     test('caps each eave hook at degree 1 when 3 stalls crowd one lane', () {
       const stallA = PlacedStructure(
         id: EntityId('stall_a'),
@@ -92,10 +113,10 @@ void main() {
     });
 
     test(
-      'putRoad, putTerrace, putStructure, and removeEntity are idempotent',
+      'putRoad, putTerrace, putWall, putStructure, and remove are idempotent',
       () {
         final road = RoadSpline.validated(
-          id: EntityId.validated('main_kaido'),
+          id: EntityId.validated('side_lane'),
           controlPoints: const [Vec3(-12, 0, 0), Vec3(12, 0, 0)],
         );
         final terrace = TerraceCourse.validated(
@@ -103,75 +124,108 @@ void main() {
           crestPoints: const [Vec3(-10, 1.8, -4), Vec3(10, 1.8, -4)],
           topElevation: 1.8,
         );
-        const tower = PlacedStructure(
-          id: EntityId('yagura_1'),
-          kind: StructureKind.yaguraTower,
-          position: Vec3(0, 1.8, -7),
+        final wall = CourtyardWall.validated(
+          id: EntityId.validated('compound_wall'),
+          controlPoints: const [Vec3(4, 1.8, -8), Vec3(12, 1.8, -8)],
+        );
+        const kura = PlacedStructure(
+          id: EntityId('kura_1'),
+          kind: StructureKind.kura,
+          position: Vec3(8, 1.8, -11),
         );
 
         final once = ShukubaGraph.empty
             .putRoad(road)
             .putTerrace(terrace)
-            .putStructure(tower);
+            .putWall(wall)
+            .putStructure(kura);
         final twice = once
             .putRoad(road)
             .putTerrace(terrace)
-            .putStructure(tower);
+            .putWall(wall)
+            .putStructure(kura);
 
         expect(twice, equals(once));
-        expect(twice.structuralSightcones, hasLength(1));
         expect(
-          twice.removeEntity(tower.id).removeEntity(tower.id).structures,
+          twice.findDemolishCandidate(const Vec3(8, 1.8, -10.8))?.id,
+          kura.id,
+        );
+        expect(
+          twice.findDemolishCandidate(const Vec3(5, 1.8, -8.1))?.id,
+          wall.id,
+        );
+        expect(
+          twice.removeEntity(wall.id).removeEntity(wall.id).walls,
+          isEmpty,
+        );
+        expect(
+          twice.removeEntity(kura.id).removeEntity(kura.id).structures,
           isEmpty,
         );
       },
     );
 
-    test('snapStructure aligns facade to road kerb and samples terrace Y', () {
-      final graph = ShukubaGraph.empty
-          .putRoad(
-            RoadSpline.validated(
-              id: const EntityId('lane_1'),
-              controlPoints: const [Vec3(-10, 0, 0), Vec3(10, 0, 0)],
-            ),
-          )
-          .putTerrace(
-            TerraceCourse.validated(
-              id: const EntityId('terrace_1'),
-              crestPoints: const [Vec3(-10, 2.2, -3.5), Vec3(10, 2.2, -3.5)],
-              topElevation: 2.2,
-              depthMeters: 8,
-            ),
-          );
+    test(
+      'snapStructure aligns facade to road kerb and straddles toriiGate',
+      () {
+        final graph = ShukubaGraph.empty
+            .putRoad(
+              RoadSpline.validated(
+                id: const EntityId('lane_1'),
+                controlPoints: const [Vec3(-10, 0, 0), Vec3(10, 0, 0)],
+              ),
+            )
+            .putTerrace(
+              TerraceCourse.validated(
+                id: const EntityId('terrace_1'),
+                crestPoints: const [Vec3(-10, 2.2, -3.5), Vec3(10, 2.2, -3.5)],
+                topElevation: 2.2,
+                depthMeters: 8,
+              ),
+            );
 
-      final snapped = graph.snapStructure(
-        kind: StructureKind.machiya,
-        rawPoint: const Vec3(2, 0, -1.2),
-        sampleGroundY: (_, _) => 0.4,
-      );
+        final snapped = graph.snapStructure(
+          kind: StructureKind.machiya,
+          rawPoint: const Vec3(2, 0, -1.2),
+          sampleGroundY: (_, _) => 0.4,
+        );
 
-      expect(snapped.snappedRoadId, const EntityId('lane_1'));
-      expect(snapped.position.z, closeTo(-(1.6 + 3.4 + 0.35), 1e-6));
-      expect(snapped.position.y, closeTo(2.2, 1e-6));
-      expect(snapped.yawRadians, closeTo(0, 1e-6));
-    });
+        expect(snapped.snappedRoadId, const EntityId('lane_1'));
+        expect(snapped.position.z, closeTo(-(1.6 + 3.4 + 0.35), 1e-6));
+        expect(snapped.position.y, closeTo(2.2, 1e-6));
+        expect(snapped.yawRadians, closeTo(0, 1e-6));
+
+        final gateSnap = graph.snapStructure(
+          kind: StructureKind.toriiGate,
+          rawPoint: const Vec3(-4, 0, 0.8),
+          sampleGroundY: (_, _) => 0.4,
+        );
+        expect(gateSnap.snappedRoadId, const EntityId('lane_1'));
+        expect(gateSnap.position.z, closeTo(0, 1e-6));
+        expect(gateSnap.yawRadians, closeTo(math.pi / 2, 1e-6));
+      },
+    );
   });
 
   group('ShukubaSurfaceRole and WatchSightcone invariants', () {
     test(
-      'defaultShukubaMaterial preserves ground, kit, and lane depthLayers',
+      'defaultShukubaMaterial preserves ground, kit, lane, and preview layers',
       () {
         expect(
           defaultShukubaMaterial(ShukubaSurfaceRole.packedEarth).depthLayer,
           -1,
         );
         expect(
-          defaultShukubaMaterial(ShukubaSurfaceRole.plasterWall).depthLayer,
+          defaultShukubaMaterial(ShukubaSurfaceRole.kuraPlaster).depthLayer,
           0,
         );
         expect(
           defaultShukubaMaterial(ShukubaSurfaceRole.laneOverlay).depthLayer,
           1,
+        );
+        expect(
+          defaultShukubaMaterial(ShukubaSurfaceRole.ghostPreview).depthLayer,
+          2,
         );
       },
     );

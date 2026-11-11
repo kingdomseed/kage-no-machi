@@ -5,7 +5,9 @@ import 'package:flutter_scene/scene.dart' show Node, Scene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         AmbientLoopKind,
+        BuildPreview,
         EntityId,
+        NoBuildPreview,
         ShukubaGraph,
         ShukubaMaterialResolver,
         ShukubaWorldDriver,
@@ -28,7 +30,8 @@ class _SimAgent {
     required this.position,
     required this.waypoints,
     this.carriesLantern = false,
-    this.speed = 2,
+    this.speed = 1.7,
+    this.bobPhase = 0,
   }) : currentWaypointIndex = 0,
        yawRadians = 0,
        velocity = Vector3.zero();
@@ -39,6 +42,7 @@ class _SimAgent {
   final List<Vec3> waypoints;
   final bool carriesLantern;
   final double speed;
+  final double bobPhase;
   int currentWaypointIndex;
   double yawRadians;
   Vector3 velocity;
@@ -63,57 +67,30 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final EdoKitBuilder _kitBuilder = const EdoKitBuilder();
 
   late ShukubaGraph _graph = ShukubaGraph.empty;
+  BuildPreview _activePreview = const NoBuildPreview();
 
   Node? _worldRoot;
   late Node _terrainNode;
   late Node _waterNode;
+  late Node _gorgeDressingNode;
   late Node _bridgeNode;
   late final Node _roadsNode = Node();
   late final Node _terracesNode = Node();
+  late final Node _wallsNode = Node();
   late final Node _structuresNode = Node();
   late final Node _lanternSpansNode = Node();
   late final Node _agentsNode = Node();
+  late final Node _previewNode = Node();
 
   final List<_SimAgent> _simAgents = [];
   final Map<EntityId, Node> _agentNodes = {};
-
-  final Map<EntityId, double> _towerAlerts = {};
-  double _watchmanAlert = 0;
+  double _walkTime = 0;
 
   @override
   ShukubaGraph get graph => _graph;
 
   @override
-  List<WatchSightcone> get activeSightcones {
-    final list = <WatchSightcone>[];
-    for (final structure in _graph.structures.values) {
-      if (structure.kind == StructureKind.yaguraTower) {
-        final alert = _towerAlerts[structure.id] ?? 0;
-        final cone = structure.toStructuralSightcone(alertLevel: alert);
-        if (cone != null) {
-          list.add(cone);
-        }
-      }
-    }
-
-    final watchman = _simAgents.cast<_SimAgent?>().firstWhere(
-      (a) => a?.role == StreetAgentRole.lanternWatchman,
-      orElse: () => null,
-    );
-    if (watchman != null) {
-      list.add(
-        WatchSightcone(
-          sourceId: watchman.id,
-          origin: watchman.position + const Vec3(0, 1.2, 0),
-          yawRadians: watchman.yawRadians,
-          rangeMeters: 8.5,
-          halfAngleRadians: 0.38,
-          alertLevel: _watchmanAlert,
-        ),
-      );
-    }
-    return list;
-  }
+  List<WatchSightcone> get activeSightcones => _graph.structuralSightcones;
 
   @override
   List<Vec3> get activeLanternOrigins {
@@ -122,24 +99,50 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       origins.add(span.midpoint);
     }
 
-    final watchman = _simAgents.cast<_SimAgent?>().firstWhere(
-      (a) => a?.role == StreetAgentRole.lanternWatchman,
-      orElse: () => null,
-    );
-    if (watchman != null) {
-      origins.add(
-        watchman.position + const Vec3(0, 0.9, 0) + watchman.forward * 0.4,
-      );
+    for (final agent in _simAgents) {
+      if (agent.carriesLantern) {
+        origins.add(agent.position + Vec3.up + agent.forward * 0.45);
+      }
     }
 
     for (final structure in _graph.structures.values) {
-      if (structure.kind == StructureKind.marketStall) {
-        final lanternLocal = const Vec3(
-          1.11,
-          2.03,
-          1.06,
-        ).rotateY(structure.yawRadians);
-        origins.add(structure.position + lanternLocal);
+      switch (structure.kind) {
+        case StructureKind.chaya:
+          final left = const Vec3(
+            -1.58,
+            2.05,
+            2.95,
+          ).rotateY(structure.yawRadians);
+          final right = const Vec3(
+            1.58,
+            2.05,
+            2.95,
+          ).rotateY(structure.yawRadians);
+          origins
+            ..add(structure.position + left)
+            ..add(structure.position + right);
+        case StructureKind.toriiGate:
+          final gateGlow = const Vec3(0, 3.05, 0).rotateY(structure.yawRadians);
+          origins.add(structure.position + gateGlow);
+        case StructureKind.marketStall:
+          final stallGlow = const Vec3(
+            1.12,
+            1.96,
+            1.08,
+          ).rotateY(structure.yawRadians);
+          origins.add(structure.position + stallGlow);
+        case StructureKind.machiya:
+          final porchGlow = const Vec3(
+            0,
+            1.95,
+            3.55,
+          ).rotateY(structure.yawRadians);
+          origins.add(structure.position + porchGlow);
+        case StructureKind.kura ||
+            StructureKind.yaguraTower ||
+            StructureKind.mapleCluster ||
+            StructureKind.bambooGrove:
+          break;
       }
     }
     return origins;
@@ -152,7 +155,11 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       TerrainConfig.waterSurfaceElevation,
       0,
     ),
-    AmbientLoopKind.bambooWind: Vec3(-12, sampleGroundHeight(-12, 10), 10),
+    AmbientLoopKind.bambooWind: Vec3(
+      -12.6,
+      sampleGroundHeight(-12.6, 11.8),
+      11.8,
+    ),
     AmbientLoopKind.nightCrickets: Vec3(
       14.5,
       sampleGroundHeight(14.5, -5.5),
@@ -184,27 +191,34 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       terraces: initialGraph?.terraces ?? const [],
     );
     _waterNode = _terrainBuilder.buildWaterNode(_resolveMaterial);
+    _gorgeDressingNode = _terrainBuilder.buildGorgeDressingNode(
+      _resolveMaterial,
+    );
     _bridgeNode = _terrainBuilder.buildBridgeNode(_resolveMaterial);
 
     _worldRoot!
       ..add(_terrainNode)
       ..add(_waterNode)
+      ..add(_gorgeDressingNode)
       ..add(_bridgeNode)
       ..add(_roadsNode)
       ..add(_terracesNode)
+      ..add(_wallsNode)
       ..add(_structuresNode)
       ..add(_lanternSpansNode)
-      ..add(_agentsNode);
+      ..add(_agentsNode)
+      ..add(_previewNode);
 
     _scene!.add(_worldRoot!);
 
     initSimulation(initialGraph: initialGraph);
     _rebuildGraphNodes();
+    _rebuildPreviewNode();
   }
 
   void initSimulation({ShukubaGraph? initialGraph}) {
-    _initAgents();
     _graph = initialGraph ?? buildStarterShukubaGraph(sampleGroundHeight);
+    _initAgents();
   }
 
   void _initAgents() {
@@ -212,43 +226,48 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       ..clear()
       ..addAll([
         _SimAgent(
-          id: EntityId.validated('townsfolk_1'),
+          id: EntityId.validated('townsfolk_kaido_1'),
           role: StreetAgentRole.townsfolk,
-          position: Vec3(-14, sampleGroundHeight(-14, 0.5), 0.5),
+          position: Vec3(-16, sampleGroundHeight(-16, 0.4), 0.4),
           waypoints: [
-            Vec3(-14, sampleGroundHeight(-14, 0.5), 0.5),
+            Vec3(-18, sampleGroundHeight(-18, 0.4), 0.4),
             Vec3(-6, sampleGroundHeight(-6, -0.3), -0.3),
             Vec3(0, sampleGroundHeight(0, 0), 0),
-            Vec3(7, sampleGroundHeight(7, 0.8), 0.8),
-            Vec3(13, sampleGroundHeight(13, -0.5), -0.5),
+            Vec3(8.5, sampleGroundHeight(8.5, 0.6), 0.6),
+            Vec3(17, sampleGroundHeight(17, -0.4), -0.4),
           ],
-          speed: 1.8,
+          speed: 1.65,
         ),
         _SimAgent(
-          id: EntityId.validated('lantern_watchman'),
+          id: EntityId.validated('lantern_innkeeper'),
           role: StreetAgentRole.lanternWatchman,
-          position: Vec3(-8.5, sampleGroundHeight(-8.5, 0), 0),
+          position: Vec3(-9.5, sampleGroundHeight(-9.5, -0.2), -0.2),
           waypoints: [
-            Vec3(-8.5, sampleGroundHeight(-8.5, 0), 0),
-            Vec3(0, sampleGroundHeight(0, 0), 0),
-            Vec3(8.5, sampleGroundHeight(8.5, 0), 0),
-            Vec3(0, sampleGroundHeight(0, 0), 0),
+            Vec3(-9.5, sampleGroundHeight(-9.5, -0.2), -0.2),
+            Vec3(0, sampleGroundHeight(0, 0.2), 0.2),
+            Vec3(9, sampleGroundHeight(9, 0.3), 0.3),
+            Vec3(9, sampleGroundHeight(9, 7.6), 7.6),
+            Vec3(9, sampleGroundHeight(9, 0.3), 0.3),
+            Vec3(0, sampleGroundHeight(0, 0.2), 0.2),
           ],
           carriesLantern: true,
-          speed: 1.4,
+          speed: 1.35,
+          bobPhase: 1.4,
         ),
         _SimAgent(
-          id: EntityId.validated('night_smuggler'),
+          id: EntityId.validated('merchant_traveler'),
           role: StreetAgentRole.nightSmuggler,
-          position: Vec3(-7, sampleGroundHeight(-7, 4), 4),
+          position: Vec3(9, sampleGroundHeight(9, 11.5), 11.5),
           waypoints: [
-            Vec3(-7, sampleGroundHeight(-7, 4), 4),
-            Vec3(-2, sampleGroundHeight(-2, 2.5), 2.5),
-            Vec3(2, sampleGroundHeight(2, 2.5), 2.5),
-            Vec3(8, sampleGroundHeight(8, 3.5), 3.5),
-            Vec3(13, sampleGroundHeight(13, -4.5), -4.5),
+            Vec3(9, sampleGroundHeight(9, 12), 12),
+            Vec3(9, sampleGroundHeight(9, 1.5), 1.5),
+            Vec3(0, sampleGroundHeight(0, -0.3), -0.3),
+            Vec3(-7.8, sampleGroundHeight(-7.8, -2), -2),
+            Vec3(-8.4, sampleGroundHeight(-8.4, -9.2), -9.2),
+            Vec3(-7.8, sampleGroundHeight(-7.8, -2), -2),
           ],
-          speed: 2.2,
+          speed: 1.55,
+          bobPhase: 2.8,
         ),
       ]);
 
@@ -286,6 +305,31 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _rebuildGraphNodes();
   }
 
+  @override
+  void syncPreview(BuildPreview preview) {
+    if (_activePreview == preview) {
+      return;
+    }
+    _activePreview = preview;
+    _rebuildPreviewNode();
+  }
+
+  void _rebuildPreviewNode() {
+    if (_scene == null) {
+      return;
+    }
+    _previewNode.children.clear();
+    if (_activePreview is! NoBuildPreview) {
+      _previewNode.add(
+        _kitBuilder.buildPreviewNode(
+          _activePreview,
+          _resolveMaterial,
+          sampleGroundHeight,
+        ),
+      );
+    }
+  }
+
   void _rebuildGraphNodes() {
     if (_scene == null) {
       return;
@@ -309,6 +353,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
     }
 
+    _wallsNode.children.clear();
+    for (final wall in _graph.walls) {
+      _wallsNode.add(
+        _terrainBuilder.buildWallNode(
+          wall,
+          _resolveMaterial,
+          sampleGroundHeight,
+        ),
+      );
+    }
+
     _structuresNode.children.clear();
     for (final structure in _graph.structures.values) {
       _structuresNode.add(
@@ -327,6 +382,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   @override
   void step(double dtSeconds, {required TimeOfDayRig rig}) {
     if (_simAgents.isEmpty) return;
+    _walkTime += dtSeconds;
 
     for (final agent in _simAgents) {
       final target = agent.waypoints[agent.currentWaypointIndex];
@@ -361,53 +417,21 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
       final node = _agentNodes[agent.id];
       if (node != null) {
-        node
-          ..position = agent.position.toVector3()
-          ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
-      }
-    }
-
-    final smuggler = _simAgents.cast<_SimAgent?>().firstWhere(
-      (a) => a?.role == StreetAgentRole.nightSmuggler,
-      orElse: () => null,
-    );
-
-    if (smuggler != null) {
-      for (final structure in _graph.structures.values) {
-        if (structure.kind == StructureKind.yaguraTower) {
-          final cone = structure.toStructuralSightcone();
-          if (cone != null) {
-            final intruded = cone.containsPoint(smuggler.position);
-            final currentAlert = _towerAlerts[structure.id] ?? 0;
-            final targetAlert = intruded ? 1.0 : 0.0;
-            final blendSpeed = intruded ? 4.0 : 1.5;
-            _towerAlerts[structure.id] =
-                currentAlert +
-                (targetAlert - currentAlert) *
-                    math.min(1.0, dtSeconds * blendSpeed);
-          }
-        }
-      }
-
-      final watchman = _simAgents.cast<_SimAgent?>().firstWhere(
-        (a) => a?.role == StreetAgentRole.lanternWatchman,
-        orElse: () => null,
-      );
-      if (watchman != null) {
-        final cone = WatchSightcone(
-          sourceId: watchman.id,
-          origin: watchman.position + const Vec3(0, 1.2, 0),
-          yawRadians: watchman.yawRadians,
-          rangeMeters: 8.5,
-          halfAngleRadians: 0.38,
+        final speedRatio = (agent.velocity.length / agent.speed).clamp(
+          0.0,
+          1.0,
         );
-        final intruded = cone.containsPoint(smuggler.position);
-        final targetAlert = intruded ? 1.0 : 0.0;
-        final blendSpeed = intruded ? 4.0 : 1.5;
-        _watchmanAlert =
-            _watchmanAlert +
-            (targetAlert - _watchmanAlert) *
-                math.min(1.0, dtSeconds * blendSpeed);
+        final bob =
+            math.sin(_walkTime * 7.2 + agent.bobPhase).abs() *
+            0.032 *
+            speedRatio;
+        node
+          ..position = Vector3(
+            agent.position.x,
+            agent.position.y + bob,
+            agent.position.z,
+          )
+          ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
       }
     }
   }

@@ -131,9 +131,9 @@ class EdoLookDriver implements ShukubaLookDriver {
 
     for (var i = 0; i < 16; i++) {
       final light = PointLight(
-        color: Vector3(1, 0.65, 0.28),
+        color: Vector3(1, 0.56, 0.20),
         intensity: 0,
-        range: 8,
+        range: 10.5,
       );
       final node = Node(name: 'lantern_light_$i')
         ..addComponent(PointLightComponent(light))
@@ -145,11 +145,11 @@ class EdoLookDriver implements ShukubaLookDriver {
 
     try {
       final sky = GradientSkySource(
-        zenithColor: Vector3(0.18, 0.32, 0.62),
-        horizonColor: Vector3(0.92, 0.54, 0.28),
-        groundColor: Vector3(0.20, 0.14, 0.10),
+        zenithColor: Vector3(0.12, 0.28, 0.58),
+        horizonColor: Vector3(0.88, 0.52, 0.26),
+        groundColor: Vector3(0.14, 0.11, 0.09),
         sunDirection: Vector3(-0.4, 0.8, -0.4).normalized(),
-        sunColor: Vector3(4.2, 2.8, 1.4),
+        sunColor: Vector3(4.6, 3, 1.45),
       );
       _skySource = sky;
       final skyboxInstance = Skybox(sky);
@@ -165,22 +165,30 @@ class EdoLookDriver implements ShukubaLookDriver {
       final dusk = EnvironmentSettings(
         skybox: skyboxInstance,
         skyEnvironment: skyEnvInstance,
-        toneMapping: ToneMappingMode.agx,
-        agxContrast: 1.42,
-        exposure: 1.05,
+        toneMapping: ToneMappingMode.aces,
+        exposure: 1.02,
+        colorGradingEnabled: true,
+        saturation: 1.22,
+        contrast: 1.10,
+        temperature: 0.05,
         bloomEnabled: true,
-        bloomThreshold: 1.05,
-        bloomIntensity: 0.24,
+        bloomThreshold: 0.95,
+        bloomIntensity: 0.26,
+        bloomScatter: 0.74,
         ambientOcclusionEnabled: true,
         ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-        ambientOcclusionIntensity: 1.28,
-        ambientOcclusionPower: 1.7,
-        ambientOcclusionRadius: 0.42,
+        ambientOcclusionIntensity: 1.38,
+        ambientOcclusionPower: 1.75,
+        ambientOcclusionRadius: 0.48,
         fogEnabled: true,
-        fogColor: Vector3(0.58, 0.34, 0.18),
-        fogDensity: 0.0042,
-        fogHeight: 1.4,
-        fogHeightFalloff: 0.16,
+        fogColor: Vector3(0.16, 0.28, 0.36),
+        fogDensity: 0.0078,
+        fogHeight: 0.85,
+        fogHeightFalloff: 0.38,
+        godRaysEnabled: true,
+        godRaysIntensity: 0.28,
+        godRaysDensity: 0.55,
+        godRaysColor: Vector3(1, 0.82, 0.52),
         vignetteEnabled: true,
         vignetteIntensity: 0.24,
       );
@@ -188,25 +196,28 @@ class EdoLookDriver implements ShukubaLookDriver {
       final night = EnvironmentSettings(
         skybox: skyboxInstance,
         skyEnvironment: skyEnvInstance,
-        toneMapping: ToneMappingMode.agx,
-        agxContrast: 1.44,
-        exposure: 0.92,
+        toneMapping: ToneMappingMode.aces,
+        exposure: 0.96,
+        colorGradingEnabled: true,
+        saturation: 1.18,
+        contrast: 1.14,
+        temperature: -0.05,
         bloomEnabled: true,
-        bloomThreshold: 0.78,
-        bloomIntensity: 0.36,
-        bloomScatter: 0.78,
+        bloomThreshold: 0.72,
+        bloomIntensity: 0.40,
+        bloomScatter: 0.80,
         ambientOcclusionEnabled: true,
         ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-        ambientOcclusionIntensity: 1.45,
+        ambientOcclusionIntensity: 1.48,
         ambientOcclusionPower: 1.85,
-        ambientOcclusionRadius: 0.45,
+        ambientOcclusionRadius: 0.50,
         fogEnabled: true,
-        fogColor: Vector3(0.03, 0.06, 0.14),
-        fogDensity: 0.0062,
-        fogHeight: 1.6,
-        fogHeightFalloff: 0.14,
+        fogColor: Vector3(0.032, 0.082, 0.165),
+        fogDensity: 0.0105,
+        fogHeight: 1.15,
+        fogHeightFalloff: 0.32,
         vignetteEnabled: true,
-        vignetteIntensity: 0.38,
+        vignetteIntensity: 0.36,
       );
 
       _duskSettings = dusk;
@@ -307,13 +318,15 @@ class EdoLookDriver implements ShukubaLookDriver {
     _setParamFloat(ShukubaSurfaceRole.mapleCanopy, 'time_sec', elapsedSeconds);
     _setParamFloat(ShukubaSurfaceRole.bambooCanopy, 'time_sec', elapsedSeconds);
     _setParamFloat(ShukubaSurfaceRole.riverWater, 'time_sec', elapsedSeconds);
+    _setParamFloat(ShukubaSurfaceRole.ghostPreview, 'time_sec', elapsedSeconds);
 
+    final duskBoostedIntensity = 1.6 + 11.8 * rig.nightFactor;
     for (var i = 0; i < _lanternNodes.length; i++) {
       if (i < lanternOrigins.length) {
         _lanternNodes[i].position = lanternOrigins[i].toVector3();
         _lanternLights[i]
-          ..intensity = rig.lanternPointLightIntensity
-          ..range = rig.lanternPointLightRange;
+          ..intensity = duskBoostedIntensity
+          ..range = rig.lanternPointLightRange + 1.4;
         _lanternNodes[i].visible = true;
       } else {
         _lanternLights[i].intensity = 0;
@@ -394,14 +407,17 @@ class EdoLookDriver implements ShukubaLookDriver {
     ShukubaSurfaceRole.ishigakiStone ||
     ShukubaSurfaceRole.laneOverlay ||
     ShukubaSurfaceRole.plasterWall ||
+    ShukubaSurfaceRole.kuraPlaster ||
     ShukubaSurfaceRole.charredTimber ||
     ShukubaSurfaceRole.kawaraTile ||
-    ShukubaSurfaceRole.fabricAwning => 'assets/materials/gouache_lit.fmat',
+    ShukubaSurfaceRole.fabricAwning ||
+    ShukubaSurfaceRole.vermilionLacquer => 'assets/materials/gouache_lit.fmat',
     ShukubaSurfaceRole.shojiScreen ||
     ShukubaSurfaceRole.chochinLantern => 'assets/materials/shoji_lantern.fmat',
     ShukubaSurfaceRole.mapleCanopy ||
     ShukubaSurfaceRole.bambooCanopy => 'assets/materials/foliage_canopy.fmat',
     ShukubaSurfaceRole.riverWater => 'assets/materials/river_water.fmat',
+    ShukubaSurfaceRole.ghostPreview => 'assets/materials/ghost_preview.fmat',
   };
 
   static void _configureRoleParameters(
@@ -411,83 +427,110 @@ class EdoLookDriver implements ShukubaLookDriver {
     switch (role) {
       case ShukubaSurfaceRole.packedEarth:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.14, 0.13, 0.085, 1))
-          ..setVec4('warm_tint', Vector4(0.24, 0.18, 0.10, 1))
-          ..setFloat('roughness_val', 0.94)
-          ..setFloat('grain_scale', 7)
-          ..setFloat('weathering', 0.24);
+          ..setVec4('base_tint', Vector4(0.15, 0.135, 0.082, 1))
+          ..setVec4('warm_tint', Vector4(0.28, 0.20, 0.105, 1))
+          ..setFloat('roughness_val', 0.93)
+          ..setFloat('grain_scale', 7.5)
+          ..setFloat('weathering', 0.26)
+          ..setFloat('style_id', 5);
       case ShukubaSurfaceRole.ishigakiStone:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.095, 0.102, 0.115, 1))
-          ..setVec4('warm_tint', Vector4(0.15, 0.14, 0.13, 1))
-          ..setFloat('roughness_val', 0.86)
+          ..setVec4('base_tint', Vector4(0.13, 0.138, 0.152, 1))
+          ..setVec4('warm_tint', Vector4(0.21, 0.19, 0.165, 1))
+          ..setFloat('roughness_val', 0.84)
           ..setFloat('grain_scale', 9.5)
-          ..setFloat('weathering', 0.38);
+          ..setFloat('weathering', 0.42)
+          ..setFloat('style_id', 3);
       case ShukubaSurfaceRole.laneOverlay:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.24, 0.155, 0.085, 1))
-          ..setVec4('warm_tint', Vector4(0.36, 0.23, 0.12, 1))
-          ..setFloat('roughness_val', 0.90)
-          ..setFloat('grain_scale', 8)
-          ..setFloat('weathering', 0.22);
+          ..setVec4('base_tint', Vector4(0.27, 0.185, 0.105, 1))
+          ..setVec4('warm_tint', Vector4(0.40, 0.275, 0.155, 1))
+          ..setFloat('roughness_val', 0.89)
+          ..setFloat('grain_scale', 8.5)
+          ..setFloat('weathering', 0.22)
+          ..setFloat('style_id', 5.5);
       case ShukubaSurfaceRole.plasterWall:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.54, 0.46, 0.36, 1))
-          ..setVec4('warm_tint', Vector4(0.68, 0.56, 0.42, 1))
+          ..setVec4('base_tint', Vector4(0.50, 0.41, 0.30, 1))
+          ..setVec4('warm_tint', Vector4(0.66, 0.54, 0.39, 1))
           ..setFloat('roughness_val', 0.85)
           ..setFloat('grain_scale', 11)
-          ..setFloat('weathering', 0.30);
+          ..setFloat('weathering', 0.34)
+          ..setFloat('style_id', 4);
+      case ShukubaSurfaceRole.kuraPlaster:
+        mat.parameters
+          ..setVec4('base_tint', Vector4(0.76, 0.72, 0.64, 1))
+          ..setVec4('warm_tint', Vector4(0.88, 0.83, 0.74, 1))
+          ..setFloat('roughness_val', 0.82)
+          ..setFloat('grain_scale', 10)
+          ..setFloat('weathering', 0.22)
+          ..setFloat('style_id', 4);
       case ShukubaSurfaceRole.charredTimber:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.032, 0.020, 0.013, 1))
-          ..setVec4('warm_tint', Vector4(0.065, 0.038, 0.022, 1))
-          ..setFloat('roughness_val', 0.78)
+          ..setVec4('base_tint', Vector4(0.068, 0.042, 0.024, 1))
+          ..setVec4('warm_tint', Vector4(0.135, 0.082, 0.044, 1))
+          ..setFloat('roughness_val', 0.76)
           ..setFloat('grain_scale', 14)
-          ..setFloat('weathering', 0.25);
+          ..setFloat('weathering', 0.26)
+          ..setFloat('style_id', 2);
       case ShukubaSurfaceRole.kawaraTile:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.022, 0.030, 0.048, 1))
-          ..setVec4('warm_tint', Vector4(0.045, 0.056, 0.082, 1))
-          ..setFloat('roughness_val', 0.48)
+          ..setVec4('base_tint', Vector4(0.042, 0.058, 0.092, 1))
+          ..setVec4('warm_tint', Vector4(0.078, 0.102, 0.148, 1))
+          ..setFloat('roughness_val', 0.46)
           ..setFloat('grain_scale', 12)
-          ..setFloat('weathering', 0.22);
+          ..setFloat('weathering', 0.28)
+          ..setFloat('style_id', 1);
       case ShukubaSurfaceRole.fabricAwning:
         mat.parameters
-          ..setVec4('base_tint', Vector4(0.34, 0.048, 0.022, 1))
-          ..setVec4('warm_tint', Vector4(0.52, 0.095, 0.035, 1))
-          ..setFloat('roughness_val', 0.86)
+          ..setVec4('base_tint', Vector4(0.36, 0.055, 0.025, 1))
+          ..setVec4('warm_tint', Vector4(0.56, 0.12, 0.042, 1))
+          ..setFloat('roughness_val', 0.84)
           ..setFloat('grain_scale', 16)
-          ..setFloat('weathering', 0.15);
+          ..setFloat('weathering', 0.16)
+          ..setFloat('style_id', 6);
+      case ShukubaSurfaceRole.vermilionLacquer:
+        mat.parameters
+          ..setVec4('base_tint', Vector4(0.48, 0.052, 0.024, 1))
+          ..setVec4('warm_tint', Vector4(0.68, 0.095, 0.036, 1))
+          ..setFloat('roughness_val', 0.44)
+          ..setFloat('grain_scale', 14)
+          ..setFloat('weathering', 0.14)
+          ..setFloat('style_id', 6.5);
       case ShukubaSurfaceRole.shojiScreen:
         mat.parameters
-          ..setVec4('paper_color', Vector4(0.84, 0.68, 0.44, 1))
-          ..setVec4('glow_color', Vector4(1, 0.58, 0.18, 1))
-          ..setFloat('emissive_gain', 0.28)
-          ..setFloat('rib_freq', 6);
+          ..setVec4('paper_color', Vector4(0.88, 0.72, 0.46, 1))
+          ..setVec4('glow_color', Vector4(1, 0.60, 0.19, 1))
+          ..setFloat('emissive_gain', 0.42)
+          ..setFloat('rib_freq', 7);
       case ShukubaSurfaceRole.chochinLantern:
         mat.parameters
-          ..setVec4('paper_color', Vector4(0.95, 0.55, 0.22, 1))
-          ..setVec4('glow_color', Vector4(1, 0.46, 0.11, 1))
-          ..setFloat('emissive_gain', 0.85)
-          ..setFloat('rib_freq', 14);
+          ..setVec4('paper_color', Vector4(0.96, 0.48, 0.16, 1))
+          ..setVec4('glow_color', Vector4(1, 0.44, 0.10, 1))
+          ..setFloat('emissive_gain', 1.15)
+          ..setFloat('rib_freq', 12);
       case ShukubaSurfaceRole.mapleCanopy:
         mat.parameters
-          ..setVec4('leaf_primary', Vector4(0.42, 0.038, 0.014, 1))
-          ..setVec4('leaf_secondary', Vector4(0.72, 0.16, 0.022, 1))
-          ..setFloat('rim_warmth', 0.42)
-          ..setFloat('wind_strength', 0.18);
+          ..setVec4('leaf_primary', Vector4(0.46, 0.042, 0.014, 1))
+          ..setVec4('leaf_secondary', Vector4(0.84, 0.22, 0.026, 1))
+          ..setFloat('rim_warmth', 0.48)
+          ..setFloat('wind_strength', 0.16);
       case ShukubaSurfaceRole.bambooCanopy:
         mat.parameters
-          ..setVec4('leaf_primary', Vector4(0.045, 0.145, 0.032, 1))
-          ..setVec4('leaf_secondary', Vector4(0.14, 0.30, 0.052, 1))
-          ..setFloat('rim_warmth', 0.34)
-          ..setFloat('wind_strength', 0.22);
+          ..setVec4('leaf_primary', Vector4(0.055, 0.165, 0.035, 1))
+          ..setVec4('leaf_secondary', Vector4(0.18, 0.36, 0.062, 1))
+          ..setFloat('rim_warmth', 0.38)
+          ..setFloat('wind_strength', 0.20);
       case ShukubaSurfaceRole.riverWater:
         mat.parameters
-          ..setVec4('shallow_color', Vector4(0.045, 0.16, 0.19, 0.78))
-          ..setVec4('deep_color', Vector4(0.015, 0.055, 0.10, 0.96))
-          ..setVec4('foam_color', Vector4(0.78, 0.86, 0.88, 0.88))
-          ..setFloat('flow_speed', 0.85);
+          ..setVec4('shallow_color', Vector4(0.068, 0.215, 0.175, 0.78))
+          ..setVec4('deep_color', Vector4(0.015, 0.068, 0.076, 0.95))
+          ..setVec4('foam_color', Vector4(0.84, 0.90, 0.87, 0.86))
+          ..setFloat('flow_speed', 0.95);
+      case ShukubaSurfaceRole.ghostPreview:
+        mat.parameters
+          ..setVec4('ghost_color', Vector4(1, 0.72, 0.30, 0.46))
+          ..setFloat('time_sec', 0);
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         AmbientLoopKind,
         CameraPreset,
+        CourtyardWall,
         EntityId,
         PlacedStructure,
         RoadSpline,
@@ -31,21 +32,35 @@ void main() {
 
   group('Starter ward and terrain domain logic (CPU)', () {
     test(
-      'buildStarterShukubaGraph produces >= 6 spans and >= 2 sightcones',
+      'buildStarterShukubaGraph builds city-builder ward without watchtowers',
       () {
         const terrain = TerrainBuilder();
         final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
 
-        expect(graph.roads.length, 2);
+        expect(graph.roads.length, greaterThanOrEqualTo(4));
         expect(graph.terraces.length, 2);
-        expect(graph.structures.length, greaterThanOrEqualTo(16));
-        expect(graph.lanternSpans.length, greaterThanOrEqualTo(6));
+        expect(graph.walls.length, greaterThanOrEqualTo(2));
+        expect(graph.structures.length, greaterThanOrEqualTo(18));
+        expect(graph.lanternSpans.length, greaterThanOrEqualTo(5));
 
         final towers = graph.structures.values
             .where((s) => s.kind == StructureKind.yaguraTower)
             .toList();
-        expect(towers.length, 2);
-        expect(graph.structuralSightcones.length, greaterThanOrEqualTo(2));
+        expect(towers, isEmpty);
+        expect(graph.structuralSightcones, isEmpty);
+
+        expect(
+          graph.structures.values.any((s) => s.kind == StructureKind.chaya),
+          isTrue,
+        );
+        expect(
+          graph.structures.values.any((s) => s.kind == StructureKind.kura),
+          isTrue,
+        );
+        expect(
+          graph.structures.values.any((s) => s.kind == StructureKind.toriiGate),
+          isTrue,
+        );
       },
     );
 
@@ -59,7 +74,7 @@ void main() {
       );
 
       final bridgeCenterY = terrain.sampleGroundHeight(0, 0);
-      expect(bridgeCenterY, closeTo(1.55, 0.05));
+      expect(bridgeCenterY, closeTo(1.58, 0.05));
 
       final westApproachY = terrain.sampleGroundHeight(-5.2, 0);
       expect(westApproachY, closeTo(0.40, 0.05));
@@ -78,41 +93,31 @@ void main() {
       expect(riverbedY, closeTo(-1.85, 0.15));
     });
 
-    test(
-      '60 step calls update agents with finite positions and smooth alerts',
-      () {
-        final driver = EdoWorldDriver()..initSimulation();
+    test('60 step calls update townsfolk agents with finite positions', () {
+      final driver = EdoWorldDriver()..initSimulation();
 
-        final initialAgents = driver.agents;
-        expect(initialAgents.length, 3);
-        expect(driver.activeSightcones.length, greaterThanOrEqualTo(2));
+      final initialAgents = driver.agents;
+      expect(initialAgents.length, 3);
+      expect(driver.activeSightcones, isEmpty);
 
-        const dt = 1 / 60;
-        for (var frame = 0; frame < 60; frame++) {
-          driver.step(dt, rig: TimeOfDayRig.goldenDusk);
+      const dt = 1 / 60;
+      for (var frame = 0; frame < 60; frame++) {
+        driver.step(dt, rig: TimeOfDayRig.goldenDusk);
 
-          for (final agent in driver.agents) {
-            expect(agent.position.x.isFinite, isTrue);
-            expect(agent.position.y.isFinite, isTrue);
-            expect(agent.position.z.isFinite, isTrue);
-            expect(agent.yawRadians.isFinite, isTrue);
-          }
-
-          final sightcones = driver.activeSightcones;
-          expect(sightcones.length, greaterThanOrEqualTo(2));
-          for (final cone in sightcones) {
-            expect(cone.alertLevel, greaterThanOrEqualTo(0));
-            expect(cone.alertLevel, lessThanOrEqualTo(1));
-          }
+        for (final agent in driver.agents) {
+          expect(agent.position.x.isFinite, isTrue);
+          expect(agent.position.y.isFinite, isTrue);
+          expect(agent.position.z.isFinite, isTrue);
+          expect(agent.yawRadians.isFinite, isTrue);
         }
+      }
 
-        final watchman = driver.agents.firstWhere(
-          (a) => a.role == StreetAgentRole.lanternWatchman,
-        );
-        expect(watchman.carriesLantern, isTrue);
-        expect(driver.activeLanternOrigins, isNotEmpty);
-      },
-    );
+      final lanternBearer = driver.agents.firstWhere(
+        (a) => a.role == StreetAgentRole.lanternWatchman,
+      );
+      expect(lanternBearer.carriesLantern, isTrue);
+      expect(driver.activeLanternOrigins, isNotEmpty);
+    });
   });
 
   group('EdoWorldDriver and Scene verification', () {
@@ -124,8 +129,8 @@ void main() {
         await driver.attach(scene);
 
         final graph = driver.graph;
-        expect(graph.lanternSpans.length, greaterThanOrEqualTo(6));
-        expect(driver.activeSightcones.length, greaterThanOrEqualTo(2));
+        expect(graph.lanternSpans.length, greaterThanOrEqualTo(5));
+        expect(driver.activeSightcones, isEmpty);
         expect(driver.activeLanternOrigins, isNotEmpty);
         expect(driver.agents.length, greaterThanOrEqualTo(3));
 
@@ -192,7 +197,7 @@ void main() {
     }, skip: !impellerAvailable ? impellerSkipReason : false);
 
     test(
-      'stamping extra machiya, stall, tower, road, terrace keeps zero overlaps',
+      'stamping extra chaya, kura, torii, wall, road, terrace has no overlaps',
       () async {
         final scene = Scene();
         final driver = EdoWorldDriver();
@@ -200,48 +205,59 @@ void main() {
 
         var nextGraph = driver.graph;
 
-        final extraMachiya = PlacedStructure(
-          id: EntityId.validated('machiya_extra_w3'),
-          kind: StructureKind.machiya,
-          position: Vec3(-23, driver.sampleGroundHeight(-23, -4.8), -4.8),
-        );
-        nextGraph = nextGraph.putStructure(extraMachiya);
-
-        final extraStall = PlacedStructure(
-          id: EntityId.validated('market_extra_e2'),
-          kind: StructureKind.marketStall,
-          position: Vec3(8.5, driver.sampleGroundHeight(8.5, -2.6), -2.6),
-        );
-        nextGraph = nextGraph.putStructure(extraStall);
-
-        final extraTower = PlacedStructure(
-          id: EntityId.validated('tower_extra_upper'),
-          kind: StructureKind.yaguraTower,
-          position: Vec3(-22, driver.sampleGroundHeight(-22, 6.5), 6.5),
-          yawRadians: -1.2,
-        );
-        nextGraph = nextGraph.putStructure(extraTower);
-
-        final extraRoad = RoadSpline.validated(
-          id: EntityId.validated('road_upper_path'),
-          controlPoints: [
-            Vec3(14, driver.sampleGroundHeight(14, 6), 6),
-            Vec3(22, driver.sampleGroundHeight(22, 6), 6),
-          ],
-          widthMeters: 2.8,
-        );
-        nextGraph = nextGraph.putRoad(extraRoad);
-
-        final extraTerrace = TerraceCourse.validated(
-          id: EntityId.validated('terrace_plateau_north'),
-          crestPoints: [
-            Vec3(24, driver.sampleGroundHeight(24, 4), 4),
-            Vec3(24, driver.sampleGroundHeight(24, 18), 18),
-          ],
-          topElevation: 4.5,
-          depthMeters: 6,
-        );
-        nextGraph = nextGraph.putTerrace(extraTerrace);
+        nextGraph = nextGraph
+            .putStructure(
+              PlacedStructure(
+                id: EntityId.validated('chaya_extra_w'),
+                kind: StructureKind.chaya,
+                position: Vec3(-24, driver.sampleGroundHeight(-24, -12), -12),
+              ),
+            )
+            .putStructure(
+              PlacedStructure(
+                id: EntityId.validated('kura_extra_w'),
+                kind: StructureKind.kura,
+                position: Vec3(-24, driver.sampleGroundHeight(-24, 13), 13),
+              ),
+            )
+            .putStructure(
+              PlacedStructure(
+                id: EntityId.validated('torii_extra_e'),
+                kind: StructureKind.toriiGate,
+                position: Vec3(24.5, driver.sampleGroundHeight(24.5, 0), 0),
+                yawRadians: 1.5707963,
+              ),
+            )
+            .putWall(
+              CourtyardWall.validated(
+                id: EntityId.validated('wall_extra_w'),
+                controlPoints: [
+                  Vec3(-28, driver.sampleGroundHeight(-28, -16), -16),
+                  Vec3(-20, driver.sampleGroundHeight(-20, -16), -16),
+                ],
+              ),
+            )
+            .putRoad(
+              RoadSpline.validated(
+                id: EntityId.validated('road_upper_path'),
+                controlPoints: [
+                  Vec3(16, driver.sampleGroundHeight(16, 15), 15),
+                  Vec3(26, driver.sampleGroundHeight(26, 15), 15),
+                ],
+                widthMeters: 2.8,
+              ),
+            )
+            .putTerrace(
+              TerraceCourse.validated(
+                id: EntityId.validated('terrace_plateau_north'),
+                crestPoints: [
+                  Vec3(27, driver.sampleGroundHeight(27, 4), 4),
+                  Vec3(27, driver.sampleGroundHeight(27, 18), 18),
+                ],
+                topElevation: 4.6,
+                depthMeters: 6,
+              ),
+            );
 
         driver.applyGraph(nextGraph);
 
@@ -255,46 +271,6 @@ void main() {
               'Stamped graph had coplanar overlaps:\n'
               '${overlapMessages.join('\n')}',
         );
-
-        driver.dispose();
-      },
-      skip: !impellerAvailable ? impellerSkipReason : false,
-    );
-
-    test(
-      '60 step calls update agents with finite positions and smooth alerts',
-      () async {
-        final scene = Scene();
-        final driver = EdoWorldDriver();
-        await driver.attach(scene);
-
-        final initialAgents = driver.agents;
-        expect(initialAgents.length, 3);
-
-        const dt = 1 / 60;
-        for (var frame = 0; frame < 60; frame++) {
-          driver.step(dt, rig: TimeOfDayRig.goldenDusk);
-
-          for (final agent in driver.agents) {
-            expect(agent.position.x.isFinite, isTrue);
-            expect(agent.position.y.isFinite, isTrue);
-            expect(agent.position.z.isFinite, isTrue);
-            expect(agent.yawRadians.isFinite, isTrue);
-          }
-
-          final sightcones = driver.activeSightcones;
-          expect(sightcones.length, greaterThanOrEqualTo(2));
-          for (final cone in sightcones) {
-            expect(cone.alertLevel, greaterThanOrEqualTo(0));
-            expect(cone.alertLevel, lessThanOrEqualTo(1));
-          }
-        }
-
-        final watchman = driver.agents.firstWhere(
-          (a) => a.role == StreetAgentRole.lanternWatchman,
-        );
-        expect(watchman.carriesLantern, isTrue);
-        expect(driver.activeLanternOrigins, isNotEmpty);
 
         driver.dispose();
       },

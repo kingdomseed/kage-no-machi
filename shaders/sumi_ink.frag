@@ -45,10 +45,11 @@ void main() {
   vec4 sTop = texture(scene_depth_linear, v_uv + vec2(0.0, d.y));
 
   float denom = max(centerDepth, 1.2);
+  float distAtten = clamp(1.20 - centerDepth * 0.0046, 0.50, 1.0);
   float lapH = abs(sLeft.r + sRight.r - 2.0 * centerDepth) / denom;
   float lapV = abs(sTop.r + sBottom.r - 2.0 * centerDepth) / denom;
   float laplacian = (lapH + lapV) * ink_params.weights.x;
-  float depthEdge = smoothstep(0.012, 0.050, laplacian) * skyFade;
+  float depthEdge = smoothstep(0.015, 0.058, laplacian) * skyFade * distAtten;
 
   vec3 nCenter = DecodeDepthPrepassNormal(centerSample.gb);
   vec3 nLeft = DecodeDepthPrepassNormal(sLeft.gb);
@@ -62,9 +63,9 @@ void main() {
       (1.0 - dot(nCenter, nBottom)) +
       (1.0 - dot(nCenter, nTop));
   float normalCrease =
-      smoothstep(0.24, 0.72, creaseRaw * ink_params.weights.y * 0.55) * skyFade;
+      smoothstep(0.32, 0.86, creaseRaw * ink_params.weights.y * 0.48) * skyFade * distAtten;
 
-  float edge = clamp(max(depthEdge, normalCrease * 0.72), 0.0, 1.0);
+  float edge = clamp(max(depthEdge, normalCrease * 0.58), 0.0, 1.0);
   vec3 inkModulated = mix(
     base.rgb,
     base.rgb * ink_params.ink_color.rgb,

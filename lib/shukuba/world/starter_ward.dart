@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
+        CourtyardWall,
         EntityId,
         GroundHeightSampler,
         PlacedStructure,
@@ -12,27 +13,6 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         Vec3;
 
 ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
-  final roads = <RoadSpline>[
-    RoadSpline.validated(
-      id: EntityId.validated('road_kaido_west'),
-      controlPoints: [
-        Vec3(-28, sampleGroundY(-28, 0), 0),
-        Vec3(-16, sampleGroundY(-16, 0), 0),
-        Vec3(-5.2, sampleGroundY(-5.2, 0), 0),
-      ],
-      isBridgeApproach: true,
-    ),
-    RoadSpline.validated(
-      id: EntityId.validated('road_kaido_east'),
-      controlPoints: [
-        Vec3(5.2, sampleGroundY(5.2, 0), 0),
-        Vec3(16, sampleGroundY(16, 0), 0),
-        Vec3(28, sampleGroundY(28, 0), 0),
-      ],
-      isBridgeApproach: true,
-    ),
-  ];
-
   final terraces = <TerraceCourse>[
     TerraceCourse.alignedToTerrain(
       id: EntityId.validated('terrace_lower_east'),
@@ -41,126 +21,226 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
         Vec3(6, sampleGroundY(6, 24), 24),
       ],
       topElevation: 1.80,
-      depthMeters: 9,
+      depthMeters: 9.2,
       sampleGroundY: sampleGroundY,
     ),
     TerraceCourse.alignedToTerrain(
       id: EntityId.validated('terrace_upper_east'),
       crestPoints: [
-        Vec3(15, sampleGroundY(15, -20), -20),
-        Vec3(15, sampleGroundY(15, 20), 20),
+        Vec3(15.2, sampleGroundY(15.2, -20), -20),
+        Vec3(15.2, sampleGroundY(15.2, 20), 20),
       ],
       topElevation: 3.40,
-      depthMeters: 10,
+      depthMeters: 11,
       sampleGroundY: sampleGroundY,
     ),
   ];
 
+  double wardY(double x, double z) {
+    var y = sampleGroundY(x, z);
+    final probe = Vec3(x, y, z);
+    for (final terrace in terraces) {
+      final platY = terrace.samplePlatformElevation(probe);
+      if (platY != null && platY > y) {
+        y = platY;
+      }
+    }
+    return y;
+  }
+
+  final roads = <RoadSpline>[
+    RoadSpline.validated(
+      id: EntityId.validated('road_kaido_west'),
+      controlPoints: [
+        Vec3(-28, wardY(-28, 0), 0),
+        Vec3(-16, wardY(-16, 0), 0),
+        Vec3(-5.2, wardY(-5.2, 0), 0),
+      ],
+      isBridgeApproach: true,
+    ),
+    RoadSpline.validated(
+      id: EntityId.validated('road_kaido_east'),
+      controlPoints: [
+        Vec3(5.2, wardY(5.2, 0), 0),
+        Vec3(16, wardY(16, 0), 0),
+        Vec3(28, wardY(28, 0), 0),
+      ],
+      isBridgeApproach: true,
+    ),
+    RoadSpline.validated(
+      id: EntityId.validated('road_market_alley'),
+      widthMeters: 2.6,
+      controlPoints: [
+        Vec3(9, wardY(9, 1.8), 1.8),
+        Vec3(9, wardY(9, 9), 9),
+        Vec3(9, wardY(9, 15.2), 15.2),
+      ],
+    ),
+    RoadSpline.validated(
+      id: EntityId.validated('road_west_riverside'),
+      widthMeters: 2.4,
+      controlPoints: [
+        Vec3(-7.8, wardY(-7.8, -1.8), -1.8),
+        Vec3(-8.4, wardY(-8.4, -7.8), -7.8),
+        Vec3(-9, wardY(-9, -13.6), -13.6),
+      ],
+    ),
+  ];
+
+  final walls = <CourtyardWall>[
+    CourtyardWall.validated(
+      id: EntityId.validated('wall_kura_compound'),
+      controlPoints: [
+        Vec3(16.6, wardY(16.6, -4.6), -4.6),
+        Vec3(16.6, wardY(16.6, -13.8), -13.8),
+        Vec3(24.2, wardY(24.2, -13.8), -13.8),
+      ],
+    ),
+    CourtyardWall.validated(
+      id: EntityId.validated('wall_teahouse_garden'),
+      controlPoints: [
+        Vec3(-15, wardY(-15, 9.2), 9.2),
+        Vec3(-7.4, wardY(-7.4, 9.2), 9.2),
+        Vec3(-7.4, wardY(-7.4, 5.4), 5.4),
+      ],
+    ),
+  ];
+
   final structures = <PlacedStructure>[
+    // West highway approach: lantern gate, chaya teahouse, and machiya row
+    PlacedStructure(
+      id: EntityId.validated('torii_west_gate'),
+      kind: StructureKind.toriiGate,
+      position: Vec3(-23.4, wardY(-23.4, 0), 0),
+      yawRadians: math.pi / 2,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('chaya_west_bridgehead'),
+      kind: StructureKind.chaya,
+      position: Vec3(-11.4, wardY(-11.4, 5.45), 5.45),
+      yawRadians: math.pi,
+    ),
     PlacedStructure(
       id: EntityId.validated('machiya_west_s1'),
       kind: StructureKind.machiya,
-      position: Vec3(-11, sampleGroundY(-11, -4.8), -4.8),
+      position: Vec3(-11.6, wardY(-11.6, -5.65), -5.65),
     ),
     PlacedStructure(
-      id: EntityId.validated('machiya_west_n1'),
+      id: EntityId.validated('machiya_west_n2'),
       kind: StructureKind.machiya,
-      position: Vec3(-11, sampleGroundY(-11, 4.8), 4.8),
+      position: Vec3(-18.4, wardY(-18.4, 5.65), 5.65),
       yawRadians: math.pi,
     ),
     PlacedStructure(
       id: EntityId.validated('machiya_west_s2'),
       kind: StructureKind.machiya,
-      position: Vec3(-17, sampleGroundY(-17, -4.8), -4.8),
+      position: Vec3(-18.4, wardY(-18.4, -5.65), -5.65),
     ),
     PlacedStructure(
-      id: EntityId.validated('machiya_west_n2'),
-      kind: StructureKind.machiya,
-      position: Vec3(-17, sampleGroundY(-17, 4.8), 4.8),
+      id: EntityId.validated('stall_west_riverside'),
+      kind: StructureKind.marketStall,
+      position: Vec3(-6.2, wardY(-6.2, -3.5), -3.5),
+      yawRadians: -0.45,
+    ),
+
+    // Lower east terrace: bustling bridgehead market & side-alley teahouse
+    PlacedStructure(
+      id: EntityId.validated('market_east_s1'),
+      kind: StructureKind.marketStall,
+      position: Vec3(7.4, wardY(7.4, -2.55), -2.55),
+    ),
+    PlacedStructure(
+      id: EntityId.validated('market_east_n1'),
+      kind: StructureKind.marketStall,
+      position: Vec3(7.4, wardY(7.4, 2.55), 2.55),
       yawRadians: math.pi,
     ),
     PlacedStructure(
       id: EntityId.validated('machiya_east_s1'),
       kind: StructureKind.machiya,
-      position: Vec3(11.4, sampleGroundY(11.4, -4.8), -4.8),
+      position: Vec3(11.6, wardY(11.6, -5.65), -5.65),
     ),
     PlacedStructure(
-      id: EntityId.validated('machiya_east_n1'),
-      kind: StructureKind.machiya,
-      position: Vec3(11.4, sampleGroundY(11.4, 4.8), 4.8),
-      yawRadians: math.pi,
+      id: EntityId.validated('chaya_east_alley'),
+      kind: StructureKind.chaya,
+      position: Vec3(12.6, wardY(12.6, 8.2), 8.2),
+      yawRadians: -math.pi / 2,
     ),
     PlacedStructure(
-      id: EntityId.validated('machiya_east_s2'),
-      kind: StructureKind.machiya,
-      position: Vec3(19.4, sampleGroundY(19.4, -4.8), -4.8),
-    ),
-    PlacedStructure(
-      id: EntityId.validated('machiya_east_n2'),
-      kind: StructureKind.machiya,
-      position: Vec3(19.4, sampleGroundY(19.4, 4.8), 4.8),
-      yawRadians: math.pi,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('market_s1'),
+      id: EntityId.validated('market_east_alley'),
       kind: StructureKind.marketStall,
-      position: Vec3(7, sampleGroundY(7, -2.35), -2.35),
+      position: Vec3(6.9, wardY(6.9, 8.2), 8.2),
+      yawRadians: math.pi / 2,
+    ),
+
+    // Upper east stone terrace: chalk-white kura vault and merchant house
+    PlacedStructure(
+      id: EntityId.validated('kura_upper_east'),
+      kind: StructureKind.kura,
+      position: Vec3(20.4, wardY(20.4, -9.2), -9.2),
     ),
     PlacedStructure(
-      id: EntityId.validated('market_n1'),
-      kind: StructureKind.marketStall,
-      position: Vec3(7, sampleGroundY(7, 2.35), 2.35),
+      id: EntityId.validated('machiya_upper_n1'),
+      kind: StructureKind.machiya,
+      position: Vec3(19.6, wardY(19.6, 5.65), 5.65),
       yawRadians: math.pi,
     ),
+
+    // Autumn momiji maples & slender moso bamboo groves
     PlacedStructure(
-      id: EntityId.validated('tower_west'),
-      kind: StructureKind.yaguraTower,
-      position: Vec3(-6.2, sampleGroundY(-6.2, 8.8), 8.8),
-      yawRadians: 2.55,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('tower_east'),
-      kind: StructureKind.yaguraTower,
-      position: Vec3(9.8, sampleGroundY(9.8, -10.6), -10.6),
-      yawRadians: -0.65,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('maple_1'),
+      id: EntityId.validated('maple_bridge_nw'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(-4.5, sampleGroundY(-4.5, 4), 4),
+      position: Vec3(-5.2, wardY(-5.2, 4.4), 4.4),
       yawRadians: 0.35,
     ),
     PlacedStructure(
-      id: EntityId.validated('maple_2'),
+      id: EntityId.validated('maple_gorge_se'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(5, sampleGroundY(5, -4.8), -4.8),
+      position: Vec3(4.8, wardY(4.8, -5.2), -5.2),
       yawRadians: -0.65,
     ),
     PlacedStructure(
-      id: EntityId.validated('maple_3'),
+      id: EntityId.validated('maple_alley_ne'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(9.6, sampleGroundY(9.6, 10.2), 10.2),
-      yawRadians: 1.10,
+      position: Vec3(12.8, wardY(12.8, 14), 14),
+      yawRadians: 1.15,
     ),
     PlacedStructure(
-      id: EntityId.validated('bamboo_1'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-12, sampleGroundY(-12, 10), 10),
-      yawRadians: 0.20,
+      id: EntityId.validated('maple_upper_ne'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(17.2, wardY(17.2, 11.4), 11.4),
+      yawRadians: -1.10,
     ),
     PlacedStructure(
-      id: EntityId.validated('bamboo_2'),
+      id: EntityId.validated('bamboo_west_garden'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(-6.5, sampleGroundY(-6.5, -8), -8),
+      position: Vec3(-12.6, wardY(-12.6, 11.8), 11.8),
+      yawRadians: 0.25,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_west_gorge'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(-5.6, wardY(-5.6, -9.4), -9.4),
       yawRadians: -0.45,
     ),
     PlacedStructure(
-      id: EntityId.validated('bamboo_3'),
+      id: EntityId.validated('bamboo_lower_se'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(18.5, sampleGroundY(18.5, -9.5), -9.5),
-      yawRadians: 0.75,
+      position: Vec3(11.4, wardY(11.4, -12.4), -12.4),
+      yawRadians: 0.80,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_upper_se'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(24.6, wardY(24.6, -8.8), -8.8),
+      yawRadians: -0.55,
     ),
   ];
 
-  return ShukubaGraph(roads: roads, terraces: terraces, structures: structures);
+  return ShukubaGraph(
+    roads: roads,
+    terraces: terraces,
+    walls: walls,
+    structures: structures,
+  );
 }

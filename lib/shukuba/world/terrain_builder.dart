@@ -4,6 +4,7 @@ import 'package:flutter_scene/scene.dart'
     show GeometryBuilder, Mesh, MeshGeometry, Node;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
+        CourtyardWall,
         GroundHeightSampler,
         RoadSpline,
         ShukubaMaterialResolver,
@@ -29,7 +30,7 @@ class TerrainConfig {
   static const double bridgeMaxZ = 1.8;
   static const double bridgeWestElevation = 0.40;
   static const double bridgeEastElevation = 1.80;
-  static const double bridgeArchCamber = 0.45;
+  static const double bridgeArchCamber = 0.48;
 
   static const double riverBedElevation = -1.85;
   static const double waterSurfaceElevation = -0.55;
@@ -66,7 +67,7 @@ class TerrainBuilder {
     final eastTerrace = x < 6.50 ? eastForeshore : (x < 15.5 ? 1.80 : 3.40);
 
     if (dist <= TerrainConfig.riverBankHalfWidth) {
-      final shoal = 0.08 * math.sin(z * 0.35) * math.cos(x * 0.45);
+      final shoal = 0.09 * math.sin(z * 0.35) * math.cos(x * 0.45);
       return TerrainConfig.riverBedElevation + shoal;
     }
 
@@ -122,22 +123,28 @@ class TerrainBuilder {
         final y = sampleRawTerrain(x, z);
         final rivX = TerrainConfig.riverCenterX(z);
         final rivDist = (x - rivX).abs();
-        final roadCorridor = 1.0 - (z.abs() - 1.8).clamp(0.0, 5.5) / 5.5;
-        final bankWet = 1.0 - ((rivDist - 2.6) / 2.6).clamp(0.0, 1.0);
+        final roadCorridor = 1.0 - (z.abs() - 1.8).clamp(0.0, 5.2) / 5.2;
+        final bankWet = 1.0 - ((rivDist - 2.4) / 2.6).clamp(0.0, 1.0);
         final patch =
-            0.5 + 0.5 * math.sin(x * 0.24 + z * 0.19) * math.cos(z * 0.31);
-        final mossR = 0.58 + 0.22 * patch;
-        final mossG = 0.86 + 0.18 * patch;
-        final mossB = 0.44 + 0.14 * patch;
+            0.5 + 0.5 * math.sin(x * 0.22 + z * 0.17) * math.cos(z * 0.29);
+        final meadow =
+            0.5 + 0.5 * math.cos(x * 0.11 - z * 0.13) * math.sin(x * 0.19);
+
+        final mossR = 0.52 + 0.24 * patch + 0.10 * meadow;
+        final mossG = 0.88 + 0.20 * patch - 0.06 * meadow;
+        final mossB = 0.42 + 0.14 * patch;
+
         final earthR =
-            mossR * (1 - roadCorridor * 0.65) + 1.08 * roadCorridor * 0.65;
+            mossR * (1 - roadCorridor * 0.68) + 1.08 * roadCorridor * 0.68;
         final earthG =
-            mossG * (1 - roadCorridor * 0.65) + 0.88 * roadCorridor * 0.65;
+            mossG * (1 - roadCorridor * 0.68) + 0.86 * roadCorridor * 0.68;
         final earthB =
-            mossB * (1 - roadCorridor * 0.65) + 0.68 * roadCorridor * 0.65;
-        final finalR = earthR * (1 - bankWet * 0.55) + 0.36 * bankWet * 0.55;
-        final finalG = earthG * (1 - bankWet * 0.55) + 0.44 * bankWet * 0.55;
-        final finalB = earthB * (1 - bankWet * 0.55) + 0.52 * bankWet * 0.55;
+            mossB * (1 - roadCorridor * 0.68) + 0.66 * roadCorridor * 0.68;
+
+        final finalR = earthR * (1 - bankWet * 0.58) + 0.34 * bankWet * 0.58;
+        final finalG = earthG * (1 - bankWet * 0.58) + 0.44 * bankWet * 0.58;
+        final finalB = earthB * (1 - bankWet * 0.58) + 0.50 * bankWet * 0.58;
+
         builder
           ..color(Vector4(finalR, finalG, finalB, 1))
           ..texCoord(Vector2(u * 16.0, v * 16.0))
@@ -175,33 +182,36 @@ class TerrainBuilder {
     final builder = GeometryBuilder();
     const minZ = TerrainConfig.minZ;
     const maxZ = TerrainConfig.maxZ;
-    const segments = 48;
-    const zStep = (maxZ - minZ) / segments;
+    const lengthSegs = 64;
+    const crossSegs = 4;
+    const zStep = (maxZ - minZ) / lengthSegs;
     const waterY = TerrainConfig.waterSurfaceElevation;
     const halfWidth = 3.40;
+    const cols = crossSegs + 1;
 
-    for (var i = 0; i <= segments; i++) {
+    for (var i = 0; i <= lengthSegs; i++) {
       final z = minZ + i * zStep;
       final cX = TerrainConfig.riverCenterX(z);
-      final leftX = cX - halfWidth;
-      final rightX = cX + halfWidth;
-      final v = i / segments;
-
-      builder
-        ..texCoord(Vector2(0, v * 8))
-        ..addVertex(Vector3(leftX, waterY, z))
-        ..texCoord(Vector2(1, v * 8))
-        ..addVertex(Vector3(rightX, waterY, z));
+      final v = i / lengthSegs;
+      for (var c = 0; c <= crossSegs; c++) {
+        final u = c / crossSegs;
+        final x = cX + (u * 2 - 1) * halfWidth;
+        builder
+          ..texCoord(Vector2(u, v * 8.5))
+          ..addVertex(Vector3(x, waterY, z));
+      }
     }
 
-    for (var i = 0; i < segments; i++) {
-      final v00 = i * 2;
-      final v01 = v00 + 1;
-      final v10 = v00 + 2;
-      final v11 = v00 + 3;
-      builder
-        ..addTriangle(v00, v10, v01)
-        ..addTriangle(v01, v10, v11);
+    for (var i = 0; i < lengthSegs; i++) {
+      for (var c = 0; c < crossSegs; c++) {
+        final v00 = i * cols + c;
+        final v01 = v00 + 1;
+        final v10 = v00 + cols;
+        final v11 = v10 + 1;
+        builder
+          ..addTriangle(v00, v10, v01)
+          ..addTriangle(v01, v10, v11);
+      }
     }
 
     final mesh = Mesh(
@@ -214,170 +224,246 @@ class TerrainBuilder {
   Node buildBridgeNode(ShukubaMaterialResolver resolveMaterial) {
     final root = Node();
     final timberMat = resolveMaterial(ShukubaSurfaceRole.charredTimber);
-    final accentMat = resolveMaterial(ShukubaSurfaceRole.fabricAwning);
+    final stoneMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    final lacquerMat = resolveMaterial(ShukubaSurfaceRole.vermilionLacquer);
 
-    final deckBuilder = GeometryBuilder();
-    const segs = 20;
+    final plankBuilder = GeometryBuilder();
+    const plankCount = 26;
     const x0 = TerrainConfig.bridgeMinX;
     const x1 = TerrainConfig.bridgeMaxX;
-    const dx = (x1 - x0) / segs;
+    const step = (x1 - x0) / plankCount;
     const zLeft = -1.74;
     const zRight = 1.74;
-    const deckThick = 0.12;
+    const plankThick = 0.09;
 
-    for (var i = 0; i <= segs; i++) {
-      final x = x0 + i * dx;
-      final yTop = TerrainConfig.bridgeDeckHeightAt(x);
-      final yBot = yTop - deckThick;
-      final u = i / segs;
-
-      deckBuilder
-        ..texCoord(Vector2(u * 6.0, 0))
-        ..addVertex(Vector3(x, yTop, zLeft))
-        ..texCoord(Vector2(u * 6.0, 1))
-        ..addVertex(Vector3(x, yTop, zRight))
-        ..texCoord(Vector2(u * 6.0, 0))
-        ..addVertex(Vector3(x, yBot, zLeft))
-        ..texCoord(Vector2(u * 6.0, 1))
-        ..addVertex(Vector3(x, yBot, zRight));
+    for (var i = 0; i < plankCount; i++) {
+      final pxA = x0 + i * step + 0.022;
+      final pxB = x0 + (i + 1) * step - 0.022;
+      final pxMid = (pxA + pxB) * 0.5;
+      final jitter = 0.008 * math.sin(i * 2.3 + 0.7);
+      final yTop = TerrainConfig.bridgeDeckHeightAt(pxMid) + jitter;
+      final yBot = yTop - plankThick;
+      final tone = 0.90 + 0.22 * (0.5 + 0.5 * math.sin(i * 3.7 + 1.1));
+      EdoKitBuilder.addBox(
+        plankBuilder,
+        Vector3(pxA, yBot, zLeft),
+        Vector3(pxB, yTop, zRight),
+        color: Vector4(tone * 1.06, tone, tone * 0.92, 1),
+      );
     }
-
-    for (var i = 0; i < segs; i++) {
-      final top0 = i * 4;
-      final top1 = top0 + 1;
-      final top2 = top0 + 4;
-      final top3 = top0 + 5;
-      deckBuilder
-        ..addTriangle(top0, top1, top2)
-        ..addTriangle(top1, top3, top2);
-
-      final bot0 = i * 4 + 2;
-      final bot1 = i * 4 + 3;
-      final bot2 = i * 4 + 6;
-      final bot3 = i * 4 + 7;
-      deckBuilder
-        ..addTriangle(bot0, bot2, bot1)
-        ..addTriangle(bot1, bot2, bot3);
-    }
-
-    root.add(Node(mesh: Mesh(deckBuilder.build(), timberMat)));
+    root.add(Node(mesh: Mesh(plankBuilder.build(), timberMat)));
 
     final structureBuilder = GeometryBuilder();
-    void addBeam(Vector3 pMin, Vector3 pMax) {
-      final x0 = pMin.x;
-      final y0 = pMin.y;
-      final z0 = pMin.z;
-      final x1 = pMax.x;
-      final y1 = pMax.y;
-      final z1 = pMax.z;
-
-      final v000 = structureBuilder.addVertex(Vector3(x0, y0, z0));
-      final v100 = structureBuilder.addVertex(Vector3(x1, y0, z0));
-      final v110 = structureBuilder.addVertex(Vector3(x1, y1, z0));
-      final v010 = structureBuilder.addVertex(Vector3(x0, y1, z0));
-      final v001 = structureBuilder.addVertex(Vector3(x0, y0, z1));
-      final v101 = structureBuilder.addVertex(Vector3(x1, y0, z1));
-      final v111 = structureBuilder.addVertex(Vector3(x1, y1, z1));
-      final v011 = structureBuilder.addVertex(Vector3(x0, y1, z1));
-
-      structureBuilder
-        ..addTriangle(v000, v010, v110)
-        ..addTriangle(v000, v110, v100)
-        ..addTriangle(v001, v101, v111)
-        ..addTriangle(v001, v111, v011)
-        ..addTriangle(v000, v001, v011)
-        ..addTriangle(v000, v011, v010)
-        ..addTriangle(v100, v110, v111)
-        ..addTriangle(v100, v111, v101)
-        ..addTriangle(v010, v011, v111)
-        ..addTriangle(v010, v111, v110)
-        ..addTriangle(v000, v100, v101)
-        ..addTriangle(v000, v101, v001);
+    const stringerSegs = 16;
+    const sStep = (x1 - x0) / stringerSegs;
+    for (final sZ in const [-1.34, 0.0, 1.34]) {
+      for (var i = 0; i < stringerSegs; i++) {
+        final sxA = x0 + i * sStep;
+        final sxB = sxA + sStep - 0.015;
+        final yA = TerrainConfig.bridgeDeckHeightAt(sxA) - 0.11;
+        final yB = TerrainConfig.bridgeDeckHeightAt(sxB) - 0.11;
+        final pA = Vec3(sxA, yA - 0.08, sZ);
+        final pB = Vec3(sxB, yB - 0.08, sZ);
+        EdoKitBuilder.addCordSegment(structureBuilder, pA, pB, halfThick: 0.07);
+      }
     }
 
-    final postXList = [-5.0, -3.3, -1.6, 0.0, 1.6, 3.3, 5.0];
+    const postXList = [-5.0, -3.35, -1.68, 0.0, 1.68, 3.35, 5.0];
+    final finialBuilder = GeometryBuilder();
     for (final px in postXList) {
       final yDeck = TerrainConfig.bridgeDeckHeightAt(px);
-      for (final side in [-1.86, 1.86]) {
-        addBeam(
-          Vector3(px - 0.06, yDeck - 0.16, side - 0.05),
-          Vector3(px + 0.06, yDeck + 0.85, side + 0.05),
+      for (final side in const [-1.85, 1.85]) {
+        EdoKitBuilder.addBox(
+          structureBuilder,
+          Vector3(px - 0.065, yDeck - 0.22, side - 0.065),
+          Vector3(px + 0.065, yDeck + 0.88, side + 0.065),
+        );
+        EdoKitBuilder.addBox(
+          finialBuilder,
+          Vector3(px - 0.08, yDeck + 0.90, side - 0.08),
+          Vector3(px + 0.08, yDeck + 0.95, side + 0.08),
+        );
+        EdoKitBuilder.addBox(
+          finialBuilder,
+          Vector3(px - 0.05, yDeck + 0.96, side - 0.05),
+          Vector3(px + 0.05, yDeck + 1.07, side + 0.05),
         );
       }
     }
 
     for (var i = 0; i < postXList.length - 1; i++) {
-      final pxA = postXList[i];
-      final pxB = postXList[i + 1];
+      final pxA = postXList[i] + 0.08;
+      final pxB = postXList[i + 1] - 0.08;
       final yA = TerrainConfig.bridgeDeckHeightAt(pxA);
       final yB = TerrainConfig.bridgeDeckHeightAt(pxB);
-      final midY = (yA + yB) * 0.5;
-
-      for (final side in [-1.86, 1.86]) {
-        addBeam(
-          Vector3(pxA + 0.07, midY + 0.70, side - 0.03),
-          Vector3(pxB - 0.07, midY + 0.78, side + 0.03),
+      for (final side in const [-1.85, 1.85]) {
+        EdoKitBuilder.addCordSegment(
+          structureBuilder,
+          Vec3(pxA, yA + 0.74, side),
+          Vec3(pxB, yB + 0.74, side),
+          halfThick: 0.036,
         );
-        addBeam(
-          Vector3(pxA + 0.07, midY + 0.32, side - 0.03),
-          Vector3(pxB - 0.07, midY + 0.40, side + 0.03),
+        EdoKitBuilder.addCordSegment(
+          structureBuilder,
+          Vec3(pxA, yA + 0.38, side),
+          Vec3(pxB, yB + 0.38, side),
+          halfThick: 0.030,
         );
       }
     }
 
-    for (final pierX in [-2.2, 2.2]) {
-      final yUnderside = TerrainConfig.bridgeDeckHeightAt(pierX) - 0.14;
-      for (final pZ in [-1.2, 0.0, 1.2]) {
-        addBeam(
-          Vector3(pierX - 0.10, TerrainConfig.riverBedElevation, pZ - 0.10),
-          Vector3(pierX + 0.10, yUnderside, pZ + 0.10),
+    final footingBuilder = GeometryBuilder();
+    for (final pierX in const [-2.25, 2.25]) {
+      final yUnderside = TerrainConfig.bridgeDeckHeightAt(pierX) - 0.20;
+      EdoKitBuilder.addBox(
+        structureBuilder,
+        Vector3(pierX - 0.11, yUnderside - 0.16, -1.52),
+        Vector3(pierX + 0.11, yUnderside, 1.52),
+      );
+      for (final pZ in const [-1.25, 0.0, 1.25]) {
+        EdoKitBuilder.addRockBoulder(
+          footingBuilder,
+          Vector3(pierX, -1.10, pZ),
+          Vector3(0.36, 0.68, 0.42),
+          yaw: pierX * 0.4 + pZ * 0.3,
+          seed: pierX + pZ,
+        );
+        EdoKitBuilder.addBox(
+          structureBuilder,
+          Vector3(pierX - 0.095, -0.38, pZ - 0.095),
+          Vector3(pierX + 0.095, yUnderside - 0.18, pZ + 0.095),
         );
       }
-      addBeam(
-        Vector3(pierX - 0.08, yUnderside - 0.16, -1.30),
-        Vector3(pierX + 0.08, yUnderside, 1.30),
+    }
+
+    for (final abutmentX in const [-5.28, 5.28]) {
+      final yEnd = TerrainConfig.bridgeDeckHeightAt(abutmentX);
+      EdoKitBuilder.addBox(
+        footingBuilder,
+        Vector3(abutmentX - 0.26, yEnd - 1.35, -1.96),
+        Vector3(abutmentX + 0.26, yEnd - 0.12, 1.96),
       );
     }
 
-    root.add(Node(mesh: Mesh(structureBuilder.build(), timberMat)));
+    root
+      ..add(Node(mesh: Mesh(footingBuilder.build(), stoneMat)))
+      ..add(Node(mesh: Mesh(structureBuilder.build(), timberMat)))
+      ..add(Node(mesh: Mesh(finialBuilder.build(), lacquerMat)));
+    return root;
+  }
 
-    final finialBuilder = GeometryBuilder();
-    for (final px in postXList) {
-      final yDeck = TerrainConfig.bridgeDeckHeightAt(px);
-      for (final side in [-1.86, 1.86]) {
-        final x0 = px - 0.04;
-        final x1 = px + 0.04;
-        final y0 = yDeck + 0.86;
-        final y1 = yDeck + 0.94;
-        final z0 = side - 0.04;
-        final z1 = side + 0.04;
+  Node buildGorgeDressingNode(ShukubaMaterialResolver resolveMaterial) {
+    final root = Node();
+    final rockBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final shrubBuilder = GeometryBuilder();
 
-        final v000 = finialBuilder.addVertex(Vector3(x0, y0, z0));
-        final v100 = finialBuilder.addVertex(Vector3(x1, y0, z0));
-        final v110 = finialBuilder.addVertex(Vector3(x1, y1, z0));
-        final v010 = finialBuilder.addVertex(Vector3(x0, y1, z0));
-        final v001 = finialBuilder.addVertex(Vector3(x0, y0, z1));
-        final v101 = finialBuilder.addVertex(Vector3(x1, y0, z1));
-        final v111 = finialBuilder.addVertex(Vector3(x1, y1, z1));
-        final v011 = finialBuilder.addVertex(Vector3(x0, y1, z1));
+    const shoalSpecs = [
+      (-24.5, -1.45, 0.88, 0.56, 0.72, 0.4),
+      (-16.2, 1.55, 0.96, 0.58, 0.80, 1.3),
+      (-9.4, -1.35, 0.78, 0.50, 0.68, 2.2),
+      (8.2, 1.40, 0.86, 0.54, 0.74, 0.9),
+      (15.6, -1.55, 1.04, 0.60, 0.84, 1.8),
+      (23.8, 1.30, 0.82, 0.52, 0.70, 2.7),
+    ];
 
-        finialBuilder
-          ..addTriangle(v000, v010, v110)
-          ..addTriangle(v000, v110, v100)
-          ..addTriangle(v001, v101, v111)
-          ..addTriangle(v001, v111, v011)
-          ..addTriangle(v000, v001, v011)
-          ..addTriangle(v000, v011, v010)
-          ..addTriangle(v100, v110, v111)
-          ..addTriangle(v100, v111, v101)
-          ..addTriangle(v010, v011, v111)
-          ..addTriangle(v010, v111, v110)
-          ..addTriangle(v000, v100, v101)
-          ..addTriangle(v000, v101, v001);
+    for (final s in shoalSpecs) {
+      final z = s.$1;
+      final x = TerrainConfig.riverCenterX(z) + s.$2;
+      EdoKitBuilder.addRockBoulder(
+        rockBuilder,
+        Vector3(x, -0.68, z),
+        Vector3(s.$3, s.$4, s.$5),
+        yaw: s.$6,
+        seed: z * 0.3,
+      );
+      final sideShift = s.$2 < 0 ? 0.96 : -0.96;
+      EdoKitBuilder.addRockBoulder(
+        rockBuilder,
+        Vector3(x + sideShift * 0.55, -0.78, z + 1.05),
+        Vector3(s.$3 * 0.56, s.$4 * 0.68, s.$5 * 0.58),
+        yaw: s.$6 + 1.4,
+        seed: z * 0.5 + 1.7,
+      );
+    }
+
+    const bankSpecs = [
+      (-21.0, -3.55, 1.25, 0.72, 1.05, 0.5, true),
+      (-13.2, -3.40, 1.08, 0.62, 0.92, 1.7, false),
+      (-6.2, -3.30, 0.92, 0.56, 0.82, 2.4, true),
+      (6.4, -3.45, 1.02, 0.60, 0.88, 0.8, true),
+      (13.8, -3.50, 1.18, 0.68, 0.98, 2.1, false),
+      (22.0, -3.60, 1.28, 0.74, 1.08, 1.2, true),
+      (-19.5, 3.45, 1.16, 0.68, 0.96, 1.1, true),
+      (-11.0, 3.35, 0.96, 0.58, 0.86, 2.6, false),
+      (9.8, 3.40, 1.10, 0.64, 0.94, 0.3, true),
+      (18.4, 3.50, 1.22, 0.70, 1.02, 1.9, false),
+    ];
+
+    for (final b in bankSpecs) {
+      final z = b.$1;
+      final x = TerrainConfig.riverCenterX(z) + b.$2;
+      final groundY = sampleRawTerrain(x, z);
+      EdoKitBuilder.addRockBoulder(
+        rockBuilder,
+        Vector3(x, groundY + 0.14, z),
+        Vector3(b.$3, b.$4, b.$5),
+        yaw: b.$6,
+        seed: z * 0.5 + b.$2,
+      );
+      if (b.$7) {
+        final sx = x + (b.$2 < 0 ? -0.95 : 0.95);
+        final sz = z + 0.72;
+        final sy = sampleRawTerrain(sx, sz);
+        EdoKitBuilder.addFoliageCluster(
+          shrubBuilder,
+          Vector3(sx, sy + 0.28, sz),
+          Vector3(0.76, 0.34, 0.70),
+          color: Vector4(0.84, 0.96, 0.76, 1),
+          phase: b.$6,
+        );
       }
     }
 
-    root.add(Node(mesh: Mesh(finialBuilder.build(), accentMat)));
+    for (final span in const [(-5.4, -3.4), (3.4, 5.4)]) {
+      const count = 6;
+      for (var i = 0; i < count; i++) {
+        final z = span.$1 + (span.$2 - span.$1) * (i / (count - 1));
+        final x = TerrainConfig.riverCenterX(z) - 2.92;
+        final y = sampleRawTerrain(x, z);
+        EdoKitBuilder.addBox(
+          timberBuilder,
+          Vector3(x - 0.045, y - 0.45, z - 0.045),
+          Vector3(x + 0.045, y + 0.46 + (i.isEven ? 0.06 : 0.0), z + 0.045),
+        );
+      }
+    }
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            rockBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            shrubBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
+          ),
+        ),
+      );
     return root;
   }
 
@@ -485,7 +571,7 @@ class TerrainBuilder {
       final nStart = Vector3(-along.x, 0, -along.z);
       final nEnd = Vector3(along.x, 0, along.z);
 
-      final chunks = math.max(1, (segLen / 4.5).ceil());
+      final chunks = math.max(1, (segLen / 4.2).ceil());
       for (var k = 0; k < chunks; k++) {
         final cA = Vec3.lerp(spanA, spanB, k / chunks);
         final cB = Vec3.lerp(spanA, spanB, (k + 1) / chunks);
@@ -579,6 +665,223 @@ class TerrainBuilder {
       final tSecond = math.max(tNeg, tPos).clamp(0.0, 1.0);
       emitWallSpan(pA, Vec3.lerp(pA, pB, tFirst));
       emitWallSpan(Vec3.lerp(pA, pB, tSecond), pB);
+    }
+
+    return root;
+  }
+
+  Node buildWallNode(
+    CourtyardWall wall,
+    ShukubaMaterialResolver resolveMaterial,
+    GroundHeightSampler sampleGroundY,
+  ) {
+    final root = Node();
+    final stoneMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    final plasterMat = resolveMaterial(ShukubaSurfaceRole.kuraPlaster);
+    final timberMat = resolveMaterial(ShukubaSurfaceRole.charredTimber);
+    final roofMat = resolveMaterial(ShukubaSurfaceRole.kawaraTile);
+
+    final postHalf = wall.thicknessMeters * 0.62;
+    final postClear = wall.thicknessMeters * 0.68;
+
+    final postTimber = GeometryBuilder();
+    final postCaps = GeometryBuilder();
+    for (final cp in wall.controlPoints) {
+      final gy = sampleGroundY(cp.x, cp.z);
+      final topY = gy + wall.heightMeters;
+      EdoKitBuilder.addBox(
+        postTimber,
+        Vector3(cp.x - postHalf, gy - 0.55, cp.z - postHalf),
+        Vector3(cp.x + postHalf, topY - 0.14, cp.z + postHalf),
+      );
+      final capHalf = postHalf + 0.09;
+      EdoKitBuilder.addBox(
+        postCaps,
+        Vector3(cp.x - capHalf, topY - 0.12, cp.z - capHalf),
+        Vector3(cp.x + capHalf, topY + 0.05, cp.z + capHalf),
+      );
+    }
+    root
+      ..add(Node(mesh: Mesh(postTimber.build(), timberMat)))
+      ..add(Node(mesh: Mesh(postCaps.build(), roofMat)));
+
+    void emitPrismBay(
+      GeometryBuilder builder,
+      Vec3 a,
+      Vec3 b,
+      Vec3 rightN, {
+      required double halfWidth,
+      required double yBotA,
+      required double yTopA,
+      required double yBotB,
+      required double yTopB,
+      required bool capStart,
+      required bool capEnd,
+    }) {
+      final along = (b - a).normalizedHorizontal();
+      final nLeft = Vector3(-rightN.x, 0, -rightN.z);
+      final nRight = Vector3(rightN.x, 0, rightN.z);
+      final nTop = Vector3(0, 1, 0);
+      final nStart = Vector3(-along.x, 0, -along.z);
+      final nEnd = Vector3(along.x, 0, along.z);
+
+      final lbA = (Vec3(a.x, yBotA, a.z) - rightN * halfWidth).toVector3();
+      final lbB = (Vec3(b.x, yBotB, b.z) - rightN * halfWidth).toVector3();
+      final ltA = (Vec3(a.x, yTopA, a.z) - rightN * halfWidth).toVector3();
+      final ltB = (Vec3(b.x, yTopB, b.z) - rightN * halfWidth).toVector3();
+      final rbA = (Vec3(a.x, yBotA, a.z) + rightN * halfWidth).toVector3();
+      final rbB = (Vec3(b.x, yBotB, b.z) + rightN * halfWidth).toVector3();
+      final rtA = (Vec3(a.x, yTopA, a.z) + rightN * halfWidth).toVector3();
+      final rtB = (Vec3(b.x, yTopB, b.z) + rightN * halfWidth).toVector3();
+
+      EdoKitBuilder.addQuadOutward(builder, lbA, lbB, ltB, ltA, nLeft);
+      EdoKitBuilder.addQuadOutward(builder, rbA, rbB, rtB, rtA, nRight);
+      EdoKitBuilder.addQuadOutward(builder, ltA, ltB, rtB, rtA, nTop);
+      if (capStart) {
+        EdoKitBuilder.addQuadOutward(builder, lbA, ltA, rtA, rbA, nStart);
+      }
+      if (capEnd) {
+        EdoKitBuilder.addQuadOutward(builder, lbB, ltB, rtB, rbB, nEnd);
+      }
+    }
+
+    for (var i = 0; i < wall.controlPoints.length - 1; i++) {
+      final rawA = wall.controlPoints[i];
+      final rawB = wall.controlPoints[i + 1];
+      final delta = rawB - rawA;
+      final rawLen = delta.horizontalLength;
+      if (rawLen <= postClear * 2 + 0.08) {
+        continue;
+      }
+      final along = Vec3(delta.x / rawLen, 0, delta.z / rawLen);
+      final rightN = Vec3(-along.z, 0, along.x);
+      final spanA = rawA + along * postClear;
+      final spanB = rawB - along * postClear;
+      final clearLen = rawLen - postClear * 2;
+      final chunks = math.max(1, (clearLen / 3.2).ceil());
+
+      for (var k = 0; k < chunks; k++) {
+        final cA = Vec3.lerp(spanA, spanB, k / chunks);
+        final cB = Vec3.lerp(spanA, spanB, (k + 1) / chunks);
+        final gyA = sampleGroundY(cA.x, cA.z);
+        final gyB = sampleGroundY(cB.x, cB.z);
+        final capStart = k == 0;
+        final capEnd = k == chunks - 1;
+
+        final bayStone = GeometryBuilder();
+        emitPrismBay(
+          bayStone,
+          cA,
+          cB,
+          rightN,
+          halfWidth: wall.thicknessMeters * 0.56,
+          yBotA: gyA - 0.55,
+          yTopA: gyA + 0.42,
+          yBotB: gyB - 0.55,
+          yTopB: gyB + 0.42,
+          capStart: capStart,
+          capEnd: capEnd,
+        );
+
+        final bayPlaster = GeometryBuilder();
+        emitPrismBay(
+          bayPlaster,
+          cA,
+          cB,
+          rightN,
+          halfWidth: wall.thicknessMeters * 0.44,
+          yBotA: gyA + 0.44,
+          yTopA: gyA + wall.heightMeters - 0.28,
+          yBotB: gyB + 0.44,
+          yTopB: gyB + wall.heightMeters - 0.28,
+          capStart: capStart,
+          capEnd: capEnd,
+        );
+
+        final bayTimber = GeometryBuilder();
+        emitPrismBay(
+          bayTimber,
+          cA,
+          cB,
+          rightN,
+          halfWidth: wall.thicknessMeters * 0.50,
+          yBotA: gyA + wall.heightMeters - 0.26,
+          yTopA: gyA + wall.heightMeters - 0.18,
+          yBotB: gyB + wall.heightMeters - 0.26,
+          yTopB: gyB + wall.heightMeters - 0.18,
+          capStart: capStart,
+          capEnd: capEnd,
+        );
+
+        final bayRoof = GeometryBuilder();
+        final eaveHalf = wall.thicknessMeters * 0.96;
+        final eaveYA = gyA + wall.heightMeters - 0.16;
+        final eaveYB = gyB + wall.heightMeters - 0.16;
+        final ridgeYA = gyA + wall.heightMeters + 0.08;
+        final ridgeYB = gyB + wall.heightMeters + 0.08;
+
+        final lEaveA = (Vec3(cA.x, eaveYA, cA.z) - rightN * eaveHalf)
+            .toVector3();
+        final lEaveB = (Vec3(cB.x, eaveYB, cB.z) - rightN * eaveHalf)
+            .toVector3();
+        final rEaveA = (Vec3(cA.x, eaveYA, cA.z) + rightN * eaveHalf)
+            .toVector3();
+        final rEaveB = (Vec3(cB.x, eaveYB, cB.z) + rightN * eaveHalf)
+            .toVector3();
+        final ridgeA = Vector3(cA.x, ridgeYA, cA.z);
+        final ridgeB = Vector3(cB.x, ridgeYB, cB.z);
+
+        EdoKitBuilder.addQuadOutward(
+          bayRoof,
+          lEaveA,
+          lEaveB,
+          ridgeB,
+          ridgeA,
+          Vector3(-rightN.x * 0.5, 1, -rightN.z * 0.5),
+          uvScale: 0.75,
+        );
+        EdoKitBuilder.addQuadOutward(
+          bayRoof,
+          ridgeA,
+          ridgeB,
+          rEaveB,
+          rEaveA,
+          Vector3(rightN.x * 0.5, 1, rightN.z * 0.5),
+          uvScale: 0.75,
+        );
+        EdoKitBuilder.addQuadOutward(
+          bayRoof,
+          lEaveA,
+          lEaveB,
+          rEaveB,
+          rEaveA,
+          Vector3(0, -1, 0),
+        );
+        if (capStart) {
+          EdoKitBuilder.addTriangleOutward(
+            bayRoof,
+            lEaveA,
+            rEaveA,
+            ridgeA,
+            Vector3(-along.x, 0, -along.z),
+          );
+        }
+        if (capEnd) {
+          EdoKitBuilder.addTriangleOutward(
+            bayRoof,
+            lEaveB,
+            rEaveB,
+            ridgeB,
+            Vector3(along.x, 0, along.z),
+          );
+        }
+
+        root
+          ..add(Node(mesh: Mesh(bayStone.build(), stoneMat)))
+          ..add(Node(mesh: Mesh(bayPlaster.build(), plasterMat)))
+          ..add(Node(mesh: Mesh(bayTimber.build(), timberMat)))
+          ..add(Node(mesh: Mesh(bayRoof.build(), roofMat)));
+      }
     }
 
     return root;

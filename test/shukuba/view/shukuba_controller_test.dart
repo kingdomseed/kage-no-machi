@@ -1,9 +1,9 @@
-import 'dart:ui' show Offset, Size;
-
+import 'package:flutter/material.dart' hide Material, Matrix4;
 import 'package:flutter_scene/scene.dart' show Material, Scene;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
+import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/tactical_camera_rig.dart';
 
 class _FakeLookDriver implements ShukubaLookDriver {
@@ -36,6 +36,7 @@ class _FakeLookDriver implements ShukubaLookDriver {
 
 class _FakeWorldDriver implements ShukubaWorldDriver {
   ShukubaGraph _graph = ShukubaGraph.empty;
+  BuildPreview lastPreview = const NoBuildPreview();
 
   @override
   ShukubaGraph get graph => _graph;
@@ -66,6 +67,11 @@ class _FakeWorldDriver implements ShukubaWorldDriver {
   @override
   void applyGraph(ShukubaGraph nextGraph) {
     _graph = nextGraph;
+  }
+
+  @override
+  void syncPreview(BuildPreview preview) {
+    lastPreview = preview;
   }
 
   @override
@@ -103,9 +109,9 @@ class _FakeAudioDriver implements ShukubaAudioDriver {
 }
 
 void main() {
-  group('ShukubaController and TacticalCameraRig', () {
+  group('ShukubaController, HUD, and TacticalCameraRig', () {
     test(
-      'stamping lane and facing machiya derives spans and switches Yo/In-sen',
+      'stamping lane, hover ghost preview, drag wall, demolish, and undo work',
       () async {
         final look = _FakeLookDriver();
         final world = _FakeWorldDriver();
@@ -117,13 +123,19 @@ void main() {
         );
         await controller.initialize();
 
+        // Drag-paint a cobble lane
         controller
           ..selectTool(const DrawLaneTool())
-          ..handlePrimaryPlotTap(const Vec3(-12, 0, 0))
-          ..handlePrimaryPlotTap(const Vec3(12, 0, 0));
-        expect(controller.commitActiveStroke(), isTrue);
+          ..beginStrokeAt(const Vec3(-12, 0, 0))
+          ..extendStrokeTo(const Vec3(-6, 0, 0))
+          ..extendStrokeTo(const Vec3(6, 0, 0))
+          ..extendStrokeTo(const Vec3(12, 0, 0));
+        expect(world.lastPreview, isA<StrokeRibbonPreview>());
+        expect(controller.finishDragStroke(), isTrue);
         expect(controller.graph.roads, hasLength(1));
+        expect(controller.canUndo, isTrue);
 
+        // Stamp townhouse on south side (Yo scale)
         controller
           ..setTimeOfDay(0.20)
           ..selectTool(const StampStructureTool(kind: StructureKind.machiya))
@@ -131,27 +143,90 @@ void main() {
         expect(audio.notes.last.scale, PentatonicScale.yo);
         expect(audio.notes.last.instrument, EdoInstrument.koto);
 
+        // Hover teahouse on north side and verify live ghost + lantern spans!
+        controller
+          ..selectTool(const StampStructureTool(kind: StructureKind.chaya))
+          ..updateHoverPoint(const Vec3(0, 0, 2.5));
+        expect(world.lastPreview, isA<StampGhostPreview>());
+        final ghost = world.lastPreview as StampGhostPreview;
+        expect(ghost.kind, StructureKind.chaya);
+        expect(ghost.lanternSpans, isNotEmpty);
+
+        // Stamp teahouse at night (In-sen scale)
         controller
           ..setTimeOfDay(0.85)
           ..handlePrimaryPlotTap(const Vec3(0, 0, 2.5));
         expect(audio.notes.last.scale, PentatonicScale.inSen);
         expect(controller.graph.structures, hasLength(2));
+        expect(controller.graph.lanternSpans, isNotEmpty);
 
-        controller.selectTool(
-          const StampStructureTool(kind: StructureKind.yaguraTower),
-        );
-        expect(
-          controller.effectiveVision,
-          MagistrateVisionState.watchtowerPreview,
-        );
+        // Drag-build a tiled courtyard wall
+        controller
+          ..selectTool(const BuildWallTool())
+          ..beginStrokeAt(const Vec3(6, 0, -8))
+          ..extendStrokeTo(const Vec3(12, 0, -8));
+        expect(controller.finishDragStroke(), isTrue);
+        expect(controller.graph.walls, hasLength(1));
 
-        controller.toggleMagistrateEye();
-        expect(controller.effectiveVision, MagistrateVisionState.fullOverlay);
-        expect(look.lastVision, MagistrateVisionState.fullOverlay);
+        // Demolish the courtyard wall and undo back
+        controller
+          ..selectTool(const DemolishTool())
+          ..updateHoverPoint(const Vec3(9, 0, -8));
+        expect(world.lastPreview, isA<DemolishHoverPreview>());
+        controller.handlePrimaryPlotTap(const Vec3(9, 0, -8));
+        expect(controller.graph.walls, isEmpty);
+
+        expect(controller.undo(), isTrue);
+        expect(controller.graph.walls, hasLength(1));
+
+        // Preset clears active hover preview so verification captures are clean
+        controller.applyCameraPresetState(CameraPreset.riverCrossing);
+        expect(world.lastPreview, isA<NoBuildPreview>());
+        expect(look.lastVision, MagistrateVisionState.hidden);
 
         controller.dispose();
       },
     );
+
+    testWidgets('ShukubaHud shows Edo city-builder tools with zero watch UI', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = ShukubaController(
+        look: _FakeLookDriver(),
+        world: _FakeWorldDriver(),
+        audio: _FakeAudioDriver(),
+      );
+      await controller.initialize();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ShukubaHud(controller: controller, onSelectPreset: (_) {}),
+          ),
+        ),
+      );
+
+      expect(find.text('Townhouse'), findsOneWidget);
+      expect(find.text('Teahouse'), findsOneWidget);
+      expect(find.text('Storehouse'), findsOneWidget);
+      expect(find.text('Market Stall'), findsOneWidget);
+      expect(find.text('Lantern Gate'), findsOneWidget);
+      expect(find.text('Cobble Lane'), findsOneWidget);
+      expect(find.text('Stone Terrace'), findsOneWidget);
+      expect(find.text('Courtyard Wall'), findsOneWidget);
+      expect(find.text('Demolish'), findsOneWidget);
+      expect(find.text('Undo [Z]'), findsOneWidget);
+
+      expect(find.textContaining('Magistrate'), findsNothing);
+      expect(find.text('Yagura'), findsNothing);
+      expect(find.text('Watch'), findsNothing);
+    });
 
     test('TacticalCameraRig raycasts viewport center onto target ground', () {
       final rig = TacticalCameraRig();

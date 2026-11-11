@@ -1,0 +1,33 @@
+material {
+  name: "GhostPreview",
+  shading_model: unlit,
+  blending: alpha,
+  culling: none,
+  depth_write: false,
+  depth_layer: 2,
+  parameters: [
+    { type: vec4, name: ghost_color, hint: source_color, default: [1.0, 0.72, 0.32, 0.42] },
+    { type: float, name: time_sec, default: 0.0 }
+  ]
+}
+
+fragment {
+  void Surface(inout MaterialInputs material) {
+    vec3 N = normalize(GetWorldNormal());
+    vec3 V = GetViewDirection();
+    vec4 vColor = GetVertexColor();
+    float t = material_params.time_sec;
+    float pulse = 0.88 + 0.12 * sin(t * 4.2);
+    float fresnel = pow(clamp(1.0 - abs(dot(N, V)), 0.0, 1.0), 1.6);
+
+    vec3 baseRgb = material_params.ghost_color.rgb * vColor.rgb;
+    float alpha = clamp(
+      (material_params.ghost_color.a * (0.58 + 0.62 * fresnel)) * vColor.a * pulse,
+      0.0,
+      0.92
+    );
+
+    material.base_color = vec4(baseRgb * (1.15 + 0.55 * fresnel), alpha);
+    PrepareMaterial(material);
+  }
+}

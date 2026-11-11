@@ -8,7 +8,8 @@ material {
     { type: vec4, name: warm_tint, hint: source_color, default: [0.95, 0.82, 0.65, 1.0] },
     { type: float, name: roughness_val, default: 0.85 },
     { type: float, name: grain_scale, default: 8.0 },
-    { type: float, name: weathering, default: 0.25 }
+    { type: float, name: weathering, default: 0.25 },
+    { type: float, name: style_id, default: 0.0 }
   ]
 }
 
@@ -16,40 +17,197 @@ fragment {
   #include <noise.glsl>
 
   void Surface(inout MaterialInputs material) {
-    vec3 worldPos = GetWorldPosition();
+    vec3 P = GetWorldPosition();
+    vec3 N = normalize(GetWorldNormal());
+    vec2 uv = GetUV0();
+    vec4 vColor = GetVertexColor();
+
+    vec3 upRef = abs(N.y) < 0.92 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(upRef, N));
+    vec3 B = normalize(cross(N, T));
+
     float pigmentFbm = NoiseFbm3(
-      worldPos * (material_params.grain_scale * 0.25),
+      P * (material_params.grain_scale * 0.24),
       1337,
       3,
       2.0,
       0.5
     );
     float pigment = clamp(0.5 + 0.5 * pigmentFbm, 0.0, 1.0);
+    float microBrush = NoiseSimplex3(P * 9.5, 811) * 0.5 + 0.5;
 
-    float dripNoise = NoiseSimplex2(
-      vec2(worldPos.x * 1.5 + worldPos.z * 1.5, worldPos.y * 3.0),
-      42
-    );
-    float drip = clamp(0.5 + 0.5 * dripNoise, 0.0, 1.0) * material_params.weathering;
-
-    vec3 mixedTint = mix(
+    vec3 albedo = mix(
       material_params.base_tint.rgb,
       material_params.warm_tint.rgb,
-      pigment * 0.35
+      clamp(pigment * 0.52 + (microBrush - 0.5) * 0.16, 0.0, 1.0)
     );
-    vec3 weathered = mix(mixedTint, mixedTint * 0.74, drip * 0.4);
-
-    vec4 vColor = GetVertexColor();
-    material.base_color = vec4(
-      weathered * vColor.rgb,
-      material_params.base_tint.a * vColor.a
-    );
-    material.metallic = 0.0;
-    material.roughness = clamp(
-      material_params.roughness_val + (pigment - 0.5) * 0.1,
-      0.05,
+    float rough = clamp(
+      material_params.roughness_val + (pigment - 0.5) * 0.10,
+      0.08,
       1.0
     );
+    float spec = 0.42;
+    vec3 perturbedN = N;
+    float style = material_params.style_id;
+
+    if (style > 0.5 && style < 1.5) {
+      // style 1.0: Corrugated kawara clay roof tiles with eave-aligned ribs and course steps
+      if (abs(N.y) < 0.95) {
+        float uEave = dot(P, T);
+        float vSlope = dot(P, B);
+        float ribPhase = uEave * (6.2831853 / 0.26);
+        float ribWave = cos(ribPhase);
+        float ribSlope = -sin(ribPhase);
+
+        float courseFract = fract(vSlope / 0.34);
+        float courseLip = smoothstep(0.0, 0.11, courseFract) * (1.0 - smoothstep(0.88, 1.0, courseFract));
+        float overlapShadow = 1.0 - 0.34 * (1.0 - smoothstep(0.0, 0.14, courseFract));
+
+        float tileVar = NoiseValue2(
+          vec2(floor(uEave / 0.26), floor(vSlope / 0.34)),
+          313
+        ) * 0.5 + 0.5;
+        float mossMask = smoothstep(0.62, 0.88, pigment * 0.65 + tileVar * 0.35) * material_params.weathering;
+
+        float crownLight = 0.76 + 0.34 * (ribWave * 0.5 + 0.5);
+        albedo *= crownLight * overlapShadow * (0.90 + 0.20 * tileVar);
+        albedo = mix(albedo, vec3(0.08, 0.13, 0.06), mossMask * 0.55);
+
+        float stepKick = (1.0 - smoothstep(0.0, 0.10, courseFract)) * 0.32;
+        perturbedN = normalize(N + T * (ribSlope * 0.34) + B * (stepKick * (courseLip * 0.2 + 0.8)));
+        rough = mix(0.36, 0.78, (1.0 - (ribWave * 0.5 + 0.5)) * 0.7 + mossMask * 0.3);
+        spec = 0.64;
+      }
+    } else if (style >= 1.5 && style < 2.5) {
+      // style 2.0: Shitami-ita stained cedar boards and weathered bridge timber
+      float boardCoord = abs(N.y) < 0.55 ? dot(P, T) / 0.21 : dot(P, T) / 0.24;
+      float grainCoord = abs(N.y) < 0.55 ? P.y * 2.2 : dot(P, B) * 1.8;
+      float boardFract = fract(boardCoord);
+      float boardId = floor(boardCoord);
+      float seam = 1.0 - smoothstep(0.0, 0.09, min(boardFract, 1.0 - boardFract));
+      float boardTone = NoiseValue2(vec2(boardId, floor(grainCoord * 0.2)), 401) * 0.5 + 0.5;
+      float woodGrain = NoiseSimplex2(vec2(boardCoord * 3.5, grainCoord * 4.8), 419) * 0.5 + 0.5;
+
+      albedo *= (0.82 + 0.34 * boardTone) * (0.88 + 0.22 * woodGrain) * (1.0 - 0.42 * seam);
+      float bevel = (boardFract < 0.09 ? -1.0 : (boardFract > 0.91 ? 1.0 : 0.0)) * seam;
+      perturbedN = normalize(N + T * (bevel * 0.26 + (woodGrain - 0.5) * 0.08));
+      rough = clamp(rough + seam * 0.12 - woodGrain * 0.06, 0.35, 0.96);
+    } else if (style >= 2.5 && style < 3.5) {
+      // style 3.0: Cut ishigaki masonry (vColor.a > 0.75) vs natural sculpted boulders (vColor.a <= 0.75)
+      if (vColor.a > 0.75) {
+        float uStone = dot(P, T);
+        float vStone = abs(N.y) < 0.82 ? P.y : dot(P, B);
+        float row = floor(vStone / 0.44);
+        float wobble = NoiseSimplex2(vec2(uStone * 0.9, vStone * 0.9), 509) * 0.14;
+        float colCoord = (uStone + wobble) / 0.66 + mod(row, 2.0) * 0.47;
+        float rowCoord = (vStone + wobble * 0.6) / 0.44;
+        float fx = fract(colCoord);
+        float fy = fract(rowCoord);
+        float col = floor(colCoord);
+
+        float edgeX = min(fx, 1.0 - fx);
+        float edgeY = min(fy, 1.0 - fy);
+        float mortar = 1.0 - smoothstep(0.02, 0.11, min(edgeX, edgeY * 0.85));
+        float stoneHash = NoiseValue2(vec2(col * 1.3, row * 1.7), 521) * 0.5 + 0.5;
+        float rockFacet = NoiseSimplex3(P * 2.6, 547);
+
+        vec3 warmGranite = albedo * vec3(1.22, 1.08, 0.90);
+        vec3 coolSlate = albedo * vec3(0.80, 0.92, 1.10);
+        albedo = mix(coolSlate, warmGranite, stoneHash);
+        albedo *= (0.86 + 0.26 * (rockFacet * 0.5 + 0.5)) * (1.0 - 0.56 * mortar);
+
+        float dampMoss = smoothstep(0.45, -0.35, P.y) * 0.55 +
+            smoothstep(0.58, 0.86, pigment) * material_params.weathering * 0.65;
+        albedo = mix(albedo, vec3(0.065, 0.125, 0.048), clamp(dampMoss * (0.45 + 0.55 * mortar), 0.0, 0.72));
+
+        float bevelX = (fx < 0.12 ? -1.0 : (fx > 0.88 ? 1.0 : 0.0)) * (1.0 - smoothstep(0.0, 0.12, edgeX));
+        float bevelY = (fy < 0.14 ? -1.0 : (fy > 0.86 ? 1.0 : 0.0)) * (1.0 - smoothstep(0.0, 0.14, edgeY));
+        perturbedN = normalize(N + T * (bevelX * 0.36 + rockFacet * 0.10) + B * (bevelY * 0.34));
+        rough = mix(0.68, 0.95, mortar * 0.7 + dampMoss * 0.3);
+      } else {
+        float strata = NoiseFbm3(vec3(P.x * 1.35, P.y * 2.4, P.z * 1.35), 563, 3, 2.0, 0.5);
+        float fissure = abs(NoiseSimplex3(P * 2.2, 577));
+        float crackMask = 1.0 - smoothstep(0.02, 0.13, fissure);
+        float crownSun = clamp(N.y * 0.68 + 0.32, 0.0, 1.0);
+        vec3 slateBelly = albedo * vec3(0.76, 0.86, 0.98);
+        vec3 ochreCrown = albedo * vec3(1.52, 1.26, 0.92);
+        albedo = mix(slateBelly, ochreCrown, crownSun * (0.55 + 0.45 * (strata * 0.5 + 0.5)));
+        albedo *= (1.0 - 0.42 * crackMask);
+        float waterlineMoss = smoothstep(-0.12, -0.58, P.y) * 0.68 +
+            smoothstep(0.64, 0.88, pigment) * crownSun * 0.35;
+        albedo = mix(albedo, vec3(0.072, 0.145, 0.052), clamp(waterlineMoss, 0.0, 0.68));
+        perturbedN = normalize(N + T * (strata * 0.22) + B * ((fissure - 0.4) * 0.18));
+        rough = mix(0.78, 0.38, smoothstep(-0.25, -0.58, P.y));
+      }
+    } else if (style >= 3.5 && style < 4.5) {
+      // style 4.0: Hand-troweled Edo earthen and shikkui lime plaster with rain splash base
+      float trowel = NoiseSimplex3(vec3(P.x * 2.8, P.y * 4.6, P.z * 2.8), 601);
+      float splashMask = clamp(1.0 - uv.y * 2.8, 0.0, 1.0) * material_params.weathering;
+      albedo *= 0.94 + 0.10 * trowel;
+      albedo = mix(albedo, albedo * vec3(0.56, 0.50, 0.44), splashMask * 0.65);
+      perturbedN = normalize(N + T * (trowel * 0.06));
+    } else if (style >= 4.5 && style < 5.8) {
+      // style 5.0 (packedEarth) and 5.5 (laneOverlay stone-curbed cobble & gravel road)
+      float isLane = step(5.25, style);
+      float macroZone = NoiseFbm2(P.xz * 0.18, 701, 3, 2.0, 0.5) * 0.5 + 0.5;
+      float pebbleField = NoiseSimplex2(P.xz * 5.4, 719) * 0.5 + 0.5;
+      float fineGrit = NoiseSimplex2(P.xz * 14.0, 733);
+
+      if (isLane > 0.5) {
+        float edgeWear = abs(uv.x - 0.5) * 2.0;
+        float curbMask = smoothstep(0.77, 0.83, edgeWear);
+        float curbJointCoord = uv.y * 2.6;
+        float curbFract = fract(curbJointCoord);
+        float curbId = floor(curbJointCoord) + step(0.5, uv.x) * 37.0;
+        float curbJoint = 1.0 - smoothstep(0.0, 0.11, min(curbFract, 1.0 - curbFract));
+        float curbTone = NoiseValue2(vec2(curbId, 1.7), 751) * 0.5 + 0.5;
+        vec3 curbStone = mix(vec3(0.15, 0.155, 0.165), vec3(0.26, 0.225, 0.175), curbTone) *
+            (1.0 - 0.52 * curbJoint);
+
+        float steppingStone = smoothstep(0.62, 0.78, NoiseSimplex2(P.xz * 2.3, 743) * 0.5 + 0.5) *
+            (1.0 - smoothstep(0.52, 0.78, edgeWear));
+        float rutShadow = 1.0 - 0.18 * exp(-pow((edgeWear - 0.40) * 4.2, 2.0)) -
+            0.24 * exp(-pow((edgeWear - 0.76) * 14.0, 2.0));
+        vec3 cobbleTint = vec3(0.24, 0.225, 0.20) * (0.85 + 0.30 * pebbleField);
+        albedo = mix(albedo * rutShadow, cobbleTint, steppingStone * 0.68);
+        albedo = mix(albedo, curbStone, curbMask);
+        float curbKick = (uv.x < 0.5 ? 1.0 : -1.0) * smoothstep(0.75, 0.84, edgeWear) * (1.0 - smoothstep(0.84, 0.94, edgeWear));
+        perturbedN = normalize(N + T * (curbKick * 0.34 + fineGrit * 0.10) + B * ((pebbleField - 0.5) * 0.13));
+        rough = mix(mix(0.92, 0.74, steppingStone), 0.76, curbMask);
+      } else {
+        float tuftPatch = NoiseFbm2(P.xz * 0.62, 761, 3, 2.0, 0.5) * 0.5 + 0.5;
+        float grassClump = NoiseSimplex2(vec2(P.x * 3.8 + P.z * 1.2, P.z * 3.8 - P.x * 1.2), 769) * 0.5 + 0.5;
+        float strawMask = smoothstep(0.54, 0.82, macroZone * 0.55 + tuftPatch * 0.45);
+        float deepMossMask = smoothstep(0.56, 0.84, (1.0 - macroZone) * 0.5 + grassClump * 0.5);
+        float wetShore = smoothstep(-0.02, -0.56, P.y);
+        albedo = mix(albedo, albedo * vec3(1.42, 1.14, 0.72), strawMask * 0.52);
+        albedo = mix(albedo, albedo * vec3(0.68, 0.86, 0.58), deepMossMask * 0.42);
+        albedo *= 0.88 + 0.24 * grassClump;
+        albedo = mix(albedo, vec3(0.068, 0.072, 0.062), wetShore * 0.72);
+        perturbedN = normalize(N + vec3((grassClump - 0.5) * 0.16 + fineGrit * 0.06, 0.0, (tuftPatch - 0.5) * 0.14));
+        rough = mix(rough, 0.34, wetShore * 0.75);
+      }
+    } else if (style >= 5.8) {
+      // style 6.0 (dyed cloth awning / noren) & 6.5 (vermilion lacquer)
+      if (style < 6.25) {
+        float stripe = sin(uv.x * 37.699) * 0.5 + 0.5;
+        float weave = NoiseSimplex2(uv * 48.0, 809) * 0.08;
+        albedo *= (0.86 + 0.24 * smoothstep(0.35, 0.65, stripe) + weave);
+      } else {
+        rough = 0.42;
+        spec = 0.68;
+      }
+    }
+
+    float dripNoise = NoiseSimplex2(vec2(P.x * 1.4 + P.z * 1.4, P.y * 2.6), 42);
+    float drip = clamp(0.5 + 0.5 * dripNoise, 0.0, 1.0) * material_params.weathering;
+    vec3 weathered = mix(albedo, albedo * 0.76, drip * 0.32);
+
+    material.base_color = vec4(weathered * vColor.rgb, 1.0);
+    material.normal = perturbedN;
+    material.metallic = 0.0;
+    material.roughness = rough;
+    material.specular = spec;
 
     PrepareMaterial(material);
   }

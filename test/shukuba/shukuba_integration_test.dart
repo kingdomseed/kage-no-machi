@@ -8,10 +8,10 @@ import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/world/world.dart';
 
 void main() {
-  group('Slice 1 end-to-end controller + world + audio integration', () {
-    test('placing lane, terrace, machiya, stall, yagura, and trees snaps to '
-        'roads/terrain, strings <= 6.5m catenary lanterns, and emits finite '
-        'PCM WAV notes on Yo (< 0.55) and In-sen (>= 0.55)', () {
+  group('Slice 2 end-to-end city-builder controller + world + audio', () {
+    test('placing lane, terrace, courtyard wall, machiya, chaya, kura, torii, '
+        'demolishing, and undoing snaps to roads/terrain, strings <= 6.5m '
+        'catenary lanterns, and emits finite PCM WAV notes', () {
       final look = EdoLookDriver(allowHeadlessFallback: true);
       final world = EdoWorldDriver()..initSimulation();
       final audio = EdoAudioDriver();
@@ -22,24 +22,31 @@ void main() {
       );
 
       final initialSpans = controller.graph.lanternSpans.length;
-      expect(initialSpans, greaterThanOrEqualTo(6));
+      expect(initialSpans, greaterThanOrEqualTo(5));
 
       controller
         ..setTimeOfDay(0.20)
         ..selectTool(const DrawLaneTool())
-        ..handlePrimaryPlotTap(const Vec3(-26, 0, -14))
-        ..handlePrimaryPlotTap(const Vec3(-14, 0, -14));
-      expect(controller.commitActiveStroke(), isTrue);
+        ..beginStrokeAt(const Vec3(-28, 0, -18))
+        ..extendStrokeTo(const Vec3(-14, 0, -18));
+      expect(controller.finishDragStroke(), isTrue);
 
       controller
         ..selectTool(const BuildTerraceTool())
-        ..handlePrimaryPlotTap(const Vec3(-26, 0, -21))
-        ..handlePrimaryPlotTap(const Vec3(-14, 0, -21));
-      expect(controller.commitActiveStroke(), isTrue);
+        ..beginStrokeAt(const Vec3(-28, 0, -25))
+        ..extendStrokeTo(const Vec3(-14, 0, -25));
+      expect(controller.finishDragStroke(), isTrue);
+
+      controller
+        ..selectTool(const BuildWallTool())
+        ..beginStrokeAt(const Vec3(-28, 0, -28))
+        ..extendStrokeTo(const Vec3(-18, 0, -28));
+      expect(controller.finishDragStroke(), isTrue);
+      final wallCountAfterBuild = controller.graph.walls.length;
 
       controller
         ..selectTool(const StampStructureTool(kind: StructureKind.machiya))
-        ..handlePrimaryPlotTap(const Vec3(-20, 0, -16));
+        ..handlePrimaryPlotTap(const Vec3(-20, 0, -20));
       final duskNote = audio.recentNotes.last;
       expect(duskNote.scale, PentatonicScale.yo);
       expect(duskNote.instrument, EdoInstrument.koto);
@@ -47,31 +54,44 @@ void main() {
       controller
         ..setTimeOfDay(0.55)
         ..selectTool(const StampStructureTool(kind: StructureKind.marketStall))
-        ..handlePrimaryPlotTap(const Vec3(-20, 0, -11.5));
+        ..handlePrimaryPlotTap(const Vec3(-20, 0, -15.5));
       final thresholdNote = audio.recentNotes.last;
       expect(thresholdNote.scale, PentatonicScale.inSen);
       expect(thresholdNote.instrument, EdoInstrument.hyoshigi);
 
       controller
         ..setTimeOfDay(0.90)
-        ..selectTool(const StampStructureTool(kind: StructureKind.machiya))
-        ..handlePrimaryPlotTap(const Vec3(-16, 0, -11.5));
+        ..selectTool(const StampStructureTool(kind: StructureKind.chaya))
+        ..handlePrimaryPlotTap(const Vec3(-16, 0, -15));
       expect(audio.recentNotes.last.scale, PentatonicScale.inSen);
 
       controller
-        ..selectTool(const StampStructureTool(kind: StructureKind.yaguraTower))
-        ..handlePrimaryPlotTap(const Vec3(-25, 0, -17));
+        ..selectTool(const StampStructureTool(kind: StructureKind.kura))
+        ..handlePrimaryPlotTap(const Vec3(-26, 0, -22));
       expect(audio.recentNotes.last.instrument, EdoInstrument.bonsho);
 
       controller
+        ..selectTool(const StampStructureTool(kind: StructureKind.toriiGate))
+        ..handlePrimaryPlotTap(const Vec3(-24, 0, -18.2));
+      expect(audio.recentNotes.last.instrument, EdoInstrument.koto);
+
+      controller
         ..selectTool(const StampStructureTool(kind: StructureKind.bambooGrove))
-        ..handlePrimaryPlotTap(const Vec3(-28, 0, -20));
+        ..handlePrimaryPlotTap(const Vec3(-30, 0, -24));
       expect(audio.recentNotes.last.instrument, EdoInstrument.shakuhachi);
 
       expect(controller.graph.lanternSpans.length, greaterThan(initialSpans));
       for (final span in controller.graph.lanternSpans) {
         expect(span.lengthMeters, lessThanOrEqualTo(LanternSpan.maxSpanMeters));
       }
+
+      // Demolish wall then undo
+      controller
+        ..selectTool(const DemolishTool())
+        ..handlePrimaryPlotTap(const Vec3(-23, 0, -28));
+      expect(controller.graph.walls.length, wallCountAfterBuild - 1);
+      expect(controller.undo(), isTrue);
+      expect(controller.graph.walls.length, wallCountAfterBuild);
 
       for (final event in audio.recentNotes) {
         expect(event.frequencyHz.isFinite, isTrue);
