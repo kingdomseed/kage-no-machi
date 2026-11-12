@@ -1,12 +1,15 @@
 import 'dart:io';
+import 'dart:math' as math;
 
-import 'package:flutter_scene/scene.dart' show Scene;
+import 'package:flutter_scene/scene.dart' show Node, Scene;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/verify/frame_harness.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/world/atmosphere_builder.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart';
+import 'package:kage_no_machi/shukuba/world/edo_world_driver.dart';
+import 'package:kage_no_machi/shukuba/world/flora_scatter_builder.dart';
 import 'package:kage_no_machi/shukuba/world/starter_ward.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
 
@@ -277,6 +280,344 @@ void main() {
       skip: !impellerAvailable
           ? 'Flutter GPU Impeller backend not enabled in headless sandbox'
           : false,
+    );
+  });
+
+  group('Slice 8: Chunked Flora, Gorge Clearance, Roji & Feathering', () {
+    late TerrainBuilder terrain;
+    late ShukubaGraph graph;
+
+    double wardGroundY(double x, double z) => terrain.sampleGroundHeight(
+      x,
+      z,
+      terraces: graph.terraces,
+      roads: graph.roads,
+    );
+
+    setUpAll(() {
+      terrain = TerrainBuilder();
+      graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
+    });
+
+    test(
+      'Every 4x4 flora chunk stays <= 48 m in XZ (zero 172 m near-plane clamp)',
+      () {
+        const flora = FloraScatterBuilder();
+        final summaries = flora.computeChunkSummaries(
+          graph: graph,
+          sampleGroundY: wardGroundY,
+        );
+
+        expect(summaries.length, equals(TerrainConfig.chunkCount));
+        var totalInstances = 0;
+        for (final summary in summaries.values) {
+          expect(
+            summary.nodeName,
+            equals('flora_tile_${summary.row}_${summary.col}'),
+          );
+          expect(
+            summary.spanX,
+            lessThanOrEqualTo(48.0),
+            reason: '${summary.nodeName} exceeded 48 m X span',
+          );
+          expect(
+            summary.spanZ,
+            lessThanOrEqualTo(48.0),
+            reason: '${summary.nodeName} exceeded 48 m Z span',
+          );
+          expect(summary.spanX, lessThanOrEqualTo(50.0));
+          expect(summary.spanZ, lessThanOrEqualTo(50.0));
+          totalInstances += summary.instanceCount;
+        }
+        expect(totalInstances, greaterThan(18000));
+
+        final singleChunk = flora.computeChunkSummaries(
+          graph: graph,
+          sampleGroundY: wardGroundY,
+          onlyChunks: const {0},
+        );
+        expect(singleChunk.keys, equals(const {0}));
+        expect(
+          singleChunk[0]!.instanceCount,
+          equals(summaries[0]!.instanceCount),
+        );
+      },
+    );
+
+    test(
+      'Built flora chunk scene nodes eliminate flora_meadow_sward and bound '
+      'every child <= 50 m',
+      () {
+        final root = const FloraScatterBuilder().buildFloraScatterNode(
+          graph: graph,
+          resolveMaterial: defaultShukubaMaterial,
+          sampleGroundY: wardGroundY,
+        );
+
+        expect(root.name, equals('flora_scatter_root'));
+        expect(root.children.length, equals(TerrainConfig.chunkCount));
+
+        void verifyNoLegacyNode(Node node) {
+          expect(node.name, isNot(equals('flora_meadow_sward')));
+          node.children.forEach(verifyNoLegacyNode);
+        }
+
+        verifyNoLegacyNode(root);
+        for (final tile in root.children) {
+          expect(tile.name, startsWith('flora_tile_'));
+          final bounds = tile.combinedWorldBounds;
+          expect(bounds, isNotNull);
+          expect(bounds!.max.x - bounds.min.x, lessThanOrEqualTo(50.0));
+          expect(bounds.max.z - bounds.min.z, lessThanOrEqualTo(50.0));
+        }
+      },
+      skip: !impellerAvailable
+          ? 'Flutter GPU Impeller backend not enabled in headless sandbox'
+          : false,
+    );
+
+    test(
+      'EdoWorldDriver marks only affected flora chunks dirty on local edit',
+      () {
+        final driver = EdoWorldDriver()
+          ..initSimulation()
+          ..clearDirtyFlora();
+        expect(driver.dirtyFloraChunkIndices, isEmpty);
+
+        final nextGraph = driver.graph.putStructure(
+          PlacedStructure(
+            id: EntityId.validated('probe_nw_flora_dirty'),
+            kind: StructureKind.minka,
+            position: const Vec3(-70, 0, -70),
+          ),
+        );
+        driver.applyGraph(nextGraph);
+        expect(driver.dirtyFloraChunkIndices, equals(const {0}));
+      },
+    );
+
+    test('Zero gorge boulders or starter_ward rockOutcrops intrude into any '
+        'RoadSpline corridor', () {
+      final unfilteredRocks = terrain.computeGorgeRockFootprints();
+      final filteredRocks = terrain.computeGorgeRockFootprints(
+        roads: graph.roads,
+      );
+      expect(filteredRocks, isNotEmpty);
+      expect(filteredRocks.length, lessThanOrEqualTo(unfilteredRocks.length));
+
+      for (final rock in filteredRocks) {
+        for (final road in graph.roads) {
+          final dist = road.nearestSample(rock.center).horizontalDistance;
+          final minClear = road.widthMeters * 0.5 + rock.radius + 0.59;
+          expect(
+            dist,
+            greaterThanOrEqualTo(minClear),
+            reason:
+                'Gorge boulder at ${rock.center} intruded on ${road.id.value}',
+          );
+        }
+      }
+
+      final rockOutcrops = graph.structures.values.where(
+        (s) => s.kind == StructureKind.rockOutcrop,
+      );
+      expect(rockOutcrops.length, greaterThanOrEqualTo(12));
+
+      for (final rock in rockOutcrops) {
+        final rockRadius =
+            math.max(rock.spec.footprintWidth, rock.spec.footprintDepth) * 0.5;
+        for (final road in graph.roads) {
+          final dist = road.nearestSample(rock.position).horizontalDistance;
+          expect(
+            dist,
+            greaterThanOrEqualTo(road.widthMeters * 0.5 + rockRadius + 0.35),
+            reason:
+                'Rock outcrop ${rock.id.value} intruded on ${road.id.value}',
+          );
+        }
+      }
+
+      for (final s in graph.structures.values) {
+        expect(
+          TerrainBuilder.isInsideTanadaFloodedBasin(s.position.x, s.position.z),
+          isFalse,
+          reason: '${s.id.value} placed inside flooded tanada basin',
+        );
+      }
+
+      final countryside = graph.structures.values
+          .where((s) => s.position.x.abs() >= 25 || s.position.z.abs() >= 25)
+          .toList();
+      expect(
+        countryside.where((s) => s.id.value.contains('sugi')).length,
+        greaterThanOrEqualTo(8),
+      );
+      expect(
+        countryside.where((s) => s.kind == StructureKind.weepingWillow).length,
+        greaterThanOrEqualTo(5),
+      );
+      expect(
+        countryside.where((s) => s.position.x < -25 && s.position.z > 25),
+        isNotEmpty,
+      );
+      expect(
+        countryside.where((s) => s.position.x < -25 && s.position.z < -25),
+        isNotEmpty,
+      );
+      expect(
+        countryside.where((s) => s.position.x > 25 && s.position.z > 25),
+        isNotEmpty,
+      );
+      expect(
+        countryside.where((s) => s.position.x > 25 && s.position.z < -25),
+        isNotEmpty,
+      );
+    });
+
+    test('Every RoadStyle.gardenPath connects to a parent road and reaches a '
+        'destination structure', () {
+      final gardenPaths = graph.roads
+          .where((r) => r.style == RoadStyle.gardenPath)
+          .toList();
+      final kaidoRoads = graph.roads
+          .where((r) => r.style == RoadStyle.kaidoRoad)
+          .toList();
+      final destinations = graph.structures.values
+          .where((s) => !s.kind.isNaturalFeature)
+          .toList();
+
+      expect(gardenPaths.length, greaterThanOrEqualTo(5));
+
+      for (final roji in gardenPaths) {
+        final startPt = roji.controlPoints.first;
+        final endPt = roji.controlPoints.last;
+
+        final connectedParent = kaidoRoads.any(
+          (parent) =>
+              parent.nearestSample(startPt).horizontalDistance <=
+              parent.widthMeters * 0.5 + 1.25,
+        );
+        expect(
+          connectedParent,
+          isTrue,
+          reason:
+              '${roji.id.value} entry at $startPt does not connect to a '
+              'kaidoRoad',
+        );
+
+        PlacedStructure? nearestDest;
+        var bestGap = double.infinity;
+        for (final dest in destinations) {
+          final centerDist = dest.position.horizontalDistanceTo(endPt);
+          final outerRadius =
+              math.max(dest.spec.footprintWidth, dest.spec.footprintDepth) *
+              0.5;
+          final edgeGap = centerDist - outerRadius;
+          if (edgeGap < bestGap) {
+            bestGap = edgeGap;
+            nearestDest = dest;
+          }
+        }
+
+        expect(nearestDest, isNotNull);
+        expect(
+          bestGap,
+          inInclusiveRange(0.35, 1.65),
+          reason:
+              '${roji.id.value} terminus at $endPt did not land cleanly in '
+              'front of ${nearestDest?.id.value} (edgeGap=$bestGap)',
+        );
+      }
+    });
+
+    test(
+      'Free road endpoints taper width and emit uv1.x > 0.8 while gardenPath '
+      'junctions emit uv1.y > 0.8',
+      () {
+        double rowSpanAt(RoadRibbonData ribbon, int row) {
+          final vLeft = row * ribbon.colCount;
+          final vRight = vLeft + (ribbon.colCount - 1);
+          final dx = ribbon.positions[vRight * 3] - ribbon.positions[vLeft * 3];
+          final dz =
+              ribbon.positions[vRight * 3 + 2] -
+              ribbon.positions[vLeft * 3 + 2];
+          return math.sqrt(dx * dx + dz * dz);
+        }
+
+        final marketAlley = graph.roads.firstWhere(
+          (r) => r.id == const EntityId('road_market_alley'),
+        );
+        final alleyRibbon = terrain.computeRoadRibbonData(
+          marketAlley,
+          wardGroundY,
+          allRoads: graph.roads,
+          terraces: graph.terraces,
+        );
+
+        expect(alleyRibbon.freeStart, isFalse);
+        expect(alleyRibbon.freeEnd, isTrue);
+
+        final midRow = alleyRibbon.rowCount ~/ 2;
+        final tipRow = alleyRibbon.rowCount - 1;
+        final midWidth = rowSpanAt(alleyRibbon, midRow);
+        final tipWidth = rowSpanAt(alleyRibbon, tipRow);
+        expect(midWidth, closeTo(marketAlley.widthMeters, 0.15));
+        expect(tipWidth, lessThan(marketAlley.widthMeters * 0.50));
+
+        final tipCenterIdx = tipRow * alleyRibbon.colCount + 2;
+        final midCenterIdx = midRow * alleyRibbon.colCount + 2;
+        final midShoulderIdx = midRow * alleyRibbon.colCount;
+        expect(alleyRibbon.texCoords1[tipCenterIdx * 2], greaterThan(0.8));
+        expect(alleyRibbon.texCoords1[midCenterIdx * 2], closeTo(0.0, 1e-4));
+        expect(
+          alleyRibbon.texCoords1[midShoulderIdx * 2],
+          inInclusiveRange(0.45, 0.65),
+        );
+
+        for (final roji in graph.roads.where(
+          (r) => r.style == RoadStyle.gardenPath,
+        )) {
+          final ribbon = terrain.computeRoadRibbonData(
+            roji,
+            wardGroundY,
+            allRoads: graph.roads,
+            terraces: graph.terraces,
+          );
+          expect(
+            ribbon.startCrossBlendsToKaido,
+            isTrue,
+            reason: '${roji.id.value} should cross-blend into kaidoRoad',
+          );
+          expect(
+            ribbon.freeEnd,
+            isTrue,
+            reason: '${roji.id.value} terminus should feather into doorstep',
+          );
+
+          const mouthCenterIdx = 2;
+          final endTipCenterIdx = (ribbon.rowCount - 1) * ribbon.colCount + 2;
+          expect(
+            ribbon.texCoords1[mouthCenterIdx * 2 + 1],
+            greaterThan(0.8),
+            reason: '${roji.id.value} mouth uv1.y must cross-blend > 0.8',
+          );
+          expect(
+            ribbon.texCoords1[endTipCenterIdx * 2],
+            greaterThan(0.8),
+            reason: '${roji.id.value} free tip uv1.x must feather > 0.8',
+          );
+          expect(
+            rowSpanAt(ribbon, 0),
+            greaterThan(roji.widthMeters * 1.15),
+            reason: '${roji.id.value} mouth should flare into parent road',
+          );
+          expect(
+            rowSpanAt(ribbon, ribbon.rowCount - 1),
+            lessThan(roji.widthMeters * 0.50),
+            reason: '${roji.id.value} free tip should taper organically',
+          );
+        }
+      },
     );
   });
 }

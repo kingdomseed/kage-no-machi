@@ -105,10 +105,11 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       style: RoadStyle.gardenPath,
       widthMeters: 1.75,
       controlPoints: [
-        Vec3(-15.6, wardY(-15.6, 2.4), 2.4),
-        Vec3(-16.2, wardY(-16.2, 8.2), 8.2),
-        Vec3(-14.6, wardY(-14.6, 14.4), 14.4),
-        Vec3(-13.2, wardY(-13.2, 19.6), 19.6),
+        Vec3(-15.2, wardY(-15.2, 1.55), 1.55),
+        Vec3(-15.15, wardY(-15.15, 6.2), 6.2),
+        Vec3(-16.25, wardY(-16.25, 9.8), 9.8),
+        Vec3(-14.8, wardY(-14.8, 15.2), 15.2),
+        Vec3(-12.6, wardY(-12.6, 19.75), 19.75),
       ],
     ),
     RoadSpline.validated(
@@ -116,22 +117,48 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       style: RoadStyle.gardenPath,
       widthMeters: 1.70,
       controlPoints: [
-        Vec3(18.2, wardY(18.2, -1.8), -1.8),
-        Vec3(18.5, wardY(18.5, -3.9), -3.9),
-        Vec3(19.8, wardY(19.8, -5.8), -5.8),
+        Vec3(18.2, wardY(18.2, -1.42), -1.42),
+        Vec3(18.9, wardY(18.9, -4.4), -4.4),
+        Vec3(20.6, wardY(20.6, -6.58), -6.58),
       ],
     ),
     RoadSpline.validated(
       id: EntityId.validated('road_south_terrace_roji'),
       style: RoadStyle.gardenPath,
-      widthMeters: 1.85,
+      widthMeters: 1.70,
       controlPoints: [
-        Vec3(2.9, wardY(2.9, -20.8), -20.8),
-        Vec3(3.2, wardY(3.2, -16.8), -16.8),
-        Vec3(5.4, wardY(5.4, -15.3), -15.3),
+        Vec3(5.65, wardY(5.65, -1.52), -1.52),
+        Vec3(4.35, wardY(4.35, -5.2), -5.2),
+        Vec3(4.15, wardY(4.15, -10.4), -10.4),
+        Vec3(4.45, wardY(4.45, -14.5), -14.5),
+        Vec3(6.2, wardY(6.2, -15.3), -15.3),
         Vec3(11.4, wardY(11.4, -15.2), -15.2),
-        Vec3(18.6, wardY(18.6, -15.3), -15.3),
-        Vec3(20.4, wardY(20.4, -13.2), -13.2),
+        Vec3(18.6, wardY(18.6, -15.25), -15.25),
+        Vec3(22.1, wardY(22.1, -15.45), -15.45),
+        Vec3(22.4, wardY(22.4, -16.22), -16.22),
+      ],
+    ),
+    RoadSpline.validated(
+      id: EntityId.validated('road_well_roji'),
+      style: RoadStyle.gardenPath,
+      widthMeters: 1.55,
+      controlPoints: [
+        Vec3(7.58, wardY(7.58, 12.8), 12.8),
+        Vec3(6.95, wardY(6.95, 14.2), 14.2),
+        Vec3(6.35, wardY(6.35, 16.4), 16.4),
+        Vec3(6, wardY(6, 18.28), 18.28),
+      ],
+    ),
+    RoadSpline.validated(
+      id: EntityId.validated('road_shoro_roji'),
+      style: RoadStyle.gardenPath,
+      widthMeters: 1.65,
+      controlPoints: [
+        Vec3(23.6, wardY(23.6, 1.62), 1.62),
+        Vec3(23.4, wardY(23.4, 6.2), 6.2),
+        Vec3(20.2, wardY(20.2, 11.4), 11.4),
+        Vec3(20.1, wardY(20.1, 14.2), 14.2),
+        Vec3(20.95, wardY(20.95, 14.48), 14.48),
       ],
     ),
   ];
@@ -198,7 +225,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('market_east_s1'),
       kind: StructureKind.marketStall,
-      position: Vec3(7.6, wardY(7.6, -2.55), -2.55),
+      position: Vec3(8.25, wardY(8.25, -2.75), -2.75),
     ),
     PlacedStructure(
       id: EntityId.validated('market_east_n1'),
@@ -260,7 +287,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('rock_upper_garden_crag'),
       kind: StructureKind.rockOutcrop,
-      position: Vec3(23, wardY(23, 9.8), 9.8),
+      position: Vec3(26.6, wardY(26.6, 9.8), 9.8),
       yawRadians: -1.65,
     ),
     PlacedStructure(
@@ -272,7 +299,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('maple_gorge_se'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(4.7, wardY(4.7, -5.4), -5.4),
+      position: Vec3(7.4, wardY(7.4, -8.6), -8.6),
       yawRadians: -0.65,
     ),
     PlacedStructure(
@@ -284,7 +311,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('maple_upper_ne'),
       kind: StructureKind.mapleCluster,
-      position: Vec3(17.6, wardY(17.6, 11.8), 11.8),
+      position: Vec3(17.2, wardY(17.2, 11.6), 11.6),
       yawRadians: -1.10,
     ),
     PlacedStructure(
@@ -308,7 +335,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('pine_kura_ridge'),
       kind: StructureKind.pineTree,
-      position: Vec3(24.8, wardY(24.8, -16.4), -16.4),
+      position: Vec3(26.6, wardY(26.6, -16.8), -16.8),
       yawRadians: -1.25,
     ),
     PlacedStructure(
@@ -320,7 +347,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('willow_east_foreshore'),
       kind: StructureKind.weepingWillow,
-      position: Vec3(4.5, wardY(4.5, -11.4), -11.4),
+      position: Vec3(2.8, wardY(2.8, -18.6), -18.6),
       yawRadians: -2.45,
     ),
     PlacedStructure(
@@ -338,7 +365,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('bamboo_lower_se'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(11.6, wardY(11.6, -12.4), -12.4),
+      position: Vec3(11.8, wardY(11.8, -11.6), -11.6),
       yawRadians: 0.80,
     ),
     PlacedStructure(
@@ -373,8 +400,15 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('minka_east_terrace_s'),
       kind: StructureKind.minka,
-      position: Vec3(22.4, wardY(22.4, -18.8), -18.8),
+      position: Vec3(22.4, wardY(22.4, -19.6), -19.6),
       variant: 1,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minka_nw_teahouse_cottage'),
+      kind: StructureKind.minka,
+      position: Vec3(-12.6, wardY(-12.6, 23.2), 23.2),
+      yawRadians: math.pi,
+      variant: 3,
     ),
     PlacedStructure(
       id: EntityId.validated('minka_west_kaido_farm'),
@@ -594,7 +628,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('pine_nw_river_meadow'),
       kind: StructureKind.pineTree,
-      position: Vec3(-11.8, wardY(-11.8, 27.6), 27.6),
+      position: Vec3(-10.2, wardY(-10.2, 29.4), 29.4),
       yawRadians: -0.38,
     ),
     PlacedStructure(
@@ -602,6 +636,258 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       kind: StructureKind.rockOutcrop,
       position: Vec3(-21.2, wardY(-21.2, -19.8), -19.8),
       yawRadians: 0.88,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_nw_ridge_1'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-62.5, wardY(-62.5, 48.5), 48.5),
+      yawRadians: 0.42,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_nw_ridge_2'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-56, wardY(-56, 62), 62),
+      yawRadians: -0.78,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_nw_gorge_bluff'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-18.5, wardY(-18.5, 46.5), 46.5),
+      yawRadians: 1.12,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_nw_outer_pass'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-74, wardY(-74, 22.5), 22.5),
+      yawRadians: 0.64,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_nw_creek_hollow'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-36.5, wardY(-36.5, 52), 52),
+      yawRadians: -0.52,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_nw_outer_slope'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-66, wardY(-66, 34), 34),
+      yawRadians: 0.94,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_nw_foothill'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(-26.5, wardY(-26.5, 64), 64),
+      yawRadians: 0.36,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('rock_nw_mountain_spur'),
+      kind: StructureKind.rockOutcrop,
+      position: Vec3(-58.5, wardY(-58.5, 28.5), 28.5),
+      yawRadians: 0.72,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_west_mitsuke_north'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-74.5, wardY(-74.5, 9.2), 9.2),
+      yawRadians: -0.44,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_west_pass_screen'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(-63.5, wardY(-63.5, 13.8), 13.8),
+      yawRadians: 0.58,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('rock_west_mitsuke_crag'),
+      kind: StructureKind.rockOutcrop,
+      position: Vec3(-73.5, wardY(-73.5, -9.4), -9.4),
+      yawRadians: -0.92,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_sw_foothill_1'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-62, wardY(-62, -42.5), -42.5),
+      yawRadians: 0.86,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_sw_foothill_2'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-46.5, wardY(-46.5, -58.5), -58.5),
+      yawRadians: -0.62,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_sw_outer_pass'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-74, wardY(-74, -24), -24),
+      yawRadians: -1.08,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_sw_river_promontory'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-16.5, wardY(-16.5, -44.5), -44.5),
+      yawRadians: 0.52,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_sw_autumn_glade'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-38, wardY(-38, -44), -44),
+      yawRadians: 1.24,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_sw_mitsuke_south'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-65, wardY(-65, -14.5), -14.5),
+      yawRadians: -0.74,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_sw_river_terrace'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(-24.5, wardY(-24.5, -58), -58),
+      yawRadians: -0.38,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('rock_sw_gorge_ledge'),
+      kind: StructureKind.rockOutcrop,
+      position: Vec3(-12.5, wardY(-12.5, -36.5), -36.5),
+      yawRadians: 0.64,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_north_outer_shoal'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(6.8, wardY(6.8, 52), 52),
+      yawRadians: -2.35,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_north_west_meander'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(-7.2, wardY(-7.2, 66), 66),
+      yawRadians: 0.48,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_north_gorge_watch'),
+      kind: StructureKind.pineTree,
+      position: Vec3(14.5, wardY(14.5, 42.5), 42.5),
+      yawRadians: -0.88,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_south_outer_shoal'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(-6.8, wardY(-6.8, -50.5), -50.5),
+      yawRadians: 0.62,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_south_west_meander'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(7, wardY(7, -64.5), -64.5),
+      yawRadians: -2.18,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_south_gorge_watch'),
+      kind: StructureKind.pineTree,
+      position: Vec3(14, wardY(14, -43.5), -43.5),
+      yawRadians: 0.76,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_ne_ridge_1'),
+      kind: StructureKind.pineTree,
+      position: Vec3(26.5, wardY(26.5, 58.5), 58.5),
+      yawRadians: -0.54,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_ne_tanada_crest'),
+      kind: StructureKind.pineTree,
+      position: Vec3(54, wardY(54, 62.5), 62.5),
+      yawRadians: 0.92,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_ne_outer_pass'),
+      kind: StructureKind.pineTree,
+      position: Vec3(75.5, wardY(75.5, 26), 26),
+      yawRadians: -1.16,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_ne_tanada_headland'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(33.5, wardY(33.5, 46.5), 46.5),
+      yawRadians: 0.68,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_ne_gorge_rim'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(18.5, wardY(18.5, 68), 68),
+      yawRadians: -0.82,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_ne_foothill'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(42, wardY(42, 66), 66),
+      yawRadians: 0.44,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('rock_ne_mountain_spur'),
+      kind: StructureKind.rockOutcrop,
+      position: Vec3(29.5, wardY(29.5, 38.5), 38.5),
+      yawRadians: -1.04,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_east_mitsuke_north'),
+      kind: StructureKind.pineTree,
+      position: Vec3(74.5, wardY(74.5, 9.6), 9.6),
+      yawRadians: 0.56,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_east_mitsuke_south'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(73.5, wardY(73.5, -9.8), -9.8),
+      yawRadians: -0.66,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_east_pass_screen'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(58.5, wardY(58.5, -13.2), -13.2),
+      yawRadians: 0.38,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('rock_east_mitsuke_crag'),
+      kind: StructureKind.rockOutcrop,
+      position: Vec3(64.5, wardY(64.5, -12.6), -12.6),
+      yawRadians: 1.18,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_se_foothill_1'),
+      kind: StructureKind.pineTree,
+      position: Vec3(26, wardY(26, -58.5), -58.5),
+      yawRadians: 0.72,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('sugi_se_tanada_crest'),
+      kind: StructureKind.pineTree,
+      position: Vec3(52.5, wardY(52.5, -62), -62),
+      yawRadians: -0.84,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_se_outer_pass'),
+      kind: StructureKind.pineTree,
+      position: Vec3(75.5, wardY(75.5, -26.5), -26.5),
+      yawRadians: 1.06,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_se_tanada_headland'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(33.2, wardY(33.2, -45.5), -45.5),
+      yawRadians: -0.58,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_se_foothill'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(40.5, wardY(40.5, -65.5), -65.5),
+      yawRadians: -0.46,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('rock_se_gorge_ledge'),
+      kind: StructureKind.rockOutcrop,
+      position: Vec3(22.5, wardY(22.5, -36.5), -36.5),
+      yawRadians: 0.96,
     ),
   ];
 

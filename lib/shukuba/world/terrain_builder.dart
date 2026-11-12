@@ -94,6 +94,64 @@ class _RoadTerraceCrossing {
   double get halfWallGap => roadWidth * 0.5 + (isBridgeApproach ? 0.88 : 0.42);
 }
 
+class RoadRibbonData {
+  const new({
+    required this.positions,
+    required this.normals,
+    required this.colors,
+    required this.texCoords,
+    required this.texCoords1,
+    required this.indices,
+    required this.rowCount,
+    required this.colCount,
+    required this.freeStart,
+    required this.freeEnd,
+    required this.startCrossBlendsToKaido,
+    required this.endCrossBlendsToKaido,
+  });
+
+  final Float32List positions;
+  final Float32List normals;
+  final Float32List colors;
+  final Float32List texCoords;
+  final Float32List texCoords1;
+  final List<int> indices;
+  final int rowCount;
+  final int colCount;
+  final bool freeStart;
+  final bool freeEnd;
+  final bool startCrossBlendsToKaido;
+  final bool endCrossBlendsToKaido;
+}
+
+class _RoadBuildPlan {
+  const new({
+    required this.ribbon,
+    required this.samples,
+    required this.tangents2D,
+    required this.normals2D,
+    required this.arcLengths,
+    required this.startParent,
+    required this.endParent,
+    required this.stairCrossings,
+    required this.otherRoads,
+    required this.otherBounds,
+    required this.terraceList,
+  });
+
+  final RoadRibbonData ribbon;
+  final List<Vec3> samples;
+  final List<Vec3> tangents2D;
+  final List<Vec3> normals2D;
+  final List<double> arcLengths;
+  final RoadSpline? startParent;
+  final RoadSpline? endParent;
+  final List<_RoadTerraceCrossing> stairCrossings;
+  final List<RoadSpline> otherRoads;
+  final List<(Vec3, Vec3, Vec3, Vec3)> otherBounds;
+  final List<TerraceCourse> terraceList;
+}
+
 class TerrainBuilder {
   new();
 
@@ -147,6 +205,26 @@ class TerrainBuilder {
   bool isChunkDirty(int cx, int cz) => dirtyChunkIndices.contains(cz * 4 + cx);
 
   void clearDirty() => dirtyChunkIndices.clear();
+
+  List<TerraceCourse>? _cachedTerracesRef;
+  List<RoadSpline>? _cachedRoadsRef;
+  List<TerraceCourse> _cachedSortedTerraces = const [];
+  Map<TerraceCourse, List<_RoadTerraceCrossing>> _cachedCrossings = const {};
+
+  static bool _sameElements<T>(List<T>? a, List<T> b) {
+    if (a == null || a.length != b.length) {
+      return false;
+    }
+    if (identical(a, b)) {
+      return true;
+    }
+    for (var i = 0; i < b.length; i++) {
+      if (a[i] != b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   static double _quintic(double t) {
     final c = t < 0 ? 0.0 : (t > 1 ? 1.0 : t);
@@ -528,22 +606,40 @@ class TerrainBuilder {
       return TerrainConfig.bridgeDeckHeightAt(x);
     }
 
-    final terraceList = terraces.toList();
-    if (terraceList.isEmpty) {
+    final inTerraces = terraces is List<TerraceCourse>
+        ? terraces
+        : terraces.toList();
+    if (inTerraces.isEmpty) {
       return sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z));
     }
-    terraceList.sort((a, b) => a.topElevation.compareTo(b.topElevation));
-    final roadList = roads.toList();
-    final crossings = <TerraceCourse, List<_RoadTerraceCrossing>>{
-      if (roadList.isNotEmpty)
-        for (final t in terraceList)
-          t: _findCrossingsForTerrace(t, roadList, terraceList),
-    };
+
+    final inRoads = roads is List<RoadSpline> ? roads : roads.toList();
+    if (!identical(inTerraces, _cachedTerracesRef) ||
+        !identical(inRoads, _cachedRoadsRef)) {
+      if (_sameElements(_cachedTerracesRef, inTerraces) &&
+          _sameElements(_cachedRoadsRef, inRoads)) {
+        _cachedTerracesRef = inTerraces;
+        _cachedRoadsRef = inRoads;
+      } else {
+        final sorted = List<TerraceCourse>.of(inTerraces)
+          ..sort((a, b) => a.topElevation.compareTo(b.topElevation));
+        final crossings = <TerraceCourse, List<_RoadTerraceCrossing>>{
+          if (inRoads.isNotEmpty)
+            for (final t in sorted)
+              t: _findCrossingsForTerrace(t, inRoads, sorted),
+        };
+        _cachedTerracesRef = inTerraces;
+        _cachedRoadsRef = inRoads;
+        _cachedSortedTerraces = sorted;
+        _cachedCrossings = crossings;
+      }
+    }
+
     return _evaluateGradedPoint(
       x,
       z,
-      sortedTerraces: terraceList,
-      crossingsByTerrace: crossings,
+      sortedTerraces: _cachedSortedTerraces,
+      crossingsByTerrace: _cachedCrossings,
       recessUnderStairs: false,
     );
   }
@@ -1524,58 +1620,156 @@ class TerrainBuilder {
     return markSubtreeShadowStatic(root);
   }
 
-  Node buildGorgeDressingNode(ShukubaMaterialResolver resolveMaterial) {
+  static bool _isClearOfRoadCorridors(
+    double x,
+    double z,
+    double rockRadius,
+    List<RoadSpline> roads,
+  ) {
+    for (var i = 0; i < roads.length; i++) {
+      final road = roads[i];
+      final minDist = road.widthMeters * 0.5 + rockRadius + 0.60;
+      if (road.nearestSample(Vec3(x, 0, z)).horizontalDistance < minDist) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  List<({Vec3 center, double radius})> computeGorgeRockFootprints({
+    Iterable<RoadSpline> roads = const [],
+  }) {
+    final roadList = roads.toList();
+    final placements = <({Vec3 center, double radius})>[];
+
+    void recordRock(double x, double y, double z, double rx, double rz) {
+      final r = math.max(rx, rz);
+      if (_isClearOfRoadCorridors(x, z, r, roadList)) {
+        placements.add((center: Vec3(x, y, z), radius: r));
+      }
+    }
+
+    for (final s in _gorgeShoalSpecs) {
+      final z = s.$1;
+      final x = TerrainConfig.riverCenterX(z) + s.$2;
+      recordRock(x, -0.68, z, s.$3, s.$5);
+      final sideShift = s.$2 < 0 ? 0.96 : -0.96;
+      recordRock(
+        x + sideShift * 0.55,
+        -0.78,
+        z + 1.05,
+        s.$3 * 0.56,
+        s.$5 * 0.58,
+      );
+    }
+
+    for (final c in _gorgeStrataSpecs) {
+      final z = c.$1;
+      final x = TerrainConfig.riverCenterX(z) + c.$2;
+      recordRock(x, sampleRawTerrain(x, z) - 0.24, z, c.$3, c.$5);
+    }
+
+    for (final b in _gorgeBankSpecs) {
+      final z = b.$1;
+      final x = TerrainConfig.riverCenterX(z) + b.$2;
+      recordRock(x, sampleRawTerrain(x, z) + 0.12, z, b.$3, b.$5);
+    }
+
+    for (final m in _gorgeMeadowOutcrops) {
+      final mx = m.$1;
+      final mz = m.$2;
+      final my = sampleRawTerrain(mx, mz);
+      recordRock(mx, my - 0.14, mz, m.$3, m.$5);
+      recordRock(mx + 1.05, my + 0.06, mz + 0.68, m.$3 * 0.48, m.$5 * 0.46);
+    }
+
+    return placements;
+  }
+
+  static const _gorgeShoalSpecs = [
+    (-24.5, -1.45, 0.88, 0.56, 0.72, 0.4),
+    (-16.2, 1.55, 0.96, 0.58, 0.80, 1.3),
+    (-9.4, -1.35, 0.78, 0.50, 0.68, 2.2),
+    (8.2, 1.40, 0.86, 0.54, 0.74, 0.9),
+    (15.6, -1.55, 1.04, 0.60, 0.84, 1.8),
+    (23.8, 1.30, 0.82, 0.52, 0.70, 2.7),
+  ];
+
+  static const _gorgeStrataSpecs = [
+    (-4.6, 3.05, 1.25, 0.92, 1.35, -0.25),
+    (-7.2, 3.35, 1.45, 1.15, 1.55, 0.35),
+    (4.8, 3.10, 1.32, 1.04, 1.42, -0.45),
+    (7.6, 3.42, 1.52, 1.18, 1.60, 0.22),
+    (-4.2, -3.15, 1.18, 0.78, 1.22, 0.55),
+    (4.4, -3.10, 1.22, 0.82, 1.28, -0.38),
+    (-18.6, 3.30, 1.58, 1.16, 1.48, 0.42),
+    (-21.2, 3.65, 1.36, 0.94, 1.32, -0.28),
+    (16.8, 3.38, 1.62, 1.22, 1.54, -0.52),
+    (19.6, 3.72, 1.38, 0.96, 1.34, 0.18),
+    (-15.4, -3.35, 1.42, 0.92, 1.38, 0.64),
+    (14.8, -3.30, 1.46, 0.96, 1.40, -0.62),
+  ];
+
+  static const _gorgeBankSpecs = [
+    (-24.0, -3.45, 1.18, 0.66, 0.98, 0.5, true),
+    (-11.8, -3.28, 0.96, 0.54, 0.84, 1.7, false),
+    (10.8, -3.32, 1.02, 0.58, 0.88, 2.1, true),
+    (23.2, -3.50, 1.22, 0.68, 1.02, 1.2, true),
+    (-12.6, 3.32, 0.98, 0.56, 0.86, 2.6, false),
+    (11.6, 3.36, 1.06, 0.60, 0.90, 0.3, true),
+    (24.4, 3.48, 1.20, 0.68, 1.00, 1.9, false),
+  ];
+
+  static const _gorgeMeadowOutcrops = [
+    (-24.2, -21.0, 1.48, 0.96, 1.28, 0.6),
+    (-25.4, 20.5, 1.42, 0.88, 1.22, 1.9),
+    (23.8, -21.5, 1.46, 0.94, 1.26, 1.1),
+    (24.8, 22.0, 1.54, 1.02, 1.34, 2.4),
+  ];
+
+  Node buildGorgeDressingNode(
+    ShukubaMaterialResolver resolveMaterial, {
+    Iterable<RoadSpline> roads = const [],
+  }) {
     final root = Node();
+    final roadList = roads.toList();
     final rockBuilder = GeometryBuilder();
     final timberBuilder = GeometryBuilder();
     final shrubBuilder = GeometryBuilder();
 
-    const shoalSpecs = [
-      (-24.5, -1.45, 0.88, 0.56, 0.72, 0.4),
-      (-16.2, 1.55, 0.96, 0.58, 0.80, 1.3),
-      (-9.4, -1.35, 0.78, 0.50, 0.68, 2.2),
-      (8.2, 1.40, 0.86, 0.54, 0.74, 0.9),
-      (15.6, -1.55, 1.04, 0.60, 0.84, 1.8),
-      (23.8, 1.30, 0.82, 0.52, 0.70, 2.7),
-    ];
-
-    for (final s in shoalSpecs) {
+    for (final s in _gorgeShoalSpecs) {
       final z = s.$1;
       final x = TerrainConfig.riverCenterX(z) + s.$2;
-      EdoKitBuilder.addRockBoulder(
-        rockBuilder,
-        Vector3(x, -0.68, z),
-        Vector3(s.$3, s.$4, s.$5),
-        yaw: s.$6,
-        seed: z * 0.3,
-      );
+      if (_isClearOfRoadCorridors(x, z, math.max(s.$3, s.$5), roadList)) {
+        EdoKitBuilder.addRockBoulder(
+          rockBuilder,
+          Vector3(x, -0.68, z),
+          Vector3(s.$3, s.$4, s.$5),
+          yaw: s.$6,
+          seed: z * 0.3,
+        );
+      }
       final sideShift = s.$2 < 0 ? 0.96 : -0.96;
-      EdoKitBuilder.addRockBoulder(
-        rockBuilder,
-        Vector3(x + sideShift * 0.55, -0.78, z + 1.05),
-        Vector3(s.$3 * 0.56, s.$4 * 0.68, s.$5 * 0.58),
-        yaw: s.$6 + 1.4,
-        seed: z * 0.5 + 1.7,
-      );
+      final cx = x + sideShift * 0.55;
+      final cz = z + 1.05;
+      final cr = math.max(s.$3 * 0.56, s.$5 * 0.58);
+      if (_isClearOfRoadCorridors(cx, cz, cr, roadList)) {
+        EdoKitBuilder.addRockBoulder(
+          rockBuilder,
+          Vector3(cx, -0.78, cz),
+          Vector3(s.$3 * 0.56, s.$4 * 0.68, s.$5 * 0.58),
+          yaw: s.$6 + 1.4,
+          seed: z * 0.5 + 1.7,
+        );
+      }
     }
 
-    const gorgeStrataSpecs = [
-      (-4.6, 3.05, 1.25, 0.92, 1.35, -0.25),
-      (-7.2, 3.35, 1.45, 1.15, 1.55, 0.35),
-      (4.8, 3.10, 1.32, 1.04, 1.42, -0.45),
-      (7.6, 3.42, 1.52, 1.18, 1.60, 0.22),
-      (-4.2, -3.15, 1.18, 0.78, 1.22, 0.55),
-      (4.4, -3.10, 1.22, 0.82, 1.28, -0.38),
-      (-18.6, 3.30, 1.58, 1.16, 1.48, 0.42),
-      (-21.2, 3.65, 1.36, 0.94, 1.32, -0.28),
-      (16.8, 3.38, 1.62, 1.22, 1.54, -0.52),
-      (19.6, 3.72, 1.38, 0.96, 1.34, 0.18),
-      (-15.4, -3.35, 1.42, 0.92, 1.38, 0.64),
-      (14.8, -3.30, 1.46, 0.96, 1.40, -0.62),
-    ];
-    for (final c in gorgeStrataSpecs) {
+    for (final c in _gorgeStrataSpecs) {
       final z = c.$1;
       final x = TerrainConfig.riverCenterX(z) + c.$2;
+      if (!_isClearOfRoadCorridors(x, z, math.max(c.$3, c.$5), roadList)) {
+        continue;
+      }
       final gy = sampleRawTerrain(x, z);
       EdoKitBuilder.addStratifiedCliffBlock(
         rockBuilder,
@@ -1587,72 +1781,75 @@ class TerrainBuilder {
       );
     }
 
-    const bankSpecs = [
-      (-24.0, -3.45, 1.18, 0.66, 0.98, 0.5, true),
-      (-11.8, -3.28, 0.96, 0.54, 0.84, 1.7, false),
-      (10.8, -3.32, 1.02, 0.58, 0.88, 2.1, true),
-      (23.2, -3.50, 1.22, 0.68, 1.02, 1.2, true),
-      (-12.6, 3.32, 0.98, 0.56, 0.86, 2.6, false),
-      (11.6, 3.36, 1.06, 0.60, 0.90, 0.3, true),
-      (24.4, 3.48, 1.20, 0.68, 1.00, 1.9, false),
-    ];
-
-    for (final b in bankSpecs) {
+    for (final b in _gorgeBankSpecs) {
       final z = b.$1;
       final x = TerrainConfig.riverCenterX(z) + b.$2;
-      final groundY = sampleRawTerrain(x, z);
-      EdoKitBuilder.addRockBoulder(
-        rockBuilder,
-        Vector3(x, groundY + 0.12, z),
-        Vector3(b.$3, b.$4, b.$5),
-        yaw: b.$6,
-        seed: z * 0.5 + b.$2,
-      );
+      if (_isClearOfRoadCorridors(x, z, math.max(b.$3, b.$5), roadList)) {
+        final groundY = sampleRawTerrain(x, z);
+        EdoKitBuilder.addRockBoulder(
+          rockBuilder,
+          Vector3(x, groundY + 0.12, z),
+          Vector3(b.$3, b.$4, b.$5),
+          yaw: b.$6,
+          seed: z * 0.5 + b.$2,
+        );
+      }
       if (b.$7) {
         final sx = x + (b.$2 < 0 ? -0.95 : 0.95);
         final sz = z + 0.72;
-        final sy = sampleRawTerrain(sx, sz);
-        EdoKitBuilder.addShrubRosette(
-          shrubBuilder,
-          Vector3(sx, sy + 0.06, sz),
-          Vector3(0.84, 0.36, 0.78),
-          color: Vector4(0.80, 0.94, 0.70, 1),
-          phase: b.$6,
-        );
+        if (_isClearOfRoadCorridors(sx, sz, 0.84, roadList)) {
+          final sy = sampleRawTerrain(sx, sz);
+          EdoKitBuilder.addShrubRosette(
+            shrubBuilder,
+            Vector3(sx, sy + 0.06, sz),
+            Vector3(0.84, 0.36, 0.78),
+            color: Vector4(0.80, 0.94, 0.70, 1),
+            phase: b.$6,
+          );
+        }
       }
     }
 
-    const meadowOutcrops = [
-      (-24.2, -21.0, 1.48, 0.96, 1.28, 0.6),
-      (-25.4, 20.5, 1.42, 0.88, 1.22, 1.9),
-      (23.8, -21.5, 1.46, 0.94, 1.26, 1.1),
-      (24.8, 22.0, 1.54, 1.02, 1.34, 2.4),
-    ];
-    for (final m in meadowOutcrops) {
+    for (final m in _gorgeMeadowOutcrops) {
       final mx = m.$1;
       final mz = m.$2;
       final my = sampleRawTerrain(mx, mz);
-      EdoKitBuilder.addStratifiedCliffBlock(
-        rockBuilder,
-        Vector3(mx, my - 0.14, mz),
-        Vector3(m.$3, m.$4 * 0.5, m.$5),
-        yaw: m.$6,
-        seed: mx * 0.3 + mz * 0.2,
-      );
-      EdoKitBuilder.addRockBoulder(
-        rockBuilder,
-        Vector3(mx + 1.05, my + 0.06, mz + 0.68),
-        Vector3(m.$3 * 0.48, m.$4 * 0.46, m.$5 * 0.46),
-        yaw: m.$6 + 1.2,
-        seed: mx * 0.5 - mz * 0.4,
-      );
-      EdoKitBuilder.addShrubRosette(
-        shrubBuilder,
-        Vector3(mx - 0.92, my + 0.06, mz + 0.58),
-        Vector3(0.88, 0.38, 0.82),
-        color: Vector4(0.82, 0.96, 0.72, 1),
-        phase: m.$6,
-      );
+      if (_isClearOfRoadCorridors(mx, mz, math.max(m.$3, m.$5), roadList)) {
+        EdoKitBuilder.addStratifiedCliffBlock(
+          rockBuilder,
+          Vector3(mx, my - 0.14, mz),
+          Vector3(m.$3, m.$4 * 0.5, m.$5),
+          yaw: m.$6,
+          seed: mx * 0.3 + mz * 0.2,
+        );
+      }
+      final bx = mx + 1.05;
+      final bz = mz + 0.68;
+      if (_isClearOfRoadCorridors(
+        bx,
+        bz,
+        math.max(m.$3 * 0.48, m.$5 * 0.46),
+        roadList,
+      )) {
+        EdoKitBuilder.addRockBoulder(
+          rockBuilder,
+          Vector3(bx, my + 0.06, bz),
+          Vector3(m.$3 * 0.48, m.$4 * 0.46, m.$5 * 0.46),
+          yaw: m.$6 + 1.2,
+          seed: mx * 0.5 - mz * 0.4,
+        );
+      }
+      final sx = mx - 0.92;
+      final sz = mz + 0.58;
+      if (_isClearOfRoadCorridors(sx, sz, 0.88, roadList)) {
+        EdoKitBuilder.addShrubRosette(
+          shrubBuilder,
+          Vector3(sx, my + 0.06, sz),
+          Vector3(0.88, 0.38, 0.82),
+          color: Vector4(0.82, 0.96, 0.72, 1),
+          phase: m.$6,
+        );
+      }
     }
 
     const shigaramiSpans = [
@@ -1671,6 +1868,11 @@ class TerrainBuilder {
       for (var i = 0; i < stakeCount; i++) {
         final z = z0 + (z1 - z0) * (i / (stakeCount - 1));
         final x = TerrainConfig.riverCenterX(z) + bankOffset;
+        if (!_isClearOfRoadCorridors(x, z, 0.16, roadList)) {
+          prevLogA = null;
+          prevLogB = null;
+          continue;
+        }
         final y = sampleRawTerrain(x, z);
         final topJitter = 0.05 * math.sin(i * 2.1 + z0);
         final topY = math.max(y + 0.44, -0.18) + topJitter;
@@ -1790,24 +1992,28 @@ class TerrainBuilder {
     for (final hb in horizonBuilders) {
       root.add(Node(mesh: Mesh(hb.build(), earthMat)));
     }
-    root
-      ..add(
+    if (rockBuilder.vertexCount > 0) {
+      root.add(
         Node(
           mesh: Mesh(
             rockBuilder.build(),
             resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
           ),
         ),
-      )
-      ..add(
+      );
+    }
+    if (timberBuilder.vertexCount > 0) {
+      root.add(
         Node(
           mesh: Mesh(
             timberBuilder.build(),
             resolveMaterial(ShukubaSurfaceRole.charredTimber),
           ),
         ),
-      )
-      ..add(
+      );
+    }
+    if (shrubBuilder.vertexCount > 0) {
+      root.add(
         Node(
           mesh: Mesh(
             shrubBuilder.build(),
@@ -1815,6 +2021,7 @@ class TerrainBuilder {
           ),
         ),
       );
+    }
     return markSubtreeShadowStatic(root);
   }
 
@@ -1960,24 +2167,32 @@ class TerrainBuilder {
     }
   }
 
-  Node buildRoadNode(
+  RoadRibbonData computeRoadRibbonData(
     RoadSpline road,
-    ShukubaMaterialResolver resolveMaterial,
+    GroundHeightSampler sampleGroundY, {
+    Iterable<RoadSpline> allRoads = const [],
+    Iterable<TerraceCourse> terraces = const [],
+  }) => _computeRoadBuildPlan(
+    road,
+    sampleGroundY,
+    allRoads: allRoads,
+    terraces: terraces,
+  ).ribbon;
+
+  static double _smoothStep01(double x) {
+    final c = x < 0 ? 0.0 : (x > 1 ? 1.0 : x);
+    return c * c * (3.0 - 2.0 * c);
+  }
+
+  _RoadBuildPlan _computeRoadBuildPlan(
+    RoadSpline road,
     GroundHeightSampler sampleGroundY, {
     Iterable<RoadSpline> allRoads = const [],
     Iterable<TerraceCourse> terraces = const [],
   }) {
-    final root = Node(name: 'road_${road.id.value}');
-    final ribbonBuilder = GeometryBuilder();
-    final stoneBuilder = GeometryBuilder();
-    final steppingStoneBuilder = GeometryBuilder();
     final halfWidth = road.widthMeters * 0.5;
     final isGarden = road.style == RoadStyle.gardenPath;
-
-    final samples = road.smoothCenterline(stepMeters: 0.24);
-    if (samples.length < 2) {
-      return root;
-    }
+    final rawSamples = road.smoothCenterline(stepMeters: 0.24);
 
     final allRoadList = allRoads.toList();
     final selfIndex = allRoadList.indexWhere((r) => r.id == road.id);
@@ -2002,20 +2217,61 @@ class TerrainBuilder {
       }
     }
 
-    bool isInsideStairFlight(double x, double z) {
-      for (var i = 0; i < stairCrossings.length; i++) {
-        final c = stairCrossings[i];
-        final rx = x - c.point.x;
-        final rz = z - c.point.z;
-        final uAlong = (rx * c.along.x + rz * c.along.z).abs();
-        final inward = rx * c.platNormal.x + rz * c.platNormal.z;
-        if (uAlong <= c.halfWallGap + 0.14 &&
-            inward >= -1.78 &&
-            inward <= 1.04) {
-          return true;
-        }
+    (Vec3, Vec3, Vec3, Vec3) roadEndHalfPlanes(RoadSpline r) {
+      final pts = r.smoothCenterline();
+      final startTang = (pts[1] - pts.first).normalizedHorizontal();
+      final endTang = (pts.last - pts[pts.length - 2]).normalizedHorizontal();
+      return (pts.first, startTang, pts.last, endTang);
+    }
+
+    final otherBounds = [for (final or in otherRoads) roadEndHalfPlanes(or)];
+
+    if (rawSamples.length < 2) {
+      return _RoadBuildPlan(
+        ribbon: RoadRibbonData(
+          positions: Float32List(0),
+          normals: Float32List(0),
+          colors: Float32List(0),
+          texCoords: Float32List(0),
+          texCoords1: Float32List(0),
+          indices: const [],
+          rowCount: 0,
+          colCount: 5,
+          freeStart: true,
+          freeEnd: true,
+          startCrossBlendsToKaido: false,
+          endCrossBlendsToKaido: false,
+        ),
+        samples: const [],
+        tangents2D: const [],
+        normals2D: const [],
+        arcLengths: const [],
+        startParent: null,
+        endParent: null,
+        stairCrossings: stairCrossings,
+        otherRoads: otherRoads,
+        otherBounds: otherBounds,
+        terraceList: terraceList,
+      );
+    }
+
+    bool withinSpanMargin(
+      double x,
+      double z,
+      (Vec3, Vec3, Vec3, Vec3) bounds,
+      double margin,
+    ) {
+      final (startPt, startTang, endPt, endTang) = bounds;
+      final dStart =
+          (x - startPt.x) * startTang.x + (z - startPt.z) * startTang.z;
+      if (dStart < -margin) {
+        return false;
       }
-      return false;
+      final dEnd = (x - endPt.x) * endTang.x + (z - endPt.z) * endTang.z;
+      if (dEnd > margin) {
+        return false;
+      }
+      return true;
     }
 
     bool isNearStairThreshold(double x, double z) {
@@ -2034,47 +2290,136 @@ class TerrainBuilder {
       return false;
     }
 
-    (Vec3, Vec3, Vec3, Vec3) roadEndHalfPlanes(RoadSpline r) {
-      final pts = r.smoothCenterline();
-      final startTang = (pts[1] - pts.first).normalizedHorizontal();
-      final endTang = (pts.last - pts[pts.length - 2]).normalizedHorizontal();
-      return (pts.first, startTang, pts.last, endTang);
+    bool isInsideStairFlight(double x, double z) {
+      for (var i = 0; i < stairCrossings.length; i++) {
+        final c = stairCrossings[i];
+        final rx = x - c.point.x;
+        final rz = z - c.point.z;
+        final uAlong = (rx * c.along.x + rz * c.along.z).abs();
+        final inward = rx * c.platNormal.x + rz * c.platNormal.z;
+        if (uAlong <= c.halfWallGap + 0.14 &&
+            inward >= -1.78 &&
+            inward <= 1.04) {
+          return true;
+        }
+      }
+      return false;
     }
 
-    final earlierBounds = [
-      for (final er in earlierRoads) roadEndHalfPlanes(er),
-    ];
-    final otherBounds = [for (final or in otherRoads) roadEndHalfPlanes(or)];
-
-    bool isStrictlyWithinRoadSpan(
-      double x,
-      double z,
-      (Vec3, Vec3, Vec3, Vec3) bounds,
-    ) {
-      final (startPt, startTang, endPt, endTang) = bounds;
-      final dStart =
-          (x - startPt.x) * startTang.x + (z - startPt.z) * startTang.z;
-      if (dStart < -0.04) {
-        return false;
+    RoadSpline? findParentAtEndpoint(Vec3 endPt) {
+      RoadSpline? best;
+      var bestDist = double.infinity;
+      for (var o = 0; o < otherRoads.length; o++) {
+        final other = otherRoads[o];
+        final bounds = otherBounds[o];
+        if (!withinSpanMargin(endPt.x, endPt.z, bounds, 0.90)) {
+          continue;
+        }
+        final ns = other.nearestSample(endPt);
+        final otherHalfW = other.widthMeters * 0.5;
+        if (ns.horizontalDistance > otherHalfW + 1.25) {
+          continue;
+        }
+        if (!isGarden && other.style == RoadStyle.gardenPath) {
+          continue;
+        }
+        if (isGarden == (other.style == RoadStyle.gardenPath)) {
+          final (oStart, oStartTang, oEnd, oEndTang) = bounds;
+          final dStart =
+              (ns.point.x - oStart.x) * oStartTang.x +
+              (ns.point.z - oStart.z) * oStartTang.z;
+          final dEnd =
+              (ns.point.x - oEnd.x) * oEndTang.x +
+              (ns.point.z - oEnd.z) * oEndTang.z;
+          final isInteriorOnOther =
+              dStart > otherHalfW + 0.30 && dEnd < -(otherHalfW + 0.30);
+          if (!isInteriorOnOther) {
+            final otherIndex = allRoadList.indexWhere((r) => r.id == other.id);
+            if (selfIndex <= 0 || otherIndex < 0 || otherIndex > selfIndex) {
+              continue;
+            }
+          }
+        }
+        if (ns.horizontalDistance < bestDist) {
+          bestDist = ns.horizontalDistance;
+          best = other;
+        }
       }
-      final dEnd = (x - endPt.x) * endTang.x + (z - endPt.z) * endTang.z;
-      if (dEnd > 0.04) {
-        return false;
-      }
-      return true;
+      return best;
     }
 
-    const crossFracs = [-1.0, -0.58, 0.0, 0.58, 1.0];
-    const crossU = [0.0, 0.21, 0.50, 0.79, 1.0];
-    final camberLifts = isGarden
-        ? const [0.046, 0.062, 0.070, 0.062, 0.046]
-        : const [0.048, 0.068, 0.080, 0.068, 0.048];
-    final styleAlpha = isGarden ? 0.35 : 1.0;
+    final startParent = findParentAtEndpoint(rawSamples.first);
+    final endParent = findParentAtEndpoint(rawSamples.last);
+
+    final samples = List<Vec3>.of(rawSamples);
+
+    if (startParent != null) {
+      final targetEdgeDist = startParent.widthMeters * 0.5 + 0.028;
+      while (samples.length > 2 &&
+          startParent.nearestSample(samples[1]).horizontalDistance <
+              targetEdgeDist) {
+        samples.removeAt(0);
+      }
+      final first = samples.first;
+      final ns = startParent.nearestSample(first);
+      if (ns.horizontalDistance < targetEdgeDist) {
+        var dir = (first - ns.point).normalizedHorizontal();
+        if (dir.horizontalLength < 1e-4) {
+          dir = (samples[1] - ns.point).normalizedHorizontal();
+        }
+        final sx = ns.point.x + dir.x * targetEdgeDist;
+        final sz = ns.point.z + dir.z * targetEdgeDist;
+        samples[0] = Vec3(sx, sampleGroundY(sx, sz), sz);
+      } else if (ns.horizontalDistance > targetEdgeDist + 0.03) {
+        final toParent = (ns.point - first).normalizedHorizontal();
+        final reach = ns.horizontalDistance - targetEdgeDist;
+        final steps = math.max(1, (reach / 0.24).ceil());
+        final prepended = <Vec3>[];
+        for (var k = steps; k >= 1; k--) {
+          final d = reach * (k / steps);
+          final px = first.x + toParent.x * d;
+          final pz = first.z + toParent.z * d;
+          prepended.add(Vec3(px, sampleGroundY(px, pz), pz));
+        }
+        samples.insertAll(0, prepended);
+      }
+    }
+
+    if (endParent != null) {
+      final targetEdgeDist = endParent.widthMeters * 0.5 + 0.028;
+      while (samples.length > 2 &&
+          endParent
+                  .nearestSample(samples[samples.length - 2])
+                  .horizontalDistance <
+              targetEdgeDist) {
+        samples.removeLast();
+      }
+      final last = samples.last;
+      final ns = endParent.nearestSample(last);
+      if (ns.horizontalDistance < targetEdgeDist) {
+        var dir = (last - ns.point).normalizedHorizontal();
+        if (dir.horizontalLength < 1e-4) {
+          dir = (samples[samples.length - 2] - ns.point).normalizedHorizontal();
+        }
+        final ex = ns.point.x + dir.x * targetEdgeDist;
+        final ez = ns.point.z + dir.z * targetEdgeDist;
+        samples[samples.length - 1] = Vec3(ex, sampleGroundY(ex, ez), ez);
+      } else if (ns.horizontalDistance > targetEdgeDist + 0.03) {
+        final toParent = (ns.point - last).normalizedHorizontal();
+        final reach = ns.horizontalDistance - targetEdgeDist;
+        final steps = math.max(1, (reach / 0.24).ceil());
+        for (var k = 1; k <= steps; k++) {
+          final d = reach * (k / steps);
+          final px = last.x + toParent.x * d;
+          final pz = last.z + toParent.z * d;
+          samples.add(Vec3(px, sampleGroundY(px, pz), pz));
+        }
+      }
+    }
 
     final normals2D = <Vec3>[];
     final tangents2D = <Vec3>[];
     final arcLengths = <double>[0];
-
     for (var i = 0; i < samples.length; i++) {
       if (i > 0) {
         arcLengths.add(
@@ -2090,28 +2435,273 @@ class TerrainBuilder {
       } else {
         tangent = (samples[i + 1] - samples[i - 1]).normalizedHorizontal();
       }
-      final normal = Vec3(-tangent.z, 0, tangent.x);
       tangents2D.add(tangent);
-      normals2D.add(normal);
+      normals2D.add(Vec3(-tangent.z, 0, tangent.x));
+    }
 
-      final vCoord = arcLengths[i] * 0.45;
-      for (var col = 0; col < 5; col++) {
+    bool isAnchoredEnd(Vec3 pt, RoadSpline? parentRoad) {
+      if (parentRoad != null) {
+        return true;
+      }
+      if (TerrainConfig.isInsideBridgeFootprint(pt.x, pt.z) ||
+          (road.isBridgeApproach && pt.x.abs() <= 5.8 && pt.z.abs() <= 2.2)) {
+        return true;
+      }
+      if (pt.x.abs() >= 84.0 ||
+          pt.z.abs() >= 84.0 ||
+          ((pt.x.abs() - 66.0).abs() < 4.5 && pt.z.abs() < 4.0)) {
+        return true;
+      }
+      if (isNearStairThreshold(pt.x, pt.z)) {
+        return true;
+      }
+      return false;
+    }
+
+    final freeStart = !isAnchoredEnd(samples.first, startParent);
+    final freeEnd = !isAnchoredEnd(samples.last, endParent);
+    final startCrossBlendsToKaido =
+        isGarden &&
+        startParent != null &&
+        startParent.style == RoadStyle.kaidoRoad;
+    final endCrossBlendsToKaido =
+        isGarden && endParent != null && endParent.style == RoadStyle.kaidoRoad;
+
+    const colCount = 5;
+    const crossFracs = [-1.0, -0.58, 0.0, 0.58, 1.0];
+    const crossU = [0.0, 0.21, 0.50, 0.79, 1.0];
+    final camberLifts = isGarden
+        ? const [0.046, 0.062, 0.070, 0.062, 0.046]
+        : const [0.048, 0.068, 0.080, 0.068, 0.048];
+    final styleAlpha = isGarden ? 0.35 : 1.0;
+
+    final totalLen = arcLengths.last;
+    final featherSpan = math.min(totalLen * 0.48, 2);
+    final junctionBlendSpan = math.min(1.6, totalLen * 0.48);
+
+    final rowCount = samples.length;
+    final vertCount = rowCount * colCount;
+    final positions = Float32List(vertCount * 3);
+    final normals = Float32List(vertCount * 3);
+    final colors = Float32List(vertCount * 4);
+    final texCoords = Float32List(vertCount * 2);
+    final texCoords1 = Float32List(vertCount * 2);
+
+    (double, double, bool) clampAgainstParent(
+      double px,
+      double pz,
+      RoadSpline parent,
+      Vec3 interiorRef, {
+      required bool snapExactToEdge,
+    }) {
+      final pHalf = parent.widthMeters * 0.5;
+      final minAllowed = pHalf + 0.024;
+      final ns = parent.nearestSample(Vec3(px, 0, pz));
+      if (!snapExactToEdge && ns.horizontalDistance >= minAllowed) {
+        return (px, pz, false);
+      }
+      var rx = px - ns.point.x;
+      var rz = pz - ns.point.z;
+      final refX = interiorRef.x - ns.point.x;
+      final refZ = interiorRef.z - ns.point.z;
+      if (rx * refX + rz * refZ < 0) {
+        rx = -rx;
+        rz = -rz;
+      }
+      var rLen = math.sqrt(rx * rx + rz * rz);
+      if (rLen < 1e-4) {
+        rx = refX;
+        rz = refZ;
+        rLen = math.sqrt(rx * rx + rz * rz);
+      }
+      if (rLen < 1e-4) {
+        return (px, pz, false);
+      }
+      return (
+        ns.point.x + (rx / rLen) * minAllowed,
+        ns.point.z + (rz / rLen) * minAllowed,
+        true,
+      );
+    }
+
+    final startInteriorRef = samples[math.min(3, samples.length - 1)];
+    final endInteriorRef = samples[math.max(0, samples.length - 4)];
+
+    Vec3? alignedMouthNormal(RoadSpline? parent, Vec3 endPt, Vec3 baseN) {
+      if (parent == null) {
+        return null;
+      }
+      final ns = parent.nearestSample(endPt);
+      var pt = Vec3(ns.tangent.x, 0, ns.tangent.z);
+      if (pt.horizontalLength <= 1e-4) {
+        return null;
+      }
+      pt = pt.normalizedHorizontal();
+      if (pt.x * baseN.x + pt.z * baseN.z < 0) {
+        pt = pt * -1.0;
+      }
+      return pt;
+    }
+
+    final startMouthNormal = alignedMouthNormal(
+      startParent,
+      samples.first,
+      normals2D.first,
+    );
+    final endMouthNormal = alignedMouthNormal(
+      endParent,
+      samples.last,
+      normals2D.last,
+    );
+
+    for (var i = 0; i < rowCount; i++) {
+      final current = samples[i];
+      var normal = normals2D[i];
+      final s = arcLengths[i];
+      if (startMouthNormal != null && s < 0.96) {
+        final w = _smoothStep01(1.0 - s / 0.96);
+        normal = (normal * (1.0 - w) + startMouthNormal * w)
+            .normalizedHorizontal();
+      }
+      if (endMouthNormal != null && (totalLen - s) < 0.96) {
+        final w = _smoothStep01(1.0 - (totalLen - s) / 0.96);
+        normal = (normal * (1.0 - w) + endMouthNormal * w)
+            .normalizedHorizontal();
+      }
+
+      var freeSmoothT = 1.0;
+      if (freeStart && featherSpan > 1e-4 && s < featherSpan) {
+        freeSmoothT = math.min(freeSmoothT, _smoothStep01(s / featherSpan));
+      }
+      if (freeEnd && featherSpan > 1e-4 && (totalLen - s) < featherSpan) {
+        freeSmoothT = math.min(
+          freeSmoothT,
+          _smoothStep01((totalLen - s) / featherSpan),
+        );
+      }
+      final tipFeather = 1.0 - freeSmoothT;
+
+      var junctionBlend = 0.0;
+      var bellFlare = 0.0;
+      if (startParent != null &&
+          junctionBlendSpan > 1e-4 &&
+          s < junctionBlendSpan) {
+        final jt = _smoothStep01(1.0 - s / junctionBlendSpan);
+        bellFlare = math.max(bellFlare, isGarden ? 0.28 * jt : 0.10 * jt);
+        if (startCrossBlendsToKaido) {
+          junctionBlend = math.max(junctionBlend, 0.88 * jt);
+        }
+      }
+      if (endParent != null &&
+          junctionBlendSpan > 1e-4 &&
+          (totalLen - s) < junctionBlendSpan) {
+        final jt = _smoothStep01(1.0 - (totalLen - s) / junctionBlendSpan);
+        bellFlare = math.max(bellFlare, isGarden ? 0.28 * jt : 0.10 * jt);
+        if (endCrossBlendsToKaido) {
+          junctionBlend = math.max(junctionBlend, 0.88 * jt);
+        }
+      }
+
+      final effectiveHalfW =
+          halfWidth * (0.38 + 0.62 * freeSmoothT) * (1.0 + bellFlare);
+      final camberScale = 0.74 + 0.26 * freeSmoothT;
+      final vCoord = s * 0.45;
+
+      for (var col = 0; col < colCount; col++) {
         final frac = crossFracs[col];
-        final px = current.x + normal.x * (halfWidth * frac);
-        final pz = current.z + normal.z * (halfWidth * frac);
-        final py = sampleGroundY(px, pz) + camberLifts[col];
+        var px = current.x + normal.x * (effectiveHalfW * frac);
+        var pz = current.z + normal.z * (effectiveHalfW * frac);
+        var snappedToParent = false;
+
+        if (startParent != null &&
+            s < 2.4 &&
+            !TerrainConfig.isInsideBridgeFootprint(current.x, current.z)) {
+          final clamped = clampAgainstParent(
+            px,
+            pz,
+            startParent,
+            startInteriorRef,
+            snapExactToEdge: i == 0,
+          );
+          px = clamped.$1;
+          pz = clamped.$2;
+          snappedToParent = snappedToParent || clamped.$3;
+        }
+        if (endParent != null &&
+            (totalLen - s) < 2.4 &&
+            !TerrainConfig.isInsideBridgeFootprint(current.x, current.z)) {
+          final clamped = clampAgainstParent(
+            px,
+            pz,
+            endParent,
+            endInteriorRef,
+            snapExactToEdge: i == rowCount - 1,
+          );
+          px = clamped.$1;
+          pz = clamped.$2;
+          snappedToParent = snappedToParent || clamped.$3;
+        }
+
+        final lift = snappedToParent ? 0.048 : camberLifts[col] * camberScale;
+        final py = sampleGroundY(px, pz) + lift;
         final tilt = -frac * 0.08;
+        final nVec = Vector3(normal.x * tilt, 1, normal.z * tilt).normalized();
         final edgeTone = (col == 0 || col == 4) ? 0.92 : 1.0;
-        ribbonBuilder
-          ..normal(Vector3(normal.x * tilt, 1, normal.z * tilt).normalized())
-          ..color(Vector4(edgeTone, edgeTone, edgeTone * 0.98, styleAlpha))
-          ..texCoord(Vector2(crossU[col], vCoord))
-          ..addVertex(Vector3(px, py, pz));
+        final shoulderFeather = (col == 0 || col == 4) ? 0.55 : 0.0;
+        final uv1X = (1.0 - (1.0 - tipFeather) * (1.0 - shoulderFeather)).clamp(
+          0.0,
+          1.0,
+        );
+
+        final vIdx = i * colCount + col;
+        positions[vIdx * 3] = px;
+        positions[vIdx * 3 + 1] = py;
+        positions[vIdx * 3 + 2] = pz;
+        normals[vIdx * 3] = nVec.x;
+        normals[vIdx * 3 + 1] = nVec.y;
+        normals[vIdx * 3 + 2] = nVec.z;
+        colors[vIdx * 4] = edgeTone;
+        colors[vIdx * 4 + 1] = edgeTone;
+        colors[vIdx * 4 + 2] = edgeTone * 0.98;
+        colors[vIdx * 4 + 3] = styleAlpha;
+        texCoords[vIdx * 2] = crossU[col];
+        texCoords[vIdx * 2 + 1] = vCoord;
+        texCoords1[vIdx * 2] = uv1X;
+        texCoords1[vIdx * 2 + 1] = junctionBlend;
       }
     }
 
-    var emittedQuads = 0;
-    for (var i = 0; i < samples.length - 1; i++) {
+    final blockingRoads = <RoadSpline>[...earlierRoads];
+    final blockingBounds = <(Vec3, Vec3, Vec3, Vec3)>[
+      for (final er in earlierRoads) roadEndHalfPlanes(er),
+    ];
+    if (isGarden) {
+      for (var o = 0; o < otherRoads.length; o++) {
+        final or = otherRoads[o];
+        if (or.style == RoadStyle.kaidoRoad &&
+            !blockingRoads.any((r) => r.id == or.id)) {
+          blockingRoads.add(or);
+          blockingBounds.add(otherBounds[o]);
+        }
+      }
+    }
+
+    bool vertexOverlapsBlockingRoad(double x, double z) {
+      for (var b = 0; b < blockingRoads.length; b++) {
+        final br = blockingRoads[b];
+        if (!withinSpanMargin(x, z, blockingBounds[b], 0.04)) {
+          continue;
+        }
+        if (br.nearestSample(Vec3(x, 0, z)).horizontalDistance <
+            br.widthMeters * 0.5 + 0.008) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    final indices = <int>[];
+    for (var i = 0; i < rowCount - 1; i++) {
       final p0 = samples[i];
       final p1 = samples[i + 1];
       final mid = Vec3.lerp(p0, p1, 0.5);
@@ -2121,36 +2711,151 @@ class TerrainBuilder {
           isInsideStairFlight(mid.x, mid.z)) {
         continue;
       }
-      var overlapsEarlier = false;
-      for (var e = 0; e < earlierRoads.length; e++) {
-        final er = earlierRoads[e];
-        if (!isStrictlyWithinRoadSpan(mid.x, mid.z, earlierBounds[e])) {
-          continue;
-        }
-        if (er.nearestSample(mid).horizontalDistance < er.widthMeters * 0.44) {
-          overlapsEarlier = true;
-          break;
-        }
-      }
-      if (overlapsEarlier) {
-        continue;
-      }
 
-      final row0 = i * 5;
-      final row1 = (i + 1) * 5;
-      for (var col = 0; col < 4; col++) {
+      final row0 = i * colCount;
+      final row1 = (i + 1) * colCount;
+      for (var col = 0; col < colCount - 1; col++) {
         final v00 = row0 + col;
         final v01 = v00 + 1;
         final v10 = row1 + col;
         final v11 = v10 + 1;
-        ribbonBuilder
-          ..addTriangle(v00, v01, v10)
-          ..addTriangle(v01, v11, v10);
+
+        final x00 = positions[v00 * 3];
+        final z00 = positions[v00 * 3 + 2];
+        final x01 = positions[v01 * 3];
+        final z01 = positions[v01 * 3 + 2];
+        final x10 = positions[v10 * 3];
+        final z10 = positions[v10 * 3 + 2];
+        final x11 = positions[v11 * 3];
+        final z11 = positions[v11 * 3 + 2];
+        final qx = 0.25 * (x00 + x01 + x10 + x11);
+        final qz = 0.25 * (z00 + z01 + z10 + z11);
+
+        if (vertexOverlapsBlockingRoad(qx, qz) ||
+            vertexOverlapsBlockingRoad(x00, z00) ||
+            vertexOverlapsBlockingRoad(x01, z01) ||
+            vertexOverlapsBlockingRoad(x10, z10) ||
+            vertexOverlapsBlockingRoad(x11, z11)) {
+          continue;
+        }
+
+        final areaA = (z01 - z00) * (x10 - x00) - (x01 - x00) * (z10 - z00);
+        if (areaA > 1e-6) {
+          indices
+            ..add(v00)
+            ..add(v01)
+            ..add(v10);
+        }
+        final areaB = (z11 - z01) * (x10 - x01) - (x11 - x01) * (z10 - z01);
+        if (areaB > 1e-6) {
+          indices
+            ..add(v01)
+            ..add(v11)
+            ..add(v10);
+        }
       }
-      emittedQuads++;
     }
 
-    if (emittedQuads > 0) {
+    return _RoadBuildPlan(
+      ribbon: RoadRibbonData(
+        positions: positions,
+        normals: normals,
+        colors: colors,
+        texCoords: texCoords,
+        texCoords1: texCoords1,
+        indices: indices,
+        rowCount: rowCount,
+        colCount: colCount,
+        freeStart: freeStart,
+        freeEnd: freeEnd,
+        startCrossBlendsToKaido: startCrossBlendsToKaido,
+        endCrossBlendsToKaido: endCrossBlendsToKaido,
+      ),
+      samples: samples,
+      tangents2D: tangents2D,
+      normals2D: normals2D,
+      arcLengths: arcLengths,
+      startParent: startParent,
+      endParent: endParent,
+      stairCrossings: stairCrossings,
+      otherRoads: otherRoads,
+      otherBounds: otherBounds,
+      terraceList: terraceList,
+    );
+  }
+
+  Node buildRoadNode(
+    RoadSpline road,
+    ShukubaMaterialResolver resolveMaterial,
+    GroundHeightSampler sampleGroundY, {
+    Iterable<RoadSpline> allRoads = const [],
+    Iterable<TerraceCourse> terraces = const [],
+  }) {
+    final root = Node(name: 'road_${road.id.value}');
+    final plan = _computeRoadBuildPlan(
+      road,
+      sampleGroundY,
+      allRoads: allRoads,
+      terraces: terraces,
+    );
+    final ribbon = plan.ribbon;
+    if (plan.samples.length < 2) {
+      return root;
+    }
+
+    final halfWidth = road.widthMeters * 0.5;
+    final isGarden = road.style == RoadStyle.gardenPath;
+    final samples = plan.samples;
+    final tangents2D = plan.tangents2D;
+    final normals2D = plan.normals2D;
+    final arcLengths = plan.arcLengths;
+    final stairCrossings = plan.stairCrossings;
+    final otherRoads = plan.otherRoads;
+    final otherBounds = plan.otherBounds;
+    final terraceList = plan.terraceList;
+
+    if (ribbon.indices.isNotEmpty) {
+      final ribbonBuilder = GeometryBuilder();
+      final vertCount = ribbon.rowCount * ribbon.colCount;
+      for (var v = 0; v < vertCount; v++) {
+        ribbonBuilder
+          ..normal(
+            Vector3(
+              ribbon.normals[v * 3],
+              ribbon.normals[v * 3 + 1],
+              ribbon.normals[v * 3 + 2],
+            ),
+          )
+          ..color(
+            Vector4(
+              ribbon.colors[v * 4],
+              ribbon.colors[v * 4 + 1],
+              ribbon.colors[v * 4 + 2],
+              ribbon.colors[v * 4 + 3],
+            ),
+          )
+          ..texCoord(
+            Vector2(ribbon.texCoords[v * 2], ribbon.texCoords[v * 2 + 1]),
+          )
+          ..texCoord1(
+            Vector2(ribbon.texCoords1[v * 2], ribbon.texCoords1[v * 2 + 1]),
+          )
+          ..addVertex(
+            Vector3(
+              ribbon.positions[v * 3],
+              ribbon.positions[v * 3 + 1],
+              ribbon.positions[v * 3 + 2],
+            ),
+          );
+      }
+      ribbonBuilder.texCoord1(Vector2.zero());
+      for (var t = 0; t < ribbon.indices.length; t += 3) {
+        ribbonBuilder.addTriangle(
+          ribbon.indices[t],
+          ribbon.indices[t + 1],
+          ribbon.indices[t + 2],
+        );
+      }
       root.add(
         Node(
           name: 'road_surface_${road.id.value}',
@@ -2162,6 +2867,22 @@ class TerrainBuilder {
       );
     }
 
+    bool isNearStairThreshold(double x, double z) {
+      for (var i = 0; i < stairCrossings.length; i++) {
+        final c = stairCrossings[i];
+        final rx = x - c.point.x;
+        final rz = z - c.point.z;
+        final uAlong = (rx * c.along.x + rz * c.along.z).abs();
+        final inward = rx * c.platNormal.x + rz * c.platNormal.z;
+        if (uAlong <= c.halfWallGap + 0.38 &&
+            inward >= -2.42 &&
+            inward <= 1.72) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     bool isNearOtherRoadOrTerrace(double x, double z) {
       if (TerrainConfig.isInsideBridgeFootprint(x, z) ||
           (x.abs() < 6.6 && z.abs() < 3.0) ||
@@ -2171,11 +2892,18 @@ class TerrainBuilder {
       }
       for (var o = 0; o < otherRoads.length; o++) {
         final or = otherRoads[o];
-        if (!isStrictlyWithinRoadSpan(x, z, otherBounds[o])) {
+        final (startPt, startTang, endPt, endTang) = otherBounds[o];
+        final dStart =
+            (x - startPt.x) * startTang.x + (z - startPt.z) * startTang.z;
+        final dEnd = (x - endPt.x) * endTang.x + (z - endPt.z) * endTang.z;
+        if (dStart < -1.05 || dEnd > 1.05) {
           continue;
         }
+        final junctionAllowance = (dStart < 1.25 || dEnd > -1.25)
+            ? or.widthMeters * 0.16 + 0.56
+            : 0.38;
         if (or.nearestSample(Vec3(x, 0, z)).horizontalDistance <
-            or.widthMeters * 0.5 + 0.36) {
+            or.widthMeters * 0.5 + junctionAllowance) {
           return true;
         }
       }
@@ -2196,9 +2924,12 @@ class TerrainBuilder {
       return false;
     }
 
+    final stoneBuilder = GeometryBuilder();
+    final steppingStoneBuilder = GeometryBuilder();
     var stoneCount = 0;
     final curbSpacing = isGarden ? 0.62 : 0.72;
     final totalLen = arcLengths.last;
+    final featherSpan = math.min(totalLen * 0.48, 2);
     final curbSlots = (totalLen / curbSpacing).floor();
 
     int sampleIdxAtArc(double targetArc) {
@@ -2217,10 +2948,27 @@ class TerrainBuilder {
 
     for (var slot = 0; slot < curbSlots; slot++) {
       final arc = (slot + 0.5) * curbSpacing;
+      var freeSmoothT = 1.0;
+      if (ribbon.freeStart && featherSpan > 1e-4 && arc < featherSpan) {
+        freeSmoothT = math.min(freeSmoothT, _smoothStep01(arc / featherSpan));
+      }
+      if (ribbon.freeEnd &&
+          featherSpan > 1e-4 &&
+          (totalLen - arc) < featherSpan) {
+        freeSmoothT = math.min(
+          freeSmoothT,
+          _smoothStep01((totalLen - arc) / featherSpan),
+        );
+      }
+      if (freeSmoothT < 0.08) {
+        continue;
+      }
+
       final sIdx = sampleIdxAtArc(arc);
       final base = samples[sIdx];
       final tang = tangents2D[sIdx];
       final norm = normals2D[sIdx];
+      final localHalfW = halfWidth * (0.38 + 0.62 * freeSmoothT);
 
       for (final side in const [-1.0, 1.0]) {
         final hash =
@@ -2236,16 +2984,17 @@ class TerrainBuilder {
           continue;
         }
         final halfWid = isGarden ? 0.072 : 0.088;
-        final curbOffset = halfWidth + halfWid + 0.032;
+        final curbOffset = localHalfW + halfWid + 0.032;
         final cx = base.x + norm.x * side * curbOffset;
         final cz = base.z + norm.z * side * curbOffset;
         if (isNearOtherRoadOrTerrace(cx, cz)) {
           continue;
         }
         final gy = sampleGroundY(cx, cz);
-        final topProud = isGarden
+        final rawProud = isGarden
             ? (0.064 + 0.018 * hash)
             : (0.068 + 0.022 * hash);
+        final topProud = rawProud * freeSmoothT;
         final halfLen = isGarden ? (0.28 + 0.03 * hash) : (0.33 + 0.03 * hash);
         final shade = 0.92 + 0.22 * hash;
         _addOrientedStoneBlock(
@@ -2265,34 +3014,216 @@ class TerrainBuilder {
 
     var steppingStoneCount = 0;
     if (isGarden) {
+      final placedStones = <Vector2>[];
+
+      bool tryAddSteppingStone({
+        required double cx,
+        required double cz,
+        required double baseLift,
+        required double topLift,
+        required double radiusX,
+        required double radiusZ,
+        required double yaw,
+        required double seed,
+        bool allowNearParentJunction = false,
+      }) {
+        if (TerrainConfig.isInsideBridgeFootprint(cx, cz) ||
+            isNearStairThreshold(cx, cz)) {
+          return false;
+        }
+        if (!allowNearParentJunction && isNearOtherRoadOrTerrace(cx, cz)) {
+          return false;
+        }
+        if (allowNearParentJunction) {
+          for (var o = 0; o < otherRoads.length; o++) {
+            final or = otherRoads[o];
+            final minDist =
+                or.widthMeters * 0.5 + math.max(radiusX, radiusZ) + 0.04;
+            if (or.nearestSample(Vec3(cx, 0, cz)).horizontalDistance <
+                minDist) {
+              return false;
+            }
+          }
+          for (var t = 0; t < terraceList.length; t++) {
+            final ter = terraceList[t];
+            for (var s = 0; s < ter.crestPoints.length - 1; s++) {
+              if (horizontalDistanceToSegment(
+                    cx,
+                    cz,
+                    ter.crestPoints[s],
+                    ter.crestPoints[s + 1],
+                  ) <
+                  1.15) {
+                return false;
+              }
+            }
+          }
+        }
+        for (var p = 0; p < placedStones.length; p++) {
+          final prev = placedStones[p];
+          final dx = cx - prev.x;
+          final dz = cz - prev.y;
+          if (dx * dx + dz * dz < 0.30) {
+            return false;
+          }
+        }
+        placedStones.add(Vector2(cx, cz));
+        _addSteppingStoneSlab(
+          steppingStoneBuilder,
+          sampleGroundY: sampleGroundY,
+          cx: cx,
+          cz: cz,
+          baseLift: baseLift,
+          topLift: topLift,
+          radiusX: radiusX,
+          radiusZ: radiusZ,
+          yaw: yaw,
+          seed: seed,
+        );
+        steppingStoneCount++;
+        return true;
+      }
+
+      if (plan.startParent != null && totalLen > 1.2) {
+        const mouthSpecs = [
+          (0.34, -0.26, 0.24),
+          (0.42, 0.26, 0.22),
+          (0.86, 0.02, 0.25),
+        ];
+        for (var m = 0; m < mouthSpecs.length; m++) {
+          final spec = mouthSpecs[m];
+          final sIdx = sampleIdxAtArc(spec.$1);
+          final base = samples[sIdx];
+          final norm = normals2D[sIdx];
+          tryAddSteppingStone(
+            cx: base.x + norm.x * (halfWidth * spec.$2),
+            cz: base.z + norm.z * (halfWidth * spec.$2),
+            baseLift: 0.068,
+            topLift: 0.094,
+            radiusX: spec.$3,
+            radiusZ: spec.$3 * 0.84,
+            yaw: m * 1.15 + 0.3,
+            seed: m * 2.1 + 7.4,
+            allowNearParentJunction: true,
+          );
+        }
+      }
+
+      if (plan.endParent != null && totalLen > 1.2) {
+        const mouthSpecs = [
+          (0.34, -0.26, 0.24),
+          (0.42, 0.26, 0.22),
+          (0.86, 0.02, 0.25),
+        ];
+        for (var m = 0; m < mouthSpecs.length; m++) {
+          final spec = mouthSpecs[m];
+          final sIdx = sampleIdxAtArc(math.max(0, totalLen - spec.$1));
+          final base = samples[sIdx];
+          final norm = normals2D[sIdx];
+          tryAddSteppingStone(
+            cx: base.x + norm.x * (halfWidth * spec.$2),
+            cz: base.z + norm.z * (halfWidth * spec.$2),
+            baseLift: 0.068,
+            topLift: 0.094,
+            radiusX: spec.$3,
+            radiusZ: spec.$3 * 0.84,
+            yaw: m * 1.35 + 1.1,
+            seed: m * 2.7 + 13.1,
+            allowNearParentJunction: true,
+          );
+        }
+      }
+
+      if (ribbon.freeStart) {
+        final tip = samples.first;
+        final outTang = tangents2D.first * -1.0;
+        final norm = normals2D.first;
+        const tipSpecs = [
+          (0.12, -0.10, 0.19, 0.080),
+          (0.38, 0.11, 0.15, 0.072),
+          (0.62, -0.06, 0.12, 0.065),
+        ];
+        for (var k = 0; k < tipSpecs.length; k++) {
+          final sp = tipSpecs[k];
+          tryAddSteppingStone(
+            cx: tip.x + outTang.x * sp.$1 + norm.x * sp.$2,
+            cz: tip.z + outTang.z * sp.$1 + norm.z * sp.$2,
+            baseLift: 0.048,
+            topLift: sp.$4,
+            radiusX: sp.$3,
+            radiusZ: sp.$3 * 0.85,
+            yaw: k * 1.4 + 0.5,
+            seed: k * 3.1 + 19.2,
+          );
+        }
+      }
+
+      if (ribbon.freeEnd) {
+        final tip = samples.last;
+        final outTang = tangents2D.last;
+        final norm = normals2D.last;
+        const tipSpecs = [
+          (0.12, 0.10, 0.19, 0.080),
+          (0.38, -0.11, 0.15, 0.072),
+          (0.62, 0.06, 0.12, 0.065),
+        ];
+        for (var k = 0; k < tipSpecs.length; k++) {
+          final sp = tipSpecs[k];
+          tryAddSteppingStone(
+            cx: tip.x + outTang.x * sp.$1 + norm.x * sp.$2,
+            cz: tip.z + outTang.z * sp.$1 + norm.z * sp.$2,
+            baseLift: 0.048,
+            topLift: sp.$4,
+            radiusX: sp.$3,
+            radiusZ: sp.$3 * 0.85,
+            yaw: k * 1.6 + 0.9,
+            seed: k * 3.7 + 29.4,
+          );
+        }
+      }
+
       const stepSpacing = 0.68;
       final stepSlots = (totalLen / stepSpacing).floor();
       for (var s = 0; s < stepSlots; s++) {
         final arc = (s + 0.5) * stepSpacing;
+        var freeSmoothT = 1.0;
+        if (ribbon.freeStart && featherSpan > 1e-4 && arc < featherSpan) {
+          freeSmoothT = math.min(freeSmoothT, _smoothStep01(arc / featherSpan));
+        }
+        if (ribbon.freeEnd &&
+            featherSpan > 1e-4 &&
+            (totalLen - arc) < featherSpan) {
+          freeSmoothT = math.min(
+            freeSmoothT,
+            _smoothStep01((totalLen - arc) / featherSpan),
+          );
+        }
+        if (freeSmoothT < 0.20) {
+          continue;
+        }
         final sIdx = sampleIdxAtArc(arc);
         final base = samples[sIdx];
         final norm = normals2D[sIdx];
         final h = (math.sin(s * 23.7 + 1.9) * 3719.3).abs() % 1.0;
-        final sideJitter = (s.isEven ? -1.0 : 1.0) * (0.14 + 0.08 * h);
+        final sideJitter =
+            (s.isEven ? -1.0 : 1.0) * (0.14 + 0.08 * h) * freeSmoothT;
         final sx = base.x + norm.x * sideJitter;
         final sz = base.z + norm.z * sideJitter;
-        if (isNearOtherRoadOrTerrace(sx, sz)) {
-          continue;
-        }
         final isAccentStone = s % 5 == 2;
-        _addSteppingStoneSlab(
-          steppingStoneBuilder,
-          sampleGroundY: sampleGroundY,
+        tryAddSteppingStone(
           cx: sx,
           cz: sz,
-          baseLift: 0.072,
-          topLift: (isAccentStone ? 0.106 : 0.094) + 0.010 * h,
-          radiusX: isAccentStone ? 0.31 : (0.23 + 0.05 * h),
-          radiusZ: isAccentStone ? 0.26 : (0.19 + 0.04 * (1 - h)),
+          baseLift: 0.064,
+          topLift: (isAccentStone ? 0.104 : 0.092) + 0.010 * h,
+          radiusX:
+              (isAccentStone ? 0.30 : (0.22 + 0.05 * h)) *
+              (0.75 + 0.25 * freeSmoothT),
+          radiusZ:
+              (isAccentStone ? 0.25 : (0.18 + 0.04 * (1 - h))) *
+              (0.75 + 0.25 * freeSmoothT),
           yaw: h * math.pi * 2,
           seed: s * 1.3 + 0.4,
         );
-        steppingStoneCount++;
       }
     }
 
