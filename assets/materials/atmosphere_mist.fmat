@@ -8,6 +8,7 @@ material {
   parameters: [
     { type: vec4, name: mist_cool, hint: source_color, default: [0.36, 0.58, 0.70, 1.0] },
     { type: vec4, name: mist_warm, hint: source_color, default: [0.90, 0.68, 0.42, 1.0] },
+    { type: vec4, name: sun_ray_dir, default: [-0.8312, -0.3584, 0.4249, 0.0] },
     { type: float, name: mist_opacity, default: 0.65 },
     { type: float, name: night_mix, default: 0.0 },
     { type: float, name: mist_mode, default: 0.0 },
@@ -18,7 +19,7 @@ material {
 vertex {
   void Vertex(inout VertexInputs vertex) {
     float t = material_params.time_sec;
-    if (material_params.mist_mode > 0.5) {
+    if (material_params.mist_mode > 0.5 && material_params.mist_mode < 1.5) {
       vec3 center = vertex.model_transform[3].xyz;
       float scaleX = length(vertex.model_transform[0].xyz);
       float scaleY = length(vertex.model_transform[1].xyz);
@@ -28,6 +29,15 @@ vertex {
       vec3 camUp = cross(toCam, camRight);
       vertex.world_position =
           center + camRight * (vertex.position.x * scaleX) + camUp * (vertex.position.y * scaleY);
+    } else if (material_params.mist_mode >= 1.5) {
+      vec3 baseRay = normalize(vec3(-0.8312, -0.3584, 0.4249));
+      vec3 liveRay = normalize(material_params.sun_ray_dir.xyz + vec3(0.0, -1e-4, 0.0));
+      float duskTrack = clamp(1.0 - material_params.night_mix * 1.4, 0.0, 1.0);
+      float spanT = clamp(vertex.uv.y, 0.0, 1.0);
+      float sway = sin(t * 0.46 + vertex.world_position.x * 0.29 + vertex.world_position.z * 0.23);
+      vertex.world_position +=
+          (liveRay - baseRay) * (duskTrack * spanT * 11.5) +
+          vec3(sway * 0.045, 0.0, -sway * 0.035) * spanT;
     } else if (vertex.uv.y >= 0.0) {
       float swell = sin(t * 0.55 + vertex.world_position.z * 0.16 + vertex.world_position.x * 0.24);
       vertex.world_position.y += swell * 0.065;
@@ -48,7 +58,7 @@ fragment {
     highp float fragDepth = GetFragmentViewDepth();
     float softDepth = smoothstep(0.0, 1.55, max(0.0, sceneDepth - fragDepth));
 
-    if (material_params.mist_mode > 0.5) {
+    if (material_params.mist_mode > 0.5 && material_params.mist_mode < 1.5) {
       float r = length(uv - vec2(0.5)) * 2.0;
       float radial = pow(clamp(1.0 - r, 0.0, 1.0), 2.45);
       float wisp = 0.86 + 0.14 * NoiseSimplex3(P * 1.4 - vec3(0.0, t * 0.28, 0.0), 911);
@@ -59,6 +69,48 @@ fragment {
       );
       float alpha = radial * wisp * softDepth * material_params.mist_opacity * vColor.a * 0.32;
       material.base_color = vec4(coreTint * vColor.rgb, max(0.0, alpha));
+      PrepareMaterial(material);
+      return;
+    }
+
+    if (material_params.mist_mode >= 1.5) {
+      float duskVis = pow(clamp(1.0 - material_params.night_mix * 1.35, 0.0, 1.0), 1.55);
+      float beamDepthFade = smoothstep(0.0, 2.15, max(0.0, sceneDepth - fragDepth));
+      float camNearFade = smoothstep(1.6, 5.2, fragDepth);
+      vec3 N = normalize(GetWorldNormal());
+      vec3 V = normalize(GetViewDirection());
+      float viewNormalFade = smoothstep(0.09, 0.54, abs(dot(N, V)));
+
+      float uClamped = clamp(uv.x, 0.0, 1.0);
+      float vClamped = clamp(uv.y, 0.0, 1.0);
+      float lateralFade = pow(sin(uClamped * 3.14159265), 1.75);
+      float crownEntry = smoothstep(0.0, 0.20, vClamped);
+      float groundFade = 1.0 - smoothstep(0.62, 1.0, vClamped);
+      float spanEnv = crownEntry * groundFade * (1.0 - 0.26 * vClamped);
+
+      vec3 rayDir = normalize(material_params.sun_ray_dir.xyz + vec3(0.0, -1e-4, 0.0));
+      vec3 rayPerp = P - rayDir * dot(P, rayDir);
+      float drift = t * 0.20;
+      float bandCoarse = NoiseSimplex3(rayPerp * 1.35 + vec3(drift, 0.0, -drift * 0.7), 967);
+      float bandFine = NoiseSimplex3(rayPerp * 3.10 - vec3(0.0, drift * 0.8, drift), 977);
+      float dapple = smoothstep(-0.20, 0.66, bandCoarse * 0.65 + bandFine * 0.35 + 0.20);
+      float dustShimmer = 0.85 + 0.15 * NoiseSimplex3(P * 0.85 - vec3(0.0, t * 0.14, 0.0), 983);
+
+      vec3 crownGold = vec3(1.12, 0.82, 0.44);
+      vec3 footAmber = mix(material_params.mist_warm.rgb, vec3(0.96, 0.70, 0.38), 0.55);
+      vec3 beamRgb = mix(crownGold, footAmber, vClamped * 0.65) * vColor.rgb;
+      float alpha = lateralFade *
+          spanEnv *
+          viewNormalFade *
+          beamDepthFade *
+          camNearFade *
+          dapple *
+          dustShimmer *
+          duskVis *
+          material_params.mist_opacity *
+          vColor.a *
+          0.36;
+      material.base_color = vec4(beamRgb, max(0.0, alpha));
       PrepareMaterial(material);
       return;
     }

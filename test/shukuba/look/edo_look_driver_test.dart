@@ -57,9 +57,123 @@ void main() {
     });
   });
 
+  group('EdoLookDriver lantern clustering and punctual light budget', () {
+    test('merges nearby lanterns within 5.5m into weighted centroids sorted by '
+        'weight and capped at 12', () {
+      final origins = <Vec3>[
+        const Vec3(40, 2.4, 40),
+        const Vec3(0, 2.5, 0),
+        const Vec3(2, 2.5, 0),
+        const Vec3(0, 2.5, 2),
+        const Vec3(-22, 2.6, -12),
+        const Vec3(-20, 2.6, -12),
+        for (var i = 0; i < 42; i++)
+          Vec3(-90 + (i % 14) * 14.0, 2.5, -36 + (i ~/ 14) * 24.0),
+      ];
+      expect(origins.length, 48);
+
+      final clusters = EdoLookDriver.clusterLanternOrigins(origins);
+      expect(clusters.length, EdoLookDriver.maxLanternPointLights);
+      expect(clusters.length, lessThanOrEqualTo(12));
+
+      expect(clusters.first.weight, greaterThanOrEqualTo(3));
+      for (var i = 1; i < clusters.length; i++) {
+        expect(
+          clusters[i - 1].weight,
+          greaterThanOrEqualTo(clusters[i].weight),
+        );
+      }
+
+      final focused = EdoLookDriver.clusterLanternOrigins(const [
+        Vec3(50, 2, 50),
+        Vec3(0, 3, 0),
+        Vec3(3, 3, 0),
+        Vec3(0, 3, 3),
+      ]);
+      expect(focused.length, 2);
+      expect(focused.first.weight, 3);
+      expect(focused.first.centroid.x, closeTo(1.0, 1e-6));
+      expect(focused.first.centroid.y, closeTo(3.0, 1e-6));
+      expect(focused.first.centroid.z, closeTo(1.0, 1e-6));
+      expect(focused.last.weight, 1);
+    });
+
+    test('syncFrame caps active PointLights at <= 12 even when given 45+ '
+        'lanternOrigins and mounts zero secondary fill lights', () async {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      final scene = gpuAvailable() ? Scene() : null;
+      if (scene != null) {
+        await driver.attach(scene);
+      }
+
+      final denseLanterns = <Vec3>[
+        for (var i = 0; i < 46; i++)
+          Vec3(-32 + (i % 9) * 8.5, 2.8, -24 + (i ~/ 9) * 11.0),
+      ];
+
+      driver.syncFrame(
+        rig: TimeOfDayRig.blueHourNight,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: denseLanterns,
+        elapsedSeconds: 0.5,
+      );
+
+      expect(driver.activeLanternLights.length, 12);
+      expect(driver.activeLanternLights.length, lessThanOrEqualTo(12));
+      for (final light in driver.activeLanternLights) {
+        expect(light.range, closeTo(8.2, 1e-6));
+        expect(light.falloffExponent, closeTo(2.0, 1e-6));
+        expect(light.intensity, greaterThan(0));
+      }
+
+      if (scene != null) {
+        final fillNodes = scene.root.children
+            .where((n) => n.name == 'edo_fill_light')
+            .toList();
+        expect(fillNodes, isEmpty);
+
+        final lanternNodes = scene.root.children
+            .where((n) => n.name.startsWith('lantern_light_'))
+            .toList();
+        expect(lanternNodes.length, 12);
+        final activeCount = lanternNodes.where((n) => n.visible).length;
+        expect(activeCount, 12);
+      }
+
+      driver.syncFrame(
+        rig: TimeOfDayRig.goldenDusk,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: const [
+          Vec3(-12, 2.6, 0),
+          Vec3(-11, 2.6, 0.5),
+          Vec3(18, 2.6, -6),
+        ],
+        elapsedSeconds: 1,
+      );
+
+      expect(driver.activeLanternLights.length, 2);
+      expect(
+        driver.activeLanternLights.first.intensity,
+        greaterThan(driver.activeLanternLights.last.intensity),
+      );
+
+      if (scene != null) {
+        final visibleLanterns = scene.root.children
+            .where((n) => n.name.startsWith('lantern_light_') && n.visible)
+            .toList();
+        expect(visibleLanterns.length, 2);
+      }
+
+      driver.dispose();
+      expect(driver.activeLanternLights, isEmpty);
+    });
+  });
+
   group('EdoLookDriver headless attach, materials, and syncFrame', () {
     test(
-      'materialFor preserves depthLayer ordering for ground, kit, and lane',
+      'materialFor and resolveSunbeamMaterial preserve depthLayer ordering',
       () async {
         final driver = EdoLookDriver(allowHeadlessFallback: true);
         if (gpuAvailable()) {
@@ -77,6 +191,9 @@ void main() {
         final wallMat = driver.materialFor(ShukubaSurfaceRole.plasterWall);
         final waterMat = driver.materialFor(ShukubaSurfaceRole.riverWater);
         final mistMat = driver.materialFor(ShukubaSurfaceRole.riverMist);
+        final sunbeamMat = EdoLookDriver.resolveSunbeamMaterial(
+          driver.materialFor,
+        );
         final haloMat = driver.materialFor(ShukubaSurfaceRole.lanternHaze);
         final moteMat = driver.materialFor(ShukubaSurfaceRole.airborneMotes);
 
@@ -90,6 +207,7 @@ void main() {
         expect(waterMat.depthLayer, 1);
         expect(laneMat.depthLayer, 1);
         expect(mistMat.depthLayer, 3);
+        expect(sunbeamMat.depthLayer, 3);
         expect(haloMat.depthLayer, 4);
         expect(moteMat.depthLayer, 4);
 
@@ -97,69 +215,114 @@ void main() {
       },
     );
 
-    test(
-      'syncFrame updates lights and sightcones across Dusk and Night',
-      () async {
-        final driver = EdoLookDriver(allowHeadlessFallback: true);
-        final scene = gpuAvailable() ? Scene() : null;
-        if (scene != null) {
-          await driver.attach(scene);
-        }
+    test('syncFrame updates PCSS key light, PhysicalSkySource, and environment '
+        'across Dusk and Night', () async {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      final scene = gpuAvailable() ? Scene() : null;
+      if (scene != null) {
+        await driver.attach(scene);
+      }
 
-        const sightconeA = WatchSightcone(
-          sourceId: EntityId('tower_1'),
-          origin: Vec3(10, 0, 15),
-          yawRadians: 0.5,
-          rangeMeters: 16,
-          halfAngleRadians: 0.45,
-          alertLevel: 0.2,
-          isWatchtower: true,
+      const sightconeA = WatchSightcone(
+        sourceId: EntityId('tower_1'),
+        origin: Vec3(10, 0, 15),
+        yawRadians: 0.5,
+        rangeMeters: 16,
+        halfAngleRadians: 0.45,
+        alertLevel: 0.2,
+        isWatchtower: true,
+      );
+
+      const sightconeB = WatchSightcone(
+        sourceId: EntityId('guard_1'),
+        origin: Vec3(5, 0, 5),
+        yawRadians: -0.2,
+        rangeMeters: 10,
+        halfAngleRadians: 0.40,
+        alertLevel: 0.8,
+      );
+
+      final lanterns = [const Vec3(2, 3, 4), const Vec3(14, 3, 8)];
+
+      driver.syncFrame(
+        rig: TimeOfDayRig.goldenDusk,
+        vision: MagistrateVisionState.watchtowerPreview,
+        sightcones: [sightconeA, sightconeB],
+        lanternOrigins: lanterns,
+        elapsedSeconds: 1,
+      );
+
+      final key = driver.keyLight;
+      expect(key, isNotNull);
+      expect(key!.castsShadow, isTrue);
+      expect(key.angularRadius, closeTo(0.052, 1e-6));
+      expect(key.shadowSoftness, closeTo(0.28, 1e-6));
+      expect(key.shadowCascadeCount, 4);
+      expect(key.shadowMaxDistance, closeTo(145, 1e-6));
+      expect(key.shadowCascadeSplitLambda, closeTo(0.65, 1e-6));
+      expect(key.shadowMapResolution, 2048);
+      expect(key.shadowFilter, DirectionalShadowFilter.pcss);
+      expect(key.contactShadows, isTrue);
+      expect(key.contactShadowDistance, closeTo(0.45, 1e-6));
+      expect(
+        key.shadowAmbientStrength,
+        closeTo(0.28 + 0.08 * TimeOfDayRig.goldenDusk.nightFactor, 1e-5),
+      );
+
+      if (scene != null) {
+        expect(scene.directionalLight, same(key));
+
+        final env = scene.environmentSettings;
+        expect(env.toneMapping, ToneMappingMode.aces);
+        expect(env.ambientOcclusionEnabled, isTrue);
+        expect(env.ambientOcclusionMethod, AmbientOcclusionMethod.groundTruth);
+        expect(env.ambientOcclusionBentNormals, isTrue);
+        expect(
+          env.ambientOcclusionSpecularMode,
+          SpecularAmbientOcclusionMode.bentCone,
         );
+        expect(env.ambientOcclusionIntensity, closeTo(1.68, 1e-5));
+        expect(env.ambientOcclusionRadius, closeTo(1.05, 1e-5));
+        expect(env.ambientOcclusionPower, closeTo(1.85, 1e-5));
+        expect(env.ambientOcclusionMultiBounce, closeTo(0.46, 1e-5));
+        expect(env.ambientOcclusionDirectLightAffect, closeTo(0.30, 1e-5));
+        expect(env.fogEnabled, isTrue);
+        expect(env.fogMode, FogMode.exponential);
+        expect(env.fogSkyColorInfluence, closeTo(0.36, 1e-5));
+        expect(env.fogHeight, closeTo(1.8, 1e-5));
+        expect(env.fogHeightFalloff, closeTo(0.28, 1e-5));
+        expect(env.godRaysEnabled, isTrue);
+        expect(env.godRaysDensity, closeTo(0.72, 1e-5));
+        expect(env.godRaysAnisotropy, closeTo(0.76, 1e-5));
+        expect(env.godRaysStepCount, 36);
+      }
 
-        const sightconeB = WatchSightcone(
-          sourceId: EntityId('guard_1'),
-          origin: Vec3(5, 0, 5),
-          yawRadians: -0.2,
-          rangeMeters: 10,
-          halfAngleRadians: 0.40,
-          alertLevel: 0.8,
+      driver.syncFrame(
+        rig: TimeOfDayRig.blueHourNight,
+        vision: MagistrateVisionState.fullOverlay,
+        sightcones: [sightconeA, sightconeB],
+        lanternOrigins: lanterns,
+        elapsedSeconds: 2,
+      );
+
+      expect(
+        driver.keyLight!.shadowAmbientStrength,
+        closeTo(0.28 + 0.08 * TimeOfDayRig.blueHourNight.nightFactor, 1e-5),
+      );
+      expect(
+        driver.keyLight!.shadowAmbientStrength,
+        inInclusiveRange(0.28, 0.36),
+      );
+
+      if (scene != null) {
+        expect(
+          scene.environmentSettings.exposure,
+          inInclusiveRange(0.92, 0.96),
         );
+      }
 
-        final lanterns = [const Vec3(2, 3, 4), const Vec3(6, 3, 8)];
-
-        driver.syncFrame(
-          rig: TimeOfDayRig.goldenDusk,
-          vision: MagistrateVisionState.watchtowerPreview,
-          sightcones: [sightconeA, sightconeB],
-          lanternOrigins: lanterns,
-          elapsedSeconds: 1,
-        );
-
-        if (scene != null) {
-          expect(scene.directionalLight, isNotNull);
-          expect(scene.directionalLight!.castsShadow, isTrue);
-          expect(scene.directionalLight!.shadowCascadeCount, 3);
-          expect(scene.directionalLight!.shadowMapResolution, 2048);
-        }
-
-        driver.syncFrame(
-          rig: TimeOfDayRig.blueHourNight,
-          vision: MagistrateVisionState.fullOverlay,
-          sightcones: [sightconeA, sightconeB],
-          lanternOrigins: lanterns,
-          elapsedSeconds: 2,
-        );
-
-        if (scene != null) {
-          expect(
-            scene.directionalLight!.shadowAmbientStrength,
-            inInclusiveRange(0.15, 0.25),
-          );
-        }
-
-        driver.dispose();
-      },
-    );
+      driver.dispose();
+    });
 
     test('syncFrame execution is idempotent over repeated calls', () async {
       final driver = EdoLookDriver(allowHeadlessFallback: true);
