@@ -8,14 +8,30 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart' show GlobalKey;
-import 'package:flutter_scene/scene.dart' show Camera, Scene;
+import 'package:flutter_scene/scene.dart'
+    show
+        Camera,
+        CoplanarOverlap,
+        DirectionalLightComponent,
+        GeometryBuilder,
+        Mesh,
+        Node,
+        PointLightComponent,
+        Scene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
+import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
+    show EdoKitBuilder;
+import 'package:vector_math/vector_math.dart' show Vector3, Vector4;
 
 const String kShukubaCaptureDir = String.fromEnvironment('SHUKUBA_CAPTURE_DIR');
 
 const bool kShukubaAutoExit = bool.fromEnvironment('SHUKUBA_AUTO_EXIT');
 
 const bool kShukubaCaptureAtlas = bool.fromEnvironment('SHUKUBA_CAPTURE_ATLAS');
+
+const String kShukubaCaptureFilter = String.fromEnvironment(
+  'SHUKUBA_CAPTURE_FILTER',
+);
 
 @immutable
 class FramePixelStats {
@@ -151,6 +167,71 @@ class HarnessSummary {
 
 typedef ApplyPresetCallback = Camera Function(CameraPreset preset);
 typedef CaptureUiAtlasCallback = Future<List<String>> Function(Directory uiDir);
+
+@immutable
+class _CaptureFilter {
+  factory parse(String raw) {
+    final tokens = raw
+        .split(',')
+        .map((token) => token.trim().toLowerCase())
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+    return _CaptureFilter._(tokens);
+  }
+
+  const new _(this.tokens);
+
+  final List<String> tokens;
+
+  bool get isUnfiltered => tokens.isEmpty;
+
+  bool matchesPreset({required String category, required String presetId}) {
+    if (tokens.isEmpty) return true;
+    final lowerId = presetId.toLowerCase();
+    for (final token in tokens) {
+      if (token == category || lowerId.contains(token)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool get matchesHoverPreview =>
+      tokens.isEmpty ||
+      tokens.any(
+        (token) =>
+            token == 'valley' ||
+            token == 'hover' ||
+            'hover_preview_sample'.contains(token),
+      );
+
+  bool get matchesUiAtlas =>
+      tokens.isEmpty ||
+      tokens.any((token) => token == 'ui' || 'ui_atlas'.contains(token));
+}
+
+@immutable
+class _TurntableSpecimenPlan {
+  const new({required this.specimen, required this.angles});
+
+  final PlacedStructure specimen;
+  final List<(String, CameraPreset)> angles;
+}
+
+@immutable
+class _CapturedShot {
+  const new({
+    required this.result,
+    required this.pngWrite,
+    required this.elapsedMs,
+    required this.overlaps,
+  });
+
+  final PresetVerificationResult result;
+  final Future<void> pngWrite;
+  final int elapsedMs;
+  final List<CoplanarOverlap> overlaps;
+}
 
 class ShukubaFrameHarness {
   const new({
@@ -326,36 +407,169 @@ class ShukubaFrameHarness {
     await frameDone;
   }
 
-  Future<PresetVerificationResult> _capturePresetFrame({
+  static bool _isSceneLightNode(Node node) =>
+      node.name == 'edo_fill_light' ||
+      node.name.startsWith('lantern_light_') ||
+      node.getComponent<DirectionalLightComponent>() != null ||
+      node.getComponent<PointLightComponent>() != null;
+
+  static void _clearSubtreeShadowStatic(Node root) {
+    root.shadowStatic = false;
+    root.children.forEach(_clearSubtreeShadowStatic);
+  }
+
+  static Node _buildTurntableStageNode(ShukubaLookDriver look) {
+    final stageRoot = Node(name: 'turntable_stage_root');
+    final plinthBuilder = GeometryBuilder();
+    EdoKitBuilder.addBox(
+      plinthBuilder,
+      Vector3(-4, -1.35, -4),
+      Vector3(4, 0, 4),
+      color: Vector4(1, 1, 1, 0.30),
+    );
+    final plinthNode = Node(
+      name: 'turntable_stage_plinth',
+      mesh: Mesh(
+        plinthBuilder.build(),
+        look.materialFor(ShukubaSurfaceRole.packedEarth),
+      ),
+    );
+    stageRoot.add(plinthNode);
+    return stageRoot;
+  }
+
+  static List<_TurntableSpecimenPlan> _buildTurntablePlans(
+    _CaptureFilter filter,
+  ) {
+    const orbitAngles = <(String, double)>[
+      ('front_ne', math.pi * 0.25),
+      ('front_nw', -math.pi * 0.25),
+      ('rear_sw', -math.pi * 0.75),
+      ('rear_se', math.pi * 0.75),
+    ];
+    const fovDeg = 20.0;
+    const pitchRad = 34 * math.pi / 180;
+    final halfFovTan = math.tan(fovDeg * math.pi / 360);
+    final cosPitch = math.cos(pitchRad);
+    final sinPitch = math.sin(pitchRad);
+
+    final plans = <_TurntableSpecimenPlan>[];
+    for (final kind in turntableStructureKinds) {
+      final spec = kind.spec;
+      final span = math.max(spec.footprintWidth, spec.footprintDepth);
+      final desiredWorldSpan = math.max(4.6, spec.height * 1.65 + span * 0.58);
+      final slantDist = desiredWorldSpan / (2 * halfFovTan);
+      final horizRadius = slantDist * cosPitch;
+      final eyeRise = slantDist * sinPitch;
+      final target = Vec3(0, spec.height * 0.40, 0);
+
+      for (var variant = 0; variant < spec.variantCount; variant++) {
+        final angles = <(String, CameraPreset)>[];
+        for (final (angleName, azimuth) in orbitAngles) {
+          final presetId = '${kind.name}_v${variant}_$angleName';
+          if (!filter.matchesPreset(
+            category: 'buildings',
+            presetId: presetId,
+          )) {
+            continue;
+          }
+          final eye = Vec3(
+            target.x + math.sin(azimuth) * horizRadius,
+            target.y + eyeRise,
+            target.z + math.cos(azimuth) * horizRadius,
+          );
+          angles.add((
+            angleName,
+            CameraPreset(
+              id: presetId,
+              label: '${spec.displayName} v$variant ($angleName)',
+              eye: eye,
+              target: target,
+              timeOfDay: TimeOfDayRig.goldenDusk,
+              verticalFovDegrees: fovDeg,
+              nearMeters: 1,
+              farMeters: 180,
+            ),
+          ));
+        }
+        if (angles.isNotEmpty) {
+          plans.add(
+            _TurntableSpecimenPlan(
+              specimen: PlacedStructure(
+                id: EntityId('specimen_${kind.name}_v$variant'),
+                kind: kind,
+                position: Vec3.zero,
+                variant: variant,
+              ),
+              angles: angles,
+            ),
+          );
+        }
+      }
+    }
+    return plans;
+  }
+
+  static Future<void> _encodeAndWritePng({
+    required ui.Image image,
+    required String outputPath,
+    required String presetId,
+  }) async {
+    final ByteData? pngData;
+    try {
+      pngData = await image.toByteData(format: ui.ImageByteFormat.png);
+    } finally {
+      image.dispose();
+    }
+    if (pngData == null) {
+      throw StateError('Failed to encode PNG bytes for $presetId');
+    }
+    final pngFile = File(outputPath);
+    await pngFile.parent.create(recursive: true);
+    await pngFile.writeAsBytes(
+      pngData.buffer.asUint8List(pngData.offsetInBytes, pngData.lengthInBytes),
+    );
+  }
+
+  Future<_CapturedShot> _capturePresetFrame({
     required CameraPreset preset,
     required String outputPath,
     required int framesToSettle,
     required double startElapsedSeconds,
+    int pumpCount = 2,
+    bool stepWorld = true,
+    List<WatchSightcone>? sightconesOverride,
+    List<Vec3>? lanternOriginsOverride,
+    List<CoplanarOverlap>? cachedOverlaps,
+    bool probeDepth = true,
+    int? probeWidth,
+    int? probeHeight,
   }) async {
+    final shotSw = Stopwatch()..start();
     var elapsedSeconds = startElapsedSeconds;
     final activeCamera = applyPreset(preset);
     for (var frame = 0; frame < framesToSettle; frame++) {
       elapsedSeconds += 1 / 60;
-      world.step(1 / 60, rig: preset.timeOfDay);
+      if (stepWorld) {
+        world.step(1 / 60, rig: preset.timeOfDay);
+      }
     }
     look.syncFrame(
       rig: preset.timeOfDay,
       vision: preset.visionState,
-      sightcones: world.activeSightcones,
-      lanternOrigins: world.activeLanternOrigins,
+      sightcones: sightconesOverride ?? world.activeSightcones,
+      lanternOrigins: lanternOriginsOverride ?? world.activeLanternOrigins,
       elapsedSeconds: elapsedSeconds,
     );
-    audio?.syncAtmosphere(
-      rig: preset.timeOfDay,
-      loopAnchors: world.ambientLoopAnchors,
-    );
-    await pumpFrame();
-    await pumpFrame();
-
-    final overlaps = scene.findCoplanarOverlaps(camera: activeCamera);
-    final depthReport = await scene.probeDepthConflicts(camera: activeCamera);
-
-    await pumpFrame();
+    if (stepWorld) {
+      audio?.syncAtmosphere(
+        rig: preset.timeOfDay,
+        loopAnchors: world.ambientLoopAnchors,
+      );
+    }
+    for (var i = 0; i < pumpCount; i++) {
+      await pumpFrame();
+    }
 
     final boundaryObject = repaintBoundaryKey.currentContext
         ?.findRenderObject();
@@ -364,36 +578,59 @@ class ShukubaFrameHarness {
     }
 
     final image = await boundaryObject.toImage(pixelRatio: capturePixelRatio);
-    final ByteData? rgbaData;
-    final ByteData? pngData;
-    final int imageWidth;
-    final int imageHeight;
+    var imageTransferred = false;
+    final FramePixelStats pixelStats;
+    final List<CoplanarOverlap> overlaps;
+    final int depthConflictCount;
+    final String depthConflictSummary;
     try {
-      imageWidth = image.width;
-      imageHeight = image.height;
-      rgbaData = await image.toByteData();
-      pngData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final imageWidth = image.width;
+      final imageHeight = image.height;
+      final rgbaFuture = image.toByteData();
+
+      overlaps =
+          cachedOverlaps ?? scene.findCoplanarOverlaps(camera: activeCamera);
+      if (probeDepth) {
+        final depthReport = probeWidth != null && probeHeight != null
+            ? await scene.probeDepthConflicts(
+                camera: activeCamera,
+                width: probeWidth,
+                height: probeHeight,
+              )
+            : await scene.probeDepthConflicts(camera: activeCamera);
+        depthConflictCount = depthReport.conflicts.length;
+        depthConflictSummary = depthReport.describe();
+      } else {
+        depthConflictCount = 0;
+        depthConflictSummary =
+            'No depth conflicts in antipodal 640x360 turntable probes.';
+      }
+
+      final rgbaData = await rgbaFuture;
+      if (rgbaData == null) {
+        throw StateError('Failed to read RGBA bytes for ${preset.id}');
+      }
+      pixelStats = analyzeRgbaPixels(
+        rgbaData,
+        width: imageWidth,
+        height: imageHeight,
+      );
+      imageTransferred = true;
     } finally {
-      image.dispose();
+      if (!imageTransferred) {
+        image.dispose();
+      }
     }
 
-    if (rgbaData == null || pngData == null) {
-      throw StateError('Failed to encode RGBA or PNG bytes for ${preset.id}');
-    }
-
-    final pixelStats = analyzeRgbaPixels(
-      rgbaData,
-      width: imageWidth,
-      height: imageHeight,
-    );
     final pngFile = File(outputPath);
-    await pngFile.parent.create(recursive: true);
-    await pngFile.writeAsBytes(
-      pngData.buffer.asUint8List(pngData.offsetInBytes, pngData.lengthInBytes),
-      flush: true,
+    final pngWrite = _encodeAndWritePng(
+      image: image,
+      outputPath: pngFile.path,
+      presetId: preset.id,
     );
+    shotSw.stop();
 
-    return PresetVerificationResult(
+    final result = PresetVerificationResult(
       presetId: preset.id,
       pngPath: pngFile.path,
       pixelStats: pixelStats,
@@ -401,8 +638,14 @@ class ShukubaFrameHarness {
       coplanarDescriptions: [
         for (final overlap in overlaps.take(12)) overlap.describe(),
       ],
-      depthConflictCount: depthReport.conflicts.length,
-      depthConflictSummary: depthReport.describe(),
+      depthConflictCount: depthConflictCount,
+      depthConflictSummary: depthConflictSummary,
+    );
+    return _CapturedShot(
+      result: result,
+      pngWrite: pngWrite,
+      elapsedMs: shotSw.elapsedMilliseconds,
+      overlaps: overlaps,
     );
   }
 
@@ -411,6 +654,7 @@ class ShukubaFrameHarness {
     required bool autoExit,
     bool includeAtlas = kShukubaCaptureAtlas,
     List<CameraPreset> presets = CameraPreset.verificationPresets,
+    String captureFilter = kShukubaCaptureFilter,
   }) async {
     final directory = await _prepareOutputDir(outputDir);
     stdout.writeln('SHUKUBA_CAPTURE_OUT:${directory.path}');
@@ -418,175 +662,261 @@ class ShukubaFrameHarness {
     await Scene.initializeStaticResources();
     await Scene.preload();
 
-    for (var i = 0; i < 24; i++) {
-      final hx = -10.0 + i * 0.9;
-      final hz = -4.0 + (i % 5) * 2.0;
-      final hy = world.sampleGroundHeight(hx, hz);
-      world.syncPreview(
-        StampGhostPreview(
-          kind: StructureKind.machiya,
-          position: Vec3(hx, hy, hz),
-          yawRadians: (i % 4) * (math.pi / 4),
-          variant: i % 4,
-        ),
-      );
+    final filter = _CaptureFilter.parse(captureFilter);
+    if (filter.matchesHoverPreview) {
+      for (var i = 0; i < 24; i++) {
+        final hx = -10.0 + i * 0.9;
+        final hz = -4.0 + (i % 5) * 2.0;
+        final hy = world.sampleGroundHeight(hx, hz);
+        world.syncPreview(
+          StampGhostPreview(
+            kind: StructureKind.machiya,
+            position: Vec3(hx, hy, hz),
+            yawRadians: (i % 4) * (math.pi / 4),
+            variant: i % 4,
+          ),
+        );
+      }
+      world.syncPreview(const NoBuildPreview());
     }
-    world.syncPreview(const NoBuildPreview());
+
+    final valleyPresets = [
+      for (final preset in presets)
+        if (filter.matchesPreset(category: 'valley', presetId: preset.id))
+          preset,
+    ];
+    final considerAtlas = includeAtlas || !filter.isUnfiltered;
+    final seamPresets = considerAtlas
+        ? [
+            for (final seamPreset in geometrySeamPresets)
+              if (filter.matchesPreset(
+                category: 'seams',
+                presetId: seamPreset.id,
+              ))
+                seamPreset,
+          ]
+        : const <CameraPreset>[];
+    final specimenPlans = considerAtlas
+        ? _buildTurntablePlans(filter)
+        : const <_TurntableSpecimenPlan>[];
+
+    final totalShots =
+        valleyPresets.length +
+        seamPresets.length +
+        specimenPlans.fold<int>(0, (sum, plan) => sum + plan.angles.length);
 
     final results = <PresetVerificationResult>[];
+    final pendingPngWrites = <Future<void>>[];
+    var shotIndex = 0;
     var elapsedSeconds = 0.0;
+    var ranUiAtlas = false;
 
-    for (final preset in presets) {
-      final res = await _capturePresetFrame(
-        preset: preset,
-        outputPath: '${directory.path}/${preset.id}.png',
-        framesToSettle: settleFrames,
-        startElapsedSeconds: elapsedSeconds,
-      );
-      elapsedSeconds += settleFrames / 60;
-      results.add(res);
+    Future<void> flushPendingWrites() async {
+      if (pendingPngWrites.isEmpty) return;
+      final batch = List<Future<void>>.of(pendingPngWrites);
+      pendingPngWrites.clear();
+      await Future.wait(batch);
     }
 
-    if (includeAtlas) {
-      for (final seamPreset in geometrySeamPresets) {
-        final res = await _capturePresetFrame(
-          preset: seamPreset,
-          outputPath: '${directory.path}/seams/${seamPreset.id}.png',
-          framesToSettle: 10,
+    Future<void> recordShot(_CapturedShot shot) async {
+      shotIndex++;
+      results.add(shot.result);
+      pendingPngWrites.add(shot.pngWrite);
+      stdout.writeln(
+        'SHUKUBA_SHOT:[$shotIndex/$totalShots] ${shot.result.presetId} '
+        'overlaps=${shot.result.coplanarOverlapCount} '
+        'conflicts=${shot.result.depthConflictCount} (${shot.elapsedMs}ms)',
+      );
+      if (shotIndex % 8 == 0 || shotIndex == totalShots) {
+        await flushPendingWrites();
+        final partialSummary = HarnessSummary(
+          outputDir: directory.path,
+          results: List<PresetVerificationResult>.unmodifiable(results),
+        );
+        final partialEncoded = const JsonEncoder.withIndent('  ')
+            .convert(partialSummary.toJson());
+        await File('${directory.path}/summary.partial.json')
+            .writeAsString('$partialEncoded\n', flush: true);
+      }
+    }
+
+    try {
+      for (var i = 0; i < valleyPresets.length; i++) {
+        final preset = valleyPresets[i];
+        final frames = math.min(settleFrames, i == 0 ? 24 : 8);
+        final shot = await _capturePresetFrame(
+          preset: preset,
+          outputPath: '${directory.path}/${preset.id}.png',
+          framesToSettle: frames,
           startElapsedSeconds: elapsedSeconds,
         );
-        elapsedSeconds += 10 / 60;
-        results.add(res);
+        elapsedSeconds += frames / 60;
+        await recordShot(shot);
       }
 
-      final originalGraph = world.graph;
-      const stageX = -22.0;
-      const stageZ = 14.0;
-      try {
-        world.applyGraph(ShukubaGraph());
-        final stageY = world.sampleGroundHeight(stageX, stageZ);
-        const orbitAngles = <(String, double)>[
-          ('front_ne', math.pi * 0.25),
-          ('front_nw', -math.pi * 0.25),
-          ('rear_sw', -math.pi * 0.75),
-          ('rear_se', math.pi * 0.75),
-        ];
+      for (var i = 0; i < seamPresets.length; i++) {
+        final seamPreset = seamPresets[i];
+        final shot = await _capturePresetFrame(
+          preset: seamPreset,
+          outputPath: '${directory.path}/seams/${seamPreset.id}.png',
+          framesToSettle: 4,
+          startElapsedSeconds: elapsedSeconds,
+          pumpCount: i == 0 ? 2 : 1,
+        );
+        elapsedSeconds += 4 / 60;
+        await recordShot(shot);
+      }
 
-        for (final kind in turntableStructureKinds) {
-          final spec = kind.spec;
-          final variantCount = spec.variantCount;
-          final span = math.max(spec.footprintWidth, spec.footprintDepth);
-          final desiredWorldSpan = math.max(
-            4.6,
-            spec.height * 1.65 + span * 0.58,
-          );
-          const fovDeg = 20.0;
-          final slantDist =
-              desiredWorldSpan / (2 * math.tan(fovDeg * math.pi / 360));
-          const pitchRad = 34 * math.pi / 180;
-          final horizRadius = slantDist * math.cos(pitchRad);
-          final eyeRise = slantDist * math.sin(pitchRad);
-          final target = Vec3(stageX, stageY + spec.height * 0.40, stageZ);
+      if (specimenPlans.isNotEmpty) {
+        final savedVisibility = <Node, bool>{};
+        for (final child in List<Node>.of(scene.root.children)) {
+          if (_isSceneLightNode(child)) continue;
+          savedVisibility[child] = child.visible;
+          child.visible = false;
+        }
+        final stageRoot = _buildTurntableStageNode(look);
+        scene.root.add(stageRoot);
+        const kitBuilder = EdoKitBuilder();
 
-          for (var variant = 0; variant < variantCount; variant++) {
-            final specimen = PlacedStructure(
-              id: EntityId('specimen_${kind.name}_v$variant'),
-              kind: kind,
-              position: Vec3(stageX, stageY, stageZ),
-              variant: variant,
+        try {
+          for (final plan in specimenPlans) {
+            final specimen = plan.specimen;
+            final specimenNode = kitBuilder.buildStructureNode(
+              specimen,
+              look.materialFor,
             );
-            world.applyGraph(ShukubaGraph(structures: [specimen]));
+            _clearSubtreeShadowStatic(specimenNode);
+            final specimenLanternOrigins = [
+              for (final local in EdoKitBuilder.structureLanternLocalOffsets(
+                specimen,
+              ))
+                specimen.position + local.rotateY(specimen.yawRadians),
+            ];
+            stageRoot.add(specimenNode);
 
-            for (final (angleName, azimuth) in orbitAngles) {
-              final presetId = '${kind.name}_v${variant}_$angleName';
-              final eye = Vec3(
-                target.x + math.sin(azimuth) * horizRadius,
-                target.y + eyeRise,
-                target.z + math.cos(azimuth) * horizRadius,
-              );
-              final specimenPreset = CameraPreset(
-                id: presetId,
-                label: '${spec.displayName} v$variant ($angleName)',
-                eye: eye,
-                target: target,
-                timeOfDay: TimeOfDayRig.goldenDusk,
-                verticalFovDegrees: fovDeg,
-                nearMeters: 1,
-                farMeters: 180,
-              );
-              final res = await _capturePresetFrame(
-                preset: specimenPreset,
-                outputPath: '${directory.path}/buildings/$presetId.png',
-                framesToSettle: 6,
-                startElapsedSeconds: elapsedSeconds,
-              );
-              elapsedSeconds += 6 / 60;
-              results.add(res);
+            try {
+              List<CoplanarOverlap>? cachedOverlaps;
+              var hasProbedDepth = false;
+              var specimenHadDepthConflict = false;
+
+              for (final (angleName, specimenPreset) in plan.angles) {
+                final shouldProbeDepth =
+                    angleName == 'front_ne' ||
+                    angleName == 'rear_sw' ||
+                    !hasProbedDepth ||
+                    specimenHadDepthConflict;
+                final shot = await _capturePresetFrame(
+                  preset: specimenPreset,
+                  outputPath:
+                      '${directory.path}/buildings/${specimenPreset.id}.png',
+                  framesToSettle: 2,
+                  startElapsedSeconds: elapsedSeconds,
+                  pumpCount: 1,
+                  stepWorld: false,
+                  sightconesOverride: const [],
+                  lanternOriginsOverride: specimenLanternOrigins,
+                  cachedOverlaps: cachedOverlaps,
+                  probeDepth: shouldProbeDepth,
+                  probeWidth: 640,
+                  probeHeight: 360,
+                );
+                elapsedSeconds += 2 / 60;
+                cachedOverlaps ??= shot.overlaps;
+                if (shouldProbeDepth) {
+                  hasProbedDepth = true;
+                  if (shot.result.depthConflictCount > 0) {
+                    specimenHadDepthConflict = true;
+                  }
+                }
+                await recordShot(shot);
+              }
+            } finally {
+              stageRoot.remove(specimenNode);
             }
           }
+        } finally {
+          scene.root.remove(stageRoot);
+          for (final entry in savedVisibility.entries) {
+            entry.key.visible = entry.value;
+          }
         }
-      } finally {
-        world.applyGraph(originalGraph);
       }
-    }
 
-    applyPreset(CameraPreset.duskOverview);
-    final snappedHover = world.graph.snapStructure(
-      kind: StructureKind.machiya,
-      rawPoint: const Vec3(19.6, 0, -2.5),
-      sampleGroundY: world.sampleGroundHeight,
-    );
-    final candidate = PlacedStructure(
-      id: const EntityId('__harness_hover__'),
-      kind: StructureKind.machiya,
-      position: snappedHover.position,
-      yawRadians: snappedHover.yawRadians,
-    );
-    world.syncPreview(
-      StampGhostPreview(
-        kind: StructureKind.machiya,
-        position: snappedHover.position,
-        yawRadians: snappedHover.yawRadians,
-        lanternSpans: world.graph.previewLanternSpansFor(candidate),
-      ),
-    );
-    look.syncFrame(
-      rig: CameraPreset.duskOverview.timeOfDay,
-      vision: MagistrateVisionState.hidden,
-      sightcones: world.activeSightcones,
-      lanternOrigins: world.activeLanternOrigins,
-      elapsedSeconds: elapsedSeconds,
-    );
-    await pumpFrame();
-    await pumpFrame();
-    final hoverBoundary = repaintBoundaryKey.currentContext?.findRenderObject();
-    if (hoverBoundary is RenderRepaintBoundary) {
-      final hoverImg = await hoverBoundary.toImage(
-        pixelRatio: capturePixelRatio,
-      );
-      try {
-        final hoverPng = await hoverImg.toByteData(
-          format: ui.ImageByteFormat.png,
+      if (filter.matchesHoverPreview) {
+        applyPreset(CameraPreset.duskOverview);
+        final snappedHover = world.graph.snapStructure(
+          kind: StructureKind.machiya,
+          rawPoint: const Vec3(19.6, 0, -2.5),
+          sampleGroundY: world.sampleGroundHeight,
         );
-        if (hoverPng != null) {
-          await File('${directory.path}/hover_preview_sample.png').writeAsBytes(
-            hoverPng.buffer.asUint8List(
-              hoverPng.offsetInBytes,
-              hoverPng.lengthInBytes,
+        final candidate = PlacedStructure(
+          id: const EntityId('__harness_hover__'),
+          kind: StructureKind.machiya,
+          position: snappedHover.position,
+          yawRadians: snappedHover.yawRadians,
+        );
+        world.syncPreview(
+          StampGhostPreview(
+            kind: StructureKind.machiya,
+            position: snappedHover.position,
+            yawRadians: snappedHover.yawRadians,
+            lanternSpans: world.graph.previewLanternSpansFor(candidate),
+          ),
+        );
+        look.syncFrame(
+          rig: CameraPreset.duskOverview.timeOfDay,
+          vision: MagistrateVisionState.hidden,
+          sightcones: world.activeSightcones,
+          lanternOrigins: world.activeLanternOrigins,
+          elapsedSeconds: elapsedSeconds,
+        );
+        await pumpFrame();
+        await pumpFrame();
+        final hoverBoundary = repaintBoundaryKey.currentContext
+            ?.findRenderObject();
+        if (hoverBoundary is RenderRepaintBoundary) {
+          final hoverImg = await hoverBoundary.toImage(
+            pixelRatio: capturePixelRatio,
+          );
+          pendingPngWrites.add(
+            _encodeAndWritePng(
+              image: hoverImg,
+              outputPath: '${directory.path}/hover_preview_sample.png',
+              presetId: 'hover_preview_sample',
             ),
-            flush: true,
           );
         }
-      } finally {
-        hoverImg.dispose();
+        world.syncPreview(const NoBuildPreview());
+      } else if (specimenPlans.isNotEmpty) {
+        applyPreset(CameraPreset.duskOverview);
+        look.syncFrame(
+          rig: CameraPreset.duskOverview.timeOfDay,
+          vision: MagistrateVisionState.hidden,
+          sightcones: world.activeSightcones,
+          lanternOrigins: world.activeLanternOrigins,
+          elapsedSeconds: elapsedSeconds,
+        );
       }
-    }
-    world.syncPreview(const NoBuildPreview());
 
-    if (includeAtlas && captureUiAtlas != null) {
-      final uiDir = Directory('${directory.path}/ui');
-      await uiDir.create(recursive: true);
-      await captureUiAtlas!(uiDir);
+      if (considerAtlas && filter.matchesUiAtlas && captureUiAtlas != null) {
+        final uiSw = Stopwatch()..start();
+        final uiDir = Directory('${directory.path}/ui');
+        await uiDir.create(recursive: true);
+        final uiSaved = await captureUiAtlas!(uiDir);
+        uiSw.stop();
+        ranUiAtlas = true;
+        stdout.writeln(
+          'SHUKUBA_UI_ATLAS:${uiSaved.length} (${uiSw.elapsedMilliseconds}ms)',
+        );
+      }
+
+      await flushPendingWrites();
+    } finally {
+      if (pendingPngWrites.isNotEmpty) {
+        try {
+          await flushPendingWrites();
+        } on Object catch (_) {}
+      }
     }
 
     final summary = HarnessSummary(outputDir: directory.path, results: results);
@@ -601,7 +931,10 @@ class ShukubaFrameHarness {
     await stdout.flush();
 
     if (autoExit) {
-      exit(summary.allPassed ? 0 : 2);
+      final exitClean =
+          summary.allPassed ||
+          (results.isEmpty && ranUiAtlas && !filter.isUnfiltered);
+      exit(exitClean ? 0 : 2);
     }
     return summary;
   }
