@@ -41,7 +41,7 @@ void main() {
   });
 
   group('LanternSpan.deriveAll and ShukubaGraph', () {
-    test('strings facing eaves within 6.5m without duplicates or tangles', () {
+    test('strings facing eaves within 8.2m without duplicates or tangles', () {
       const northHouse = PlacedStructure(
         id: EntityId('machiya_north'),
         kind: StructureKind.machiya,
@@ -205,7 +205,7 @@ void main() {
         );
 
         expect(snapped.snappedRoadId, const EntityId('lane_1'));
-        expect(snapped.position.z, closeTo(-(1.6 + 3.4 + 0.35), 1e-6));
+        expect(snapped.position.z, closeTo(-(1.6 + 2.4 + 0.35), 1e-6));
         expect(snapped.position.y, closeTo(2.2, 1e-6));
         expect(snapped.yawRadians, closeTo(0, 1e-6));
 
@@ -308,6 +308,24 @@ void main() {
         CameraPreset.verificationPresets,
         contains(CameraPreset.meadowCloseup),
       );
+      expect(
+        CameraPreset.verificationPresets,
+        contains(CameraPreset.countrysideVista),
+      );
+      expect(CameraPreset.verificationPresets.length, equals(6));
+      expect(CameraPreset.countrysideVista.id, 'countryside_vista');
+      expect(CameraPreset.countrysideVista.label, 'Terraced Countryside Vista');
+      expect(CameraPreset.countrysideVista.eye, const Vec3(-66, 56, -66));
+      expect(CameraPreset.countrysideVista.target, const Vec3(2, 2.2, 0));
+      expect(CameraPreset.countrysideVista.timeOfDay, TimeOfDayRig.goldenDusk);
+      expect(CameraPreset.countrysideVista.verticalFovDegrees, 22.0);
+      expect(CameraPreset.countrysideVista.nearMeters, 4.0);
+      expect(CameraPreset.countrysideVista.farMeters, 350.0);
+      final vistaCam = CameraPreset.countrysideVista.toPerspectiveCamera();
+      expect(vistaCam.fovNear, 4.0);
+      expect(vistaCam.fovFar, 350.0);
+      expect(vistaCam.position.x, closeTo(-66.0, 1e-4));
+      expect(vistaCam.target.y, closeTo(2.2, 1e-4));
     });
 
     test(
@@ -357,5 +375,247 @@ void main() {
         expect(bastion.sampleGradedElevation(-2, 1.5, 0.4), closeTo(0.4, 1e-9));
       },
     );
+  });
+
+  group('StructureKind, StructureSpec, and Human Scale Recalibration', () {
+    test('exhaustively binds all StructureKind values in spec and byKind', () {
+      expect(StructureKind.values, contains(StructureKind.minka));
+      expect(StructureKind.values, contains(StructureKind.shoroBell));
+      expect(StructureKind.values, contains(StructureKind.stoneWell));
+      expect(StructureKind.values, contains(StructureKind.karesansuiGarden));
+      expect(StructureSpec.byKind.length, StructureKind.values.length);
+
+      for (final kind in StructureKind.values) {
+        expect(kind.spec.kind, kind);
+        expect(StructureSpec.byKind[kind], kind.spec);
+      }
+    });
+
+    test('classifies botanical trees and natural features accurately', () {
+      const botanical = {
+        StructureKind.mapleCluster,
+        StructureKind.bambooGrove,
+        StructureKind.pineTree,
+        StructureKind.weepingWillow,
+      };
+
+      for (final kind in StructureKind.values) {
+        expect(
+          kind.isBotanicalTree,
+          botanical.contains(kind),
+          reason: '$kind botanical classification',
+        );
+      }
+
+      for (final kind in StructureKind.values) {
+        final expectedNatural =
+            botanical.contains(kind) || kind == StructureKind.rockOutcrop;
+        expect(
+          kind.isNaturalFeature,
+          expectedNatural,
+          reason: '$kind natural feature classification',
+        );
+      }
+    });
+
+    test('recalibrates human scale dimensions and eave anchors', () {
+      const machiya = StructureSpec.machiya;
+      expect(machiya.footprintWidth, 3.8);
+      expect(machiya.footprintDepth, 4.8);
+      expect(machiya.height, 4.18);
+      expect(machiya.foundationSkirtDepth, 1.2);
+      expect(machiya.eaveAnchors, hasLength(3));
+      expect(machiya.eaveAnchors[0].localOffset.y, 1.86);
+      expect(machiya.eaveAnchors[1].localOffset.y, 1.86);
+      expect(machiya.hasShojiWindows, isTrue);
+      expect(machiya.roofCraft, RoofCraft.irimoyaKawara);
+
+      const minka = StructureSpec.minka;
+      expect(minka.displayName, 'Farmhouse');
+      expect(minka.edoSubtitle, 'Minka cottage');
+      expect(minka.footprintWidth, 3.6);
+      expect(minka.footprintDepth, 4.2);
+      expect(minka.height, 3.8);
+      expect(minka.foundationSkirtDepth, 1.2);
+      expect(minka.eaveAnchors, hasLength(2));
+      expect(minka.hasShojiWindows, isTrue);
+      expect(minka.roofCraft, RoofCraft.kayabukiThatch);
+
+      const chaya = StructureSpec.chaya;
+      expect(chaya.footprintWidth, 4.4);
+      expect(chaya.footprintDepth, 4.4);
+      expect(chaya.height, 3.58);
+      expect(chaya.eaveAnchors, hasLength(3));
+      expect(chaya.roofCraft, RoofCraft.irimoyaKawara);
+
+      const kura = StructureSpec.kura;
+      expect(kura.footprintWidth, 3.4);
+      expect(kura.footprintDepth, 4.0);
+      expect(kura.height, 4.55);
+      expect(kura.eaveAnchors, hasLength(1));
+      expect(kura.roofCraft, RoofCraft.ishiOkiYane);
+
+      const stall = StructureSpec.marketStall;
+      expect(stall.footprintWidth, 2.2);
+      expect(stall.footprintDepth, 1.9);
+      expect(stall.height, 2.24);
+      expect(stall.eaveAnchors, hasLength(4));
+      expect(stall.eaveAnchors[0].localOffset.y, 1.84);
+
+      const torii = StructureSpec.toriiGate;
+      expect(torii.footprintWidth, 4);
+      expect(torii.footprintDepth, 1.3);
+      expect(torii.height, 4.3);
+      expect(torii.straddlesRoad, isTrue);
+
+      const shoro = StructureSpec.shoroBell;
+      expect(shoro.displayName, 'Bell Pavilion');
+      expect(shoro.footprintWidth, 3.2);
+      expect(shoro.footprintDepth, 3.2);
+      expect(shoro.height, 4.6);
+      expect(shoro.eaveAnchors, hasLength(2));
+
+      const well = StructureSpec.stoneWell;
+      expect(well.displayName, 'Courtyard Well');
+      expect(well.footprintWidth, 1.8);
+      expect(well.footprintDepth, 1.8);
+      expect(well.height, 2.35);
+      expect(well.eaveAnchors, isEmpty);
+      expect(well.snapsToRoadTangent, isFalse);
+
+      const garden = StructureSpec.karesansuiGarden;
+      expect(garden.displayName, 'Zen Gravel Court');
+      expect(garden.footprintWidth, 4.2);
+      expect(garden.footprintDepth, 3.6);
+      expect(garden.height, 1.45);
+      expect(garden.eaveAnchors, isEmpty);
+      expect(garden.snapsToRoadTangent, isFalse);
+    });
+  });
+
+  group('HudToolCategory and PlacementTool categorization', () {
+    test('exposes clean labels for all HUD categories', () {
+      expect(HudToolCategory.dwellingsAndShops.label, 'Dwellings & Shops');
+      expect(HudToolCategory.roadsAndWalls.label, 'Roads & Walls');
+      expect(HudToolCategory.treesAndRocks.label, 'Trees & Rocks');
+      expect(
+        HudToolCategory.shrinesAndCourtyards.label,
+        'Shrines & Courtyards',
+      );
+    });
+
+    test('categorizes placement tools into respective groups', () {
+      const dwellingKinds = [
+        StructureKind.machiya,
+        StructureKind.minka,
+        StructureKind.chaya,
+        StructureKind.kura,
+        StructureKind.marketStall,
+      ];
+      for (final kind in dwellingKinds) {
+        expect(
+          StampStructureTool(kind: kind).hudCategory,
+          HudToolCategory.dwellingsAndShops,
+        );
+      }
+
+      const treeRockKinds = [
+        StructureKind.rockOutcrop,
+        StructureKind.pineTree,
+        StructureKind.mapleCluster,
+        StructureKind.weepingWillow,
+        StructureKind.bambooGrove,
+      ];
+      for (final kind in treeRockKinds) {
+        expect(
+          StampStructureTool(kind: kind).hudCategory,
+          HudToolCategory.treesAndRocks,
+        );
+      }
+
+      const shrineKinds = [
+        StructureKind.toriiGate,
+        StructureKind.shoroBell,
+        StructureKind.karesansuiGarden,
+        StructureKind.stoneWell,
+      ];
+      for (final kind in shrineKinds) {
+        expect(
+          StampStructureTool(kind: kind).hudCategory,
+          HudToolCategory.shrinesAndCourtyards,
+        );
+      }
+
+      expect(
+        const StampStructureTool(kind: StructureKind.yaguraTower).hudCategory,
+        isNull,
+      );
+      expect(const DrawLaneTool().hudCategory, HudToolCategory.roadsAndWalls);
+      expect(
+        const BuildTerraceTool().hudCategory,
+        HudToolCategory.roadsAndWalls,
+      );
+      expect(const BuildWallTool().hudCategory, HudToolCategory.roadsAndWalls);
+      expect(const ExploreTool().hudCategory, null);
+      expect(const DemolishTool().hudCategory, null);
+      expect(const InspectWatchTool().hudCategory, null);
+    });
+  });
+
+  group('LanternSpan.hasFestivalStreamers and BootStageId', () {
+    test('computes deterministic FNV-1a streamers flag for spans', () {
+      const spanA = LanternSpan(
+        id: EntityId('span_alpha'),
+        endpointA: EaveEndpoint(
+          structureId: EntityId('s1'),
+          anchorIndex: 0,
+          worldPosition: Vec3.zero,
+          worldNormal: Vec3.forward,
+        ),
+        endpointB: EaveEndpoint(
+          structureId: EntityId('s2'),
+          anchorIndex: 0,
+          worldPosition: Vec3(0, 0, 4),
+          worldNormal: Vec3.forward,
+        ),
+        lengthMeters: 4,
+        sagMeters: 0.34,
+      );
+
+      final flag1 = spanA.hasFestivalStreamers;
+      final flag2 = spanA.hasFestivalStreamers;
+      expect(flag1, flag2);
+
+      const spanB = LanternSpan(
+        id: EntityId('span_alpha'),
+        endpointA: EaveEndpoint(
+          structureId: EntityId('s1'),
+          anchorIndex: 0,
+          worldPosition: Vec3.zero,
+          worldNormal: Vec3.forward,
+        ),
+        endpointB: EaveEndpoint(
+          structureId: EntityId('s2'),
+          anchorIndex: 0,
+          worldPosition: Vec3(0, 0, 4),
+          worldNormal: Vec3.forward,
+        ),
+        lengthMeters: 4,
+        sagMeters: 0.34,
+      );
+      expect(spanB.hasFestivalStreamers, flag1);
+    });
+
+    test('exposes crisp labels and details on all boot stages', () {
+      expect(BootStageId.values, hasLength(6));
+      for (final stage in BootStageId.values) {
+        expect(stage.label, isNotEmpty);
+        expect(stage.detail, isNotEmpty);
+        expect(stage.label.contains('—'), isFalse);
+        expect(stage.label.contains('–'), isFalse);
+        expect(stage.detail.contains('—'), isFalse);
+        expect(stage.detail.contains('–'), isFalse);
+      }
+    });
   });
 }

@@ -16,16 +16,27 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         Vec3;
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
     show EdoKitBuilder;
-import 'package:vector_math/vector_math.dart' show Vector2, Vector3, Vector4;
+import 'package:kage_no_machi/shukuba/world/scene_shadow_helper.dart';
+import 'package:vector_math/vector_math.dart'
+    show Aabb2, Vector2, Vector3, Vector4;
 
 class TerrainConfig {
   const new();
 
-  static const double minX = -38;
-  static const double maxX = 38;
-  static const double minZ = -38;
-  static const double maxZ = 38;
+  static const double minX = -88;
+  static const double maxX = 88;
+  static const double minZ = -88;
+  static const double maxZ = 88;
   static const double gridStep = 0.5;
+
+  static const int gridDimension = 4;
+  static const int chunkCount = 16;
+  static const double chunkSpan = 44;
+
+  static double chunkMinX(int cx) => minX + cx * chunkSpan;
+  static double chunkMaxX(int cx) => minX + (cx + 1) * chunkSpan;
+  static double chunkMinZ(int cz) => minZ + cz * chunkSpan;
+  static double chunkMaxZ(int cz) => minZ + (cz + 1) * chunkSpan;
 
   static const double bridgeMinX = -5.2;
   static const double bridgeMaxX = 5.2;
@@ -84,7 +95,58 @@ class _RoadTerraceCrossing {
 }
 
 class TerrainBuilder {
-  const new();
+  new();
+
+  final Set<int> dirtyChunkIndices = <int>{for (var i = 0; i < 16; i++) i};
+
+  final Map<int, MeshGeometry> geometryCache = <int, MeshGeometry>{};
+
+  void markAllDirty() {
+    for (var i = 0; i < 16; i++) {
+      dirtyChunkIndices.add(i);
+    }
+  }
+
+  void markDirty(Aabb2 bounds) {
+    if (bounds.min.x > bounds.max.x || bounds.min.y > bounds.max.y) {
+      return;
+    }
+    const margin = 3.5;
+    final expMinX = bounds.min.x - margin;
+    final expMaxX = bounds.max.x + margin;
+    final expMinZ = bounds.min.y - margin;
+    final expMaxZ = bounds.max.y + margin;
+
+    if (expMaxX < TerrainConfig.minX ||
+        expMinX > TerrainConfig.maxX ||
+        expMaxZ < TerrainConfig.minZ ||
+        expMinZ > TerrainConfig.maxZ) {
+      return;
+    }
+
+    final minCx = ((expMinX - TerrainConfig.minX) / TerrainConfig.chunkSpan)
+        .floor()
+        .clamp(0, 3);
+    final maxCx = ((expMaxX - TerrainConfig.minX) / TerrainConfig.chunkSpan)
+        .floor()
+        .clamp(0, 3);
+    final minCz = ((expMinZ - TerrainConfig.minZ) / TerrainConfig.chunkSpan)
+        .floor()
+        .clamp(0, 3);
+    final maxCz = ((expMaxZ - TerrainConfig.minZ) / TerrainConfig.chunkSpan)
+        .floor()
+        .clamp(0, 3);
+
+    for (var cz = minCz; cz <= maxCz; cz++) {
+      for (var cx = minCx; cx <= maxCx; cx++) {
+        dirtyChunkIndices.add(cz * 4 + cx);
+      }
+    }
+  }
+
+  bool isChunkDirty(int cx, int cz) => dirtyChunkIndices.contains(cz * 4 + cx);
+
+  void clearDirty() => dirtyChunkIndices.clear();
 
   static double _quintic(double t) {
     final c = t < 0 ? 0.0 : (t > 1 ? 1.0 : t);
@@ -102,7 +164,16 @@ class TerrainBuilder {
     final westUndulation =
         0.15 * math.sin(x * 0.11 + 0.35) * math.cos(z * 0.12 - 0.25) +
         0.07 * math.sin(z * 0.21 - x * 0.08);
-    final westPlain = 0.40 + westUndulation * (1.0 - bridgeWestAnchor);
+    var westPlain = 0.40 + westUndulation * (1.0 - bridgeWestAnchor);
+
+    if (x < -35.0) {
+      final outerWestWeight = _quintic(((-x) - 35.0) / 15.0);
+      final westAgrarianSwell =
+          0.18 * math.sin(x * 0.05 + 0.8) * math.cos(z * 0.06 - 0.4) +
+          0.08 * math.sin(z * 0.12 + x * 0.03);
+      final westRoadNotch = math.exp(-math.pow(z / 4.2, 2)) * 0.08;
+      westPlain += (westAgrarianSwell - westRoadNotch) * outerWestWeight;
+    }
 
     final eastHillFrac = ((x - 5.4) / 26.5).clamp(0.0, 1.0);
     final eastHillBase =
@@ -112,8 +183,18 @@ class TerrainBuilder {
     final causewayX = 1.0 - _quintic(((x - 8.2).abs() - 3.2) / 3.8);
     final causewayZ = 1.0 - _quintic((z.abs() - 2.1) / 2.6);
     final bridgeEastMound = causewayX * causewayZ;
-    final eastSlope =
+    var eastSlope =
         eastHillBase * (1.0 - bridgeEastMound) + 1.80 * bridgeEastMound;
+
+    if (x > 35.0) {
+      final outerEastFrac = ((x - 35.0) / 45.0).clamp(0.0, 1.0);
+      final outerEastRise =
+          3.2 * _quintic(outerEastFrac) +
+          0.35 * math.sin(z * 0.06) * outerEastFrac;
+      final eastRoadNotch =
+          math.exp(-math.pow(z / 4.8, 2)) * (outerEastRise * 0.72);
+      eastSlope += outerEastRise - eastRoadNotch;
+    }
 
     if (dist <= TerrainConfig.riverBankHalfWidth) {
       final shoal = 0.11 * math.sin(z * 0.34) * math.cos(x * 0.44);
@@ -342,35 +423,61 @@ class TerrainBuilder {
     return math.sqrt(ox * ox + oz * oz);
   }
 
-  ({
-    int cols,
-    int rows,
-    Float64List heights,
-    Float32List normals,
-    Float32List colors,
-  })
-  _computeTerrainField({
-    Iterable<TerraceCourse> terraces = const [],
-    Iterable<RoadSpline> roads = const [],
-    Iterable<PlacedStructure> structures = const [],
+  MeshGeometry _buildChunkGeometry({
+    required int cx,
+    required int cz,
+    required Iterable<TerraceCourse> terraces,
+    required Iterable<RoadSpline> roads,
+    required Iterable<PlacedStructure> structures,
   }) {
-    const minX = TerrainConfig.minX;
-    const maxX = TerrainConfig.maxX;
-    const minZ = TerrainConfig.minZ;
-    const maxZ = TerrainConfig.maxZ;
+    final minX = TerrainConfig.chunkMinX(cx);
+    final maxX = TerrainConfig.chunkMaxX(cx);
+    final minZ = TerrainConfig.chunkMinZ(cz);
+    final maxZ = TerrainConfig.chunkMaxZ(cz);
     const step = TerrainConfig.gridStep;
 
-    final cols = ((maxX - minX) / step).round() + 1;
-    final rows = ((maxZ - minZ) / step).round() + 1;
-    final count = rows * cols;
+    const queryMargin = 6.0;
+    final qMinX = minX - queryMargin;
+    final qMaxX = maxX + queryMargin;
+    final qMinZ = minZ - queryMargin;
+    final qMaxZ = maxZ + queryMargin;
 
-    final terraceList = terraces.toList()
-      ..sort((a, b) => a.topElevation.compareTo(b.topElevation));
-    final roadList = roads.toList();
-    final crossings = <TerraceCourse, List<_RoadTerraceCrossing>>{
-      if (roadList.isNotEmpty)
-        for (final t in terraceList)
-          t: _findCrossingsForTerrace(t, roadList, terraceList),
+    final activeTerraces = <TerraceCourse>[];
+    for (final t in terraces) {
+      var overlaps = false;
+      for (final cp in t.crestPoints) {
+        if (cp.x >= qMinX && cp.x <= qMaxX && cp.z >= qMinZ && cp.z <= qMaxZ) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps) {
+        activeTerraces.add(t);
+      }
+    }
+    activeTerraces.sort((a, b) => a.topElevation.compareTo(b.topElevation));
+
+    final activeRoads = <RoadSpline>[];
+    for (final r in roads) {
+      var overlaps = false;
+      for (final cp in r.controlPoints) {
+        if (cp.x >= qMinX - r.widthMeters &&
+            cp.x <= qMaxX + r.widthMeters &&
+            cp.z >= qMinZ - r.widthMeters &&
+            cp.z <= qMaxZ + r.widthMeters) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps) {
+        activeRoads.add(r);
+      }
+    }
+
+    final activeCrossings = <TerraceCourse, List<_RoadTerraceCrossing>>{
+      if (activeRoads.isNotEmpty)
+        for (final t in activeTerraces)
+          t: _findCrossingsForTerrace(t, activeRoads, activeTerraces),
     };
 
     final roadSegAx = <double>[];
@@ -378,15 +485,24 @@ class TerrainBuilder {
     final roadSegBx = <double>[];
     final roadSegBz = <double>[];
     final roadSegHw = <double>[];
-    for (final road in roadList) {
+    for (final road in activeRoads) {
       final pts = road.smoothCenterline(stepMeters: 1.4);
       final hw = road.widthMeters * 0.5;
       for (var i = 0; i < pts.length - 1; i++) {
-        roadSegAx.add(pts[i].x);
-        roadSegAz.add(pts[i].z);
-        roadSegBx.add(pts[i + 1].x);
-        roadSegBz.add(pts[i + 1].z);
-        roadSegHw.add(hw);
+        final ax = pts[i].x;
+        final az = pts[i].z;
+        final bx = pts[i + 1].x;
+        final bz = pts[i + 1].z;
+        if (math.max(ax, bx) >= minX - hw - 3.0 &&
+            math.min(ax, bx) <= maxX + hw + 3.0 &&
+            math.max(az, bz) >= minZ - hw - 3.0 &&
+            math.min(az, bz) <= maxZ + hw + 3.0) {
+          roadSegAx.add(ax);
+          roadSegAz.add(az);
+          roadSegBx.add(bx);
+          roadSegBz.add(bz);
+          roadSegHw.add(hw);
+        }
       }
     }
 
@@ -394,41 +510,84 @@ class TerrainBuilder {
     final terSegAz = <double>[];
     final terSegBx = <double>[];
     final terSegBz = <double>[];
-    for (final t in terraceList) {
+    for (final t in activeTerraces) {
       for (var i = 0; i < t.crestPoints.length - 1; i++) {
-        terSegAx.add(t.crestPoints[i].x);
-        terSegAz.add(t.crestPoints[i].z);
-        terSegBx.add(t.crestPoints[i + 1].x);
-        terSegBz.add(t.crestPoints[i + 1].z);
+        final ax = t.crestPoints[i].x;
+        final az = t.crestPoints[i].z;
+        final bx = t.crestPoints[i + 1].x;
+        final bz = t.crestPoints[i + 1].z;
+        if (math.max(ax, bx) >= minX - 3.0 &&
+            math.min(ax, bx) <= maxX + 3.0 &&
+            math.max(az, bz) >= minZ - 3.0 &&
+            math.min(az, bz) <= maxZ + 3.0) {
+          terSegAx.add(ax);
+          terSegAz.add(az);
+          terSegBx.add(bx);
+          terSegBz.add(bz);
+        }
       }
     }
 
-    final buildingList = <PlacedStructure>[
-      for (final s in structures)
-        if (!s.kind.isNaturalFeature) s,
-    ];
-    final naturalList = <PlacedStructure>[
-      for (final s in structures)
-        if (s.kind.isNaturalFeature) s,
-    ];
+    final buildingList = <PlacedStructure>[];
+    final naturalList = <PlacedStructure>[];
+    for (final s in structures) {
+      if (s.position.x >= minX - 8.0 &&
+          s.position.x <= maxX + 8.0 &&
+          s.position.z >= minZ - 8.0 &&
+          s.position.z <= maxZ + 8.0) {
+        if (s.kind.isNaturalFeature) {
+          naturalList.add(s);
+        } else {
+          buildingList.add(s);
+        }
+      }
+    }
 
-    final heights = Float64List(count);
-    final colors = Float32List(count * 4);
-
-    for (var r = 0; r < rows; r++) {
-      final z = minZ + r * step;
-      final rivX = TerrainConfig.riverCenterX(z);
-      for (var c = 0; c < cols; c++) {
-        final idx = r * cols + c;
-        final x = minX + c * step;
+    const skirtDim = 91;
+    final skirtHeights = Float64List(skirtDim * skirtDim);
+    for (var sr = 0; sr < skirtDim; sr++) {
+      final z = minZ + (sr - 1) * step;
+      for (var sc = 0; sc < skirtDim; sc++) {
+        final x = minX + (sc - 1) * step;
         final y = _evaluateGradedPoint(
           x,
           z,
-          sortedTerraces: terraceList,
-          crossingsByTerrace: crossings,
+          sortedTerraces: activeTerraces,
+          crossingsByTerrace: activeCrossings,
           recessUnderStairs: true,
         );
-        heights[idx] = y;
+        skirtHeights[sr * skirtDim + sc] = y;
+      }
+    }
+
+    const localCols = 89;
+    const localRows = 89;
+    final builder = GeometryBuilder();
+
+    for (var lr = 0; lr < localRows; lr++) {
+      final sr = lr + 1;
+      final z = minZ + lr * step;
+      final v =
+          (z - TerrainConfig.minZ) / (TerrainConfig.maxZ - TerrainConfig.minZ);
+      final rivX = TerrainConfig.riverCenterX(z);
+
+      for (var lc = 0; lc < localCols; lc++) {
+        final sc = lc + 1;
+        final x = minX + lc * step;
+        final u =
+            (x - TerrainConfig.minX) /
+            (TerrainConfig.maxX - TerrainConfig.minX);
+        final y = skirtHeights[sr * skirtDim + sc];
+
+        final hL = skirtHeights[sr * skirtDim + (sc - 1)];
+        final hR = skirtHeights[sr * skirtDim + (sc + 1)];
+        final hD = skirtHeights[(sr - 1) * skirtDim + sc];
+        final hU = skirtHeights[(sr + 1) * skirtDim + sc];
+
+        final nx = hL - hR;
+        const ny = 1.0;
+        final nz = hD - hU;
+        final invLen = 1.0 / math.sqrt(nx * nx + ny * ny + nz * nz);
 
         final rivDist = (x - rivX).abs();
         var roadWear = 0.0;
@@ -530,6 +689,14 @@ class TerrainBuilder {
         var gCol = 0.86 + 0.14 * warmWash;
         var bCol = 0.78 + 0.12 * warmWash;
 
+        if (x < -35.0) {
+          final loamT = (((-x) - 35.0) / 20.0).clamp(0.0, 1.0);
+          final furrow = 0.04 * math.sin(z * 1.8) * math.cos(x * 0.4);
+          rCol = rCol * (1 - loamT) + (0.80 + furrow) * loamT;
+          gCol = gCol * (1 - loamT) + (0.74 + furrow * 0.8) * loamT;
+          bCol = bCol * (1 - loamT) + (0.60 + furrow * 0.6) * loamT;
+        }
+
         final mossBlend = habitatMoss * 0.42;
         rCol = rCol * (1 - mossBlend) + 0.62 * mossBlend;
         gCol = gCol * (1 - mossBlend) + 0.84 * mossBlend;
@@ -553,112 +720,27 @@ class TerrainBuilder {
             (math.max(totalWear, bankWet * 0.55) * (1.0 - habitatMoss * 0.45))
                 .clamp(0.0, 1.0);
 
-        final cBase = idx * 4;
-        colors[cBase] = finalR;
-        colors[cBase + 1] = finalG;
-        colors[cBase + 2] = finalB;
-        colors[cBase + 3] = wearAlpha;
-      }
-    }
-
-    final normals = Float32List(count * 3);
-    for (var r = 0; r < rows; r++) {
-      final rDown = r > 0 ? r - 1 : r;
-      final rUp = r < rows - 1 ? r + 1 : r;
-      final dzSpan = (rUp - rDown) * step;
-      for (var c = 0; c < cols; c++) {
-        final cLeft = c > 0 ? c - 1 : c;
-        final cRight = c < cols - 1 ? c + 1 : c;
-        final dxSpan = (cRight - cLeft) * step;
-
-        final hL = heights[r * cols + cLeft];
-        final hR = heights[r * cols + cRight];
-        final hD = heights[rDown * cols + c];
-        final hU = heights[rUp * cols + c];
-
-        final nx = (hL - hR) / dxSpan;
-        const ny = 1.0;
-        final nz = (hD - hU) / dzSpan;
-        final invLen = 1.0 / math.sqrt(nx * nx + ny * ny + nz * nz);
-
-        final nBase = (r * cols + c) * 3;
-        normals[nBase] = nx * invLen;
-        normals[nBase + 1] = ny * invLen;
-        normals[nBase + 2] = nz * invLen;
-      }
-    }
-
-    return (
-      cols: cols,
-      rows: rows,
-      heights: heights,
-      normals: normals,
-      colors: colors,
-    );
-  }
-
-  MeshGeometry _buildTileGeometryFromField({
-    required int globalCols,
-    required Float64List heights,
-    required Float32List normals,
-    required Float32List colors,
-    required int rStart,
-    required int rEnd,
-    required int cStart,
-    required int cEnd,
-  }) {
-    final builder = GeometryBuilder();
-    const minX = TerrainConfig.minX;
-    const maxX = TerrainConfig.maxX;
-    const minZ = TerrainConfig.minZ;
-    const maxZ = TerrainConfig.maxZ;
-    const step = TerrainConfig.gridStep;
-
-    final localCols = cEnd - cStart + 1;
-    final localRows = rEnd - rStart + 1;
-
-    for (var lr = 0; lr < localRows; lr++) {
-      final r = rStart + lr;
-      final z = minZ + r * step;
-      final v = (z - minZ) / (maxZ - minZ);
-      for (var lc = 0; lc < localCols; lc++) {
-        final c = cStart + lc;
-        final x = minX + c * step;
-        final u = (x - minX) / (maxX - minX);
-        final gIdx = r * globalCols + c;
-        final nBase = gIdx * 3;
-        final cBase = gIdx * 4;
-
         builder
-          ..normal(
-            Vector3(normals[nBase], normals[nBase + 1], normals[nBase + 2]),
-          )
-          ..color(
-            Vector4(
-              colors[cBase],
-              colors[cBase + 1],
-              colors[cBase + 2],
-              colors[cBase + 3],
-            ),
-          )
+          ..normal(Vector3(nx * invLen, ny * invLen, nz * invLen))
+          ..color(Vector4(finalR, finalG, finalB, wearAlpha))
           ..texCoord(Vector2(u * 16.0, v * 16.0))
-          ..addVertex(Vector3(x, heights[gIdx], z));
+          ..addVertex(Vector3(x, y, z));
       }
     }
 
     for (var lr = 0; lr < localRows - 1; lr++) {
-      final r = rStart + lr;
+      final sr = lr + 1;
       for (var lc = 0; lc < localCols - 1; lc++) {
-        final c = cStart + lc;
+        final sc = lc + 1;
         final v00 = lr * localCols + lc;
         final v10 = v00 + 1;
         final v01 = v00 + localCols;
         final v11 = v01 + 1;
 
-        final h00 = heights[r * globalCols + c];
-        final h10 = heights[r * globalCols + c + 1];
-        final h01 = heights[(r + 1) * globalCols + c];
-        final h11 = heights[(r + 1) * globalCols + c + 1];
+        final h00 = skirtHeights[sr * skirtDim + sc];
+        final h10 = skirtHeights[sr * skirtDim + sc + 1];
+        final h01 = skirtHeights[(sr + 1) * skirtDim + sc];
+        final h11 = skirtHeights[(sr + 1) * skirtDim + sc + 1];
 
         if ((h00 - h11).abs() < (h10 - h01).abs()) {
           builder
@@ -675,6 +757,38 @@ class TerrainBuilder {
     return builder.build();
   }
 
+  Node buildTerrainChunkNode(
+    int cx,
+    int cz,
+    ShukubaMaterialResolver resolveMaterial, {
+    Iterable<TerraceCourse> terraces = const [],
+    Iterable<RoadSpline> roads = const [],
+    Iterable<PlacedStructure> structures = const [],
+  }) {
+    final mat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
+    final chunkIdx = cz * TerrainConfig.gridDimension + cx;
+    final MeshGeometry geo;
+    if (!dirtyChunkIndices.contains(chunkIdx) &&
+        geometryCache.containsKey(chunkIdx)) {
+      geo = geometryCache[chunkIdx]!;
+    } else {
+      geo = _buildChunkGeometry(
+        cx: cx,
+        cz: cz,
+        terraces: terraces,
+        roads: roads,
+        structures: structures,
+      );
+      geometryCache[chunkIdx] = geo;
+      dirtyChunkIndices.remove(chunkIdx);
+    }
+    final chunkNode = Node(
+      name: 'terrain_tile_${cz}_$cx',
+      mesh: Mesh(geo, mat),
+    );
+    return markSubtreeShadowStatic(chunkNode);
+  }
+
   Node buildTerrainNode(
     ShukubaMaterialResolver resolveMaterial, {
     Iterable<TerraceCourse> terraces = const [],
@@ -683,45 +797,416 @@ class TerrainBuilder {
   }) {
     final root = Node(name: 'terrain_tiled_root');
     final mat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
-    final field = _computeTerrainField(
-      terraces: terraces,
-      roads: roads,
-      structures: structures,
-    );
 
-    const tileDivs = 3;
-    final rowSplits = [
-      for (var i = 0; i <= tileDivs; i++)
-        ((field.rows - 1) * i / tileDivs).round(),
-    ];
-    final colSplits = [
-      for (var i = 0; i <= tileDivs; i++)
-        ((field.cols - 1) * i / tileDivs).round(),
-    ];
-
-    for (var tr = 0; tr < tileDivs; tr++) {
-      for (var tc = 0; tc < tileDivs; tc++) {
-        final geo = _buildTileGeometryFromField(
-          globalCols: field.cols,
-          heights: field.heights,
-          normals: field.normals,
-          colors: field.colors,
-          rStart: rowSplits[tr],
-          rEnd: rowSplits[tr + 1],
-          cStart: colSplits[tc],
-          cEnd: colSplits[tc + 1],
-        );
-        root.add(Node(name: 'terrain_tile_${tr}_$tc', mesh: Mesh(geo, mat)));
+    for (var cz = 0; cz < TerrainConfig.gridDimension; cz++) {
+      for (var cx = 0; cx < TerrainConfig.gridDimension; cx++) {
+        final chunkIdx = cz * TerrainConfig.gridDimension + cx;
+        final MeshGeometry geo;
+        if (!dirtyChunkIndices.contains(chunkIdx) &&
+            geometryCache.containsKey(chunkIdx)) {
+          geo = geometryCache[chunkIdx]!;
+        } else {
+          geo = _buildChunkGeometry(
+            cx: cx,
+            cz: cz,
+            terraces: terraces,
+            roads: roads,
+            structures: structures,
+          );
+          geometryCache[chunkIdx] = geo;
+          dirtyChunkIndices.remove(chunkIdx);
+        }
+        root.add(Node(name: 'terrain_tile_${cz}_$cx', mesh: Mesh(geo, mat)));
       }
     }
-    return root;
+
+    root
+      ..add(buildTanadaPaddiesNode(resolveMaterial))
+      ..add(buildMitsukeCheckpointsNode(resolveMaterial));
+
+    return markSubtreeShadowStatic(root);
+  }
+
+  Node buildTanadaPaddiesNode(ShukubaMaterialResolver resolveMaterial) {
+    final root = Node(name: 'terrain_tile_tanada_paddies');
+    final earthMat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
+    final waterMat = resolveMaterial(ShukubaSurfaceRole.riverWater);
+    final stoneMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    final plantMat = resolveMaterial(ShukubaSurfaceRole.livingMeadow);
+
+    final bundBuilder = GeometryBuilder();
+    final waterBuilder = GeometryBuilder();
+    final stoneBuilder = GeometryBuilder();
+    final plantBuilder = GeometryBuilder();
+
+    const waterClearance = 0.085;
+    const bundProud = 0.22;
+    const bundCrownW = 0.46;
+    const bundBatter = 0.34;
+    const waterInset = 0.16;
+    const segsZ = 14;
+
+    double contourX(double z, int tier, {required bool isSouth}) {
+      final phase = isSouth ? -0.85 : 0.45;
+      final waveA = 2.15 * math.sin(z * 0.115 + tier * 0.52 + phase);
+      final waveB = 0.95 * math.cos(z * 0.215 - tier * 0.34 - phase);
+      return 40.2 + tier * 6.35 + waveA + waveB;
+    }
+
+    for (final isSouth in const [false, true]) {
+      var prevBasinY = 3.20;
+      for (var tier = 0; tier < 5; tier++) {
+        final zMin = isSouth ? (-54.5 + tier * 1.35) : (17.5 + tier * 1.35);
+        final zMax = isSouth ? (-17.5 - tier * 1.35) : (54.5 - tier * 1.35);
+        const tierDepthX = 5.85;
+
+        var maxRawY = -double.infinity;
+        for (var s = 0; s <= segsZ; s++) {
+          final z = zMin + (zMax - zMin) * (s / segsZ);
+          final xf = contourX(z, tier, isSouth: isSouth);
+          for (var dx = -0.4; dx <= tierDepthX + 0.4; dx += 0.95) {
+            final ry = sampleRawTerrain(xf + dx, z);
+            if (ry > maxRawY) maxRawY = ry;
+          }
+        }
+
+        final basinY = math.max(prevBasinY + 0.72, maxRawY + 0.30);
+        final lowerY = tier == 0
+            ? (sampleRawTerrain(
+                    contourX(0.5 * (zMin + zMax), 0, isSouth: isSouth) - 0.8,
+                    0.5 * (zMin + zMax),
+                  ) -
+                  0.45)
+            : (prevBasinY - 0.18);
+        prevBasinY = basinY;
+
+        final waterY = basinY + waterClearance;
+        final bundY = basinY + bundProud;
+        final mudColor = Vector4(0.62, 0.56, 0.42, 1);
+        final crownMossColor = Vector4(0.68, 0.80, 0.48, 1);
+        final riserLoamColor = Vector4(0.64, 0.58, 0.42, 1);
+
+        for (var s = 0; s < segsZ; s++) {
+          final z0 = zMin + (zMax - zMin) * (s / segsZ);
+          final z1 = zMin + (zMax - zMin) * ((s + 1) / segsZ);
+          final xf0 = contourX(z0, tier, isSouth: isSouth);
+          final xf1 = contourX(z1, tier, isSouth: isSouth);
+          final xb0 = xf0 + tierDepthX;
+          final xb1 = xf1 + tierDepthX;
+
+          EdoKitBuilder.addQuadOutward(
+            bundBuilder,
+            Vector3(xf0 + bundCrownW, basinY, z0),
+            Vector3(xb0 - bundCrownW, basinY, z0),
+            Vector3(xb1 - bundCrownW, basinY, z1),
+            Vector3(xf1 + bundCrownW, basinY, z1),
+            Vector3(0, 1, 0),
+            color: mudColor,
+          );
+
+          final isFirstSeg = s == 0;
+          final isLastSeg = s == segsZ - 1;
+          final wz0 = isFirstSeg ? (z0 + bundCrownW + waterInset) : z0;
+          final wz1 = isLastSeg ? (z1 - bundCrownW - waterInset) : z1;
+          if (wz1 > wz0 + 0.05) {
+            final wxf0 =
+                contourX(wz0, tier, isSouth: isSouth) + bundCrownW + waterInset;
+            final wxf1 =
+                contourX(wz1, tier, isSouth: isSouth) + bundCrownW + waterInset;
+            final wxb0 = wxf0 + tierDepthX - 2 * (bundCrownW + waterInset);
+            final wxb1 = wxf1 + tierDepthX - 2 * (bundCrownW + waterInset);
+            EdoKitBuilder.addQuadOutward(
+              waterBuilder,
+              Vector3(wxf0, waterY, wz0),
+              Vector3(wxb0, waterY, wz0),
+              Vector3(wxb1, waterY, wz1),
+              Vector3(wxf1, waterY, wz1),
+              Vector3(0, 1, 0),
+            );
+          }
+
+          EdoKitBuilder.addQuadOutward(
+            bundBuilder,
+            Vector3(xf0, bundY, z0),
+            Vector3(xf0 + bundCrownW, bundY, z0),
+            Vector3(xf1 + bundCrownW, bundY, z1),
+            Vector3(xf1, bundY, z1),
+            Vector3(0, 1, 0),
+            color: crownMossColor,
+          );
+          EdoKitBuilder.addQuadOutward(
+            bundBuilder,
+            Vector3(xf0 - bundBatter, lowerY, z0),
+            Vector3(xf0, bundY, z0),
+            Vector3(xf1, bundY, z1),
+            Vector3(xf1 - bundBatter, lowerY, z1),
+            Vector3(-1, 0.45, 0),
+            color: riserLoamColor,
+          );
+          EdoKitBuilder.addQuadOutward(
+            bundBuilder,
+            Vector3(xf0 + bundCrownW, bundY, z0),
+            Vector3(xf0 + bundCrownW + 0.12, basinY - 0.04, z0),
+            Vector3(xf1 + bundCrownW + 0.12, basinY - 0.04, z1),
+            Vector3(xf1 + bundCrownW, bundY, z1),
+            Vector3(1, 0.35, 0),
+            color: riserLoamColor,
+          );
+
+          if ((s + tier) % 3 == 0) {
+            final mx = 0.5 * (xf0 + xf1) - 0.14;
+            final mz = 0.5 * (z0 + z1);
+            EdoKitBuilder.addRockBoulder(
+              stoneBuilder,
+              Vector3(mx, 0.5 * (lowerY + bundY), mz),
+              Vector3(0.28, 0.24, 0.34),
+              yaw: (s * 0.65) + tier * 0.4,
+              seed: tier * 31 + s * 7 + (isSouth ? 101 : 17),
+            );
+          }
+        }
+
+        for (final isEndMax in const [false, true]) {
+          final ze = isEndMax ? zMax : zMin;
+          final xf = contourX(ze, tier, isSouth: isSouth);
+          final xb = xf + tierDepthX;
+          final zA = isEndMax ? (ze - bundCrownW) : ze;
+          final zB = isEndMax ? ze : (ze + bundCrownW);
+          final zOut = isEndMax ? (ze + 0.28) : (ze - 0.28);
+          final endMinZ = math.min(zA, zOut);
+          final endMaxZ = math.max(zB, zOut);
+          EdoKitBuilder.addBox(
+            bundBuilder,
+            Vector3(xf, lowerY, endMinZ),
+            Vector3(xb, bundY - 0.015, endMaxZ),
+            color: crownMossColor,
+          );
+        }
+
+        for (
+          var pz = zMin + bundCrownW + waterInset + 0.65;
+          pz < zMax - bundCrownW - waterInset - 0.55;
+          pz += 1.08
+        ) {
+          final rowXf =
+              contourX(pz, tier, isSouth: isSouth) + bundCrownW + waterInset;
+          final rowXb = rowXf + tierDepthX - 2 * (bundCrownW + waterInset);
+          for (var px = rowXf + 0.58; px < rowXb - 0.48; px += 0.92) {
+            const tuftH = 0.22;
+            final jitterZ = 0.06 * math.sin(px * 1.9 + pz * 1.3);
+            EdoKitBuilder.addBox(
+              plantBuilder,
+              Vector3(px - 0.04, basinY + 0.01, pz + jitterZ - 0.04),
+              Vector3(px + 0.04, waterY + tuftH, pz + jitterZ + 0.04),
+              color: Vector4(0.76, 1.02, 0.52, 1),
+            );
+          }
+        }
+      }
+    }
+
+    root
+      ..add(Node(mesh: Mesh(bundBuilder.build(), earthMat)))
+      ..add(Node(mesh: Mesh(waterBuilder.build(), waterMat)))
+      ..add(Node(mesh: Mesh(stoneBuilder.build(), stoneMat)))
+      ..add(Node(mesh: Mesh(plantBuilder.build(), plantMat)));
+
+    return markSubtreeShadowStatic(root);
+  }
+
+  Node buildMitsukeCheckpointsNode(ShukubaMaterialResolver resolveMaterial) {
+    final root = Node(name: 'terrain_tile_mitsuke_checkpoints');
+    final stoneMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    final timberMat = resolveMaterial(ShukubaSurfaceRole.charredTimber);
+    final plasterMat = resolveMaterial(ShukubaSurfaceRole.plasterWall);
+    final roofMat = resolveMaterial(ShukubaSurfaceRole.kawaraTile);
+
+    final stoneBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final plasterBuilder = GeometryBuilder();
+    final roofBuilder = GeometryBuilder();
+
+    const checkpointXList = [-66.0, 66.0];
+
+    for (final cx in checkpointXList) {
+      final gy = sampleRawTerrain(cx, 0);
+      final bottomY = gy - 0.45;
+      final rampartTopY = gy + 2.45;
+
+      EdoKitBuilder.addBox(
+        stoneBuilder,
+        Vector3(cx - 3.4, bottomY, 2.05),
+        Vector3(cx + 3.4, rampartTopY, 5.25),
+        color: Vector4(0.92, 0.91, 0.88, 1),
+      );
+      EdoKitBuilder.addBox(
+        stoneBuilder,
+        Vector3(cx - 3.4, bottomY, -5.25),
+        Vector3(cx + 3.4, rampartTopY, -2.05),
+        color: Vector4(0.92, 0.91, 0.88, 1),
+      );
+
+      final wingMinX = cx < 0 ? (cx - 3.4) : (cx + 2.52);
+      final wingMaxX = cx < 0 ? (cx - 2.52) : (cx + 3.4);
+      EdoKitBuilder.addBox(
+        stoneBuilder,
+        Vector3(wingMinX, bottomY, 5.28),
+        Vector3(wingMaxX, rampartTopY - 0.18, 6.92),
+        color: Vector4(0.90, 0.89, 0.86, 1),
+      );
+
+      for (final signZ in const [-1.0, 1.0]) {
+        for (final signX in const [-1.0, 1.0]) {
+          final cornerX = cx + signX * 3.4;
+          final innerZ = signZ * 2.05;
+          for (var c = 0; c < 4; c++) {
+            final qY0 = bottomY + 0.02 + c * 0.60;
+            final qY1 = qY0 + 0.52;
+            final longX = c.isEven ? 0.46 : 0.30;
+            final wideZ = c.isEven ? 0.30 : 0.46;
+            final qx0 = signX < 0 ? (cornerX - 0.04) : (cornerX - longX);
+            final qx1 = signX < 0 ? (cornerX + longX) : (cornerX + 0.04);
+            final qz0 = signZ > 0 ? (innerZ - 0.03) : (innerZ - wideZ);
+            final qz1 = signZ > 0 ? (innerZ + wideZ) : (innerZ + 0.03);
+            EdoKitBuilder.addBox(
+              stoneBuilder,
+              Vector3(qx0, qY0, qz0),
+              Vector3(qx1, qY1, qz1),
+              color: Vector4(0.96, 0.95, 0.92, 1),
+            );
+          }
+        }
+      }
+
+      for (final signZ in const [-1.0, 1.0]) {
+        final z0 = signZ > 0 ? 2.18 : -5.12;
+        final z1 = signZ > 0 ? 5.12 : -2.18;
+        EdoKitBuilder.addBox(
+          timberBuilder,
+          Vector3(cx - 3.28, rampartTopY + 0.01, z0),
+          Vector3(cx + 3.28, rampartTopY + 0.09, z1),
+        );
+        final pZ0 = signZ > 0 ? 2.22 : -2.36;
+        final pZ1 = signZ > 0 ? 2.36 : -2.22;
+        for (final span in const [
+          (-3.20, -1.47),
+          (-1.17, 1.17),
+          (1.47, 3.20),
+        ]) {
+          EdoKitBuilder.addBox(
+            plasterBuilder,
+            Vector3(cx + span.$1, rampartTopY + 0.105, pZ0),
+            Vector3(cx + span.$2, rampartTopY + 0.78, pZ1),
+          );
+        }
+        EdoKitBuilder.addBox(
+          roofBuilder,
+          Vector3(cx - 3.32, rampartTopY + 0.79, signZ > 0 ? 2.14 : -2.44),
+          Vector3(cx + 3.32, rampartTopY + 0.87, signZ > 0 ? 2.44 : -2.14),
+        );
+      }
+
+      const steps = 6;
+      final stairStartX = cx < 0 ? (cx + 1.85) : (cx - 3.15);
+      for (var s = 0; s < steps; s++) {
+        final sy1 = bottomY + 0.35 + (s + 1) * 0.34;
+        final sx0 = stairStartX + s * 0.22;
+        final sx1 = sx0 + 0.216;
+        EdoKitBuilder.addBox(
+          stoneBuilder,
+          Vector3(sx0, bottomY, 5.29),
+          Vector3(sx1, sy1, 6.26),
+          color: Vector4(0.94, 0.93, 0.90, 1),
+        );
+      }
+
+      final postTopY = gy + 2.92;
+      for (final px in [cx - 1.32, cx + 1.32]) {
+        for (final pz in [-2.28, 2.28]) {
+          final plinthZ0 = pz > 0 ? 5.28 : -5.62;
+          final plinthZ1 = pz > 0 ? 5.62 : -5.28;
+          EdoKitBuilder.addBox(
+            stoneBuilder,
+            Vector3(px - 0.18, bottomY, plinthZ0),
+            Vector3(px + 0.18, gy + 0.18, plinthZ1),
+            color: Vector4(0.88, 0.86, 0.82, 1),
+          );
+          EdoKitBuilder.addBox(
+            timberBuilder,
+            Vector3(px - 0.13, rampartTopY + 0.09, pz - 0.13),
+            Vector3(px + 0.13, postTopY + 0.42, pz + 0.13),
+          );
+        }
+      }
+
+      EdoKitBuilder.addBox(
+        timberBuilder,
+        Vector3(cx - 1.48, postTopY - 0.12, -2.52),
+        Vector3(cx + 1.48, postTopY + 0.18, 2.52),
+      );
+      EdoKitBuilder.addBox(
+        timberBuilder,
+        Vector3(cx - 1.42, postTopY + 0.24, -2.46),
+        Vector3(cx + 1.42, postTopY + 0.44, 2.46),
+      );
+
+      final roofEaveY = postTopY + 0.42;
+      final roofRidgeY = roofEaveY + 1.02;
+      EdoKitBuilder.addLeanToRoof(
+        roofBuilder,
+        xMin: cx - 2.15,
+        xMax: cx + 2.15,
+        zWall: -0.02,
+        zFront: -2.95,
+        yWall: roofRidgeY,
+        yFront: roofEaveY,
+        thick: 0.10,
+      );
+      EdoKitBuilder.addLeanToRoof(
+        roofBuilder,
+        xMin: cx - 2.15,
+        xMax: cx + 2.15,
+        zWall: 0.02,
+        zFront: 2.95,
+        yWall: roofRidgeY,
+        yFront: roofEaveY,
+        thick: 0.10,
+      );
+      EdoKitBuilder.addBox(
+        roofBuilder,
+        Vector3(cx - 2.22, roofRidgeY - 0.04, -0.14),
+        Vector3(cx + 2.22, roofRidgeY + 0.12, 0.14),
+      );
+      EdoKitBuilder.addTriangleOutward(
+        plasterBuilder,
+        Vector3(cx - 1.98, roofEaveY + 0.02, -2.72),
+        Vector3(cx - 1.98, roofRidgeY - 0.08, 0),
+        Vector3(cx - 1.98, roofEaveY + 0.02, 2.72),
+        Vector3(-1, 0, 0),
+      );
+      EdoKitBuilder.addTriangleOutward(
+        plasterBuilder,
+        Vector3(cx + 1.98, roofEaveY + 0.02, 2.72),
+        Vector3(cx + 1.98, roofRidgeY - 0.08, 0),
+        Vector3(cx + 1.98, roofEaveY + 0.02, -2.72),
+        Vector3(1, 0, 0),
+      );
+    }
+
+    root
+      ..add(Node(mesh: Mesh(stoneBuilder.build(), stoneMat)))
+      ..add(Node(mesh: Mesh(timberBuilder.build(), timberMat)))
+      ..add(Node(mesh: Mesh(plasterBuilder.build(), plasterMat)))
+      ..add(Node(mesh: Mesh(roofBuilder.build(), roofMat)));
+
+    return markSubtreeShadowStatic(root);
   }
 
   Node buildWaterNode(ShukubaMaterialResolver resolveMaterial) {
     final builder = GeometryBuilder();
     const minZ = TerrainConfig.minZ;
     const maxZ = TerrainConfig.maxZ;
-    const lengthSegs = 64;
+    const lengthSegs = 128;
     const crossSegs = 4;
     const zStep = (maxZ - minZ) / lengthSegs;
     const waterY = TerrainConfig.waterSurfaceElevation;
@@ -757,7 +1242,7 @@ class TerrainBuilder {
       builder.build(),
       resolveMaterial(ShukubaSurfaceRole.riverWater),
     );
-    return Node(mesh: mesh);
+    return markSubtreeShadowStatic(Node(mesh: mesh));
   }
 
   Node buildBridgeNode(ShukubaMaterialResolver resolveMaterial) {
@@ -888,7 +1373,7 @@ class TerrainBuilder {
       ..add(Node(mesh: Mesh(footingBuilder.build(), stoneMat)))
       ..add(Node(mesh: Mesh(structureBuilder.build(), timberMat)))
       ..add(Node(mesh: Mesh(finialBuilder.build(), lacquerMat)));
-    return root;
+    return markSubtreeShadowStatic(root);
   }
 
   Node buildGorgeDressingNode(ShukubaMaterialResolver resolveMaterial) {
@@ -1068,7 +1553,98 @@ class TerrainBuilder {
       }
     }
 
+    final horizonBuilder = GeometryBuilder();
+    const apronRings = [88.04, 96.0, 110.0, 128.0, 152.0, 184.0];
+    const segsPerSide = 64;
+    const totalPerim = segsPerSide * 4;
+
+    (double, double) apronRingXZ(double r, int idx) {
+      final wrapped = idx % totalPerim;
+      final side = wrapped ~/ segsPerSide;
+      final t = (wrapped % segsPerSide) / segsPerSide;
+      return switch (side) {
+        0 => (-r + 2 * r * t, -r),
+        1 => (r, -r + 2 * r * t),
+        2 => (r - 2 * r * t, r),
+        _ => (-r, r - 2 * r * t),
+      };
+    }
+
+    double apronHeight(double x, double z, int ringIdx) {
+      final cx = x.clamp(TerrainConfig.minX, TerrainConfig.maxX);
+      final cz = z.clamp(TerrainConfig.minZ, TerrainConfig.maxZ);
+      final edgeY = sampleRawTerrain(cx, cz);
+      if (ringIdx == 0) {
+        return edgeY - 0.02;
+      }
+      final outDist = math.max(x.abs(), z.abs()) - 88.0;
+      final eastBias = ((x + 88.0) / 176.0).clamp(0.0, 1.0);
+      final ridge =
+          2.6 * math.sin(x * 0.042 + z * 0.055) +
+          1.7 * math.cos(z * 0.038 - x * 0.031);
+      final climb = outDist * (0.045 + 0.105 * eastBias);
+      return edgeY + climb + ridge * (outDist / 36.0).clamp(0.0, 1.0);
+    }
+
+    Vector4 apronColor(double x, double z, int ringIdx) {
+      final fade = (ringIdx / (apronRings.length - 1)).clamp(0.0, 1.0);
+      final patch = 0.5 + 0.5 * math.sin(x * 0.08 + z * 0.07);
+      final r = 0.58 * (1 - fade * 0.22) + 0.08 * patch;
+      final g = 0.72 * (1 - fade * 0.16) + 0.08 * patch;
+      final b = 0.44 * (1 - fade * 0.06) + 0.06 * fade;
+      return Vector4(r, g, b, 1);
+    }
+
+    for (var p = 0; p < totalPerim; p++) {
+      final (x0, z0) = apronRingXZ(apronRings[0], p);
+      final (x1, z1) = apronRingXZ(apronRings[0], p + 1);
+      final y0 = apronHeight(x0, z0, 0);
+      final y1 = apronHeight(x1, z1, 0);
+      final c0 = apronColor(x0, z0, 0);
+      EdoKitBuilder.addQuadOutward(
+        horizonBuilder,
+        Vector3(x0, -3.2, z0),
+        Vector3(x1, -3.2, z1),
+        Vector3(x1, y1, z1),
+        Vector3(x0, y0, z0),
+        Vector3(-0.5 * (x0 + x1), 0.1, -0.5 * (z0 + z1)),
+        color: c0,
+      );
+    }
+
+    for (var ri = 0; ri < apronRings.length - 1; ri++) {
+      final rInner = apronRings[ri];
+      final rOuter = apronRings[ri + 1];
+      for (var p = 0; p < totalPerim; p++) {
+        final (ix0, iz0) = apronRingXZ(rInner, p);
+        final (ix1, iz1) = apronRingXZ(rInner, p + 1);
+        final (ox1, oz1) = apronRingXZ(rOuter, p + 1);
+        final (ox0, oz0) = apronRingXZ(rOuter, p);
+        final iy0 = apronHeight(ix0, iz0, ri);
+        final iy1 = apronHeight(ix1, iz1, ri);
+        final oy1 = apronHeight(ox1, oz1, ri + 1);
+        final oy0 = apronHeight(ox0, oz0, ri + 1);
+        EdoKitBuilder.addQuadOutward(
+          horizonBuilder,
+          Vector3(ix0, iy0, iz0),
+          Vector3(ix1, iy1, iz1),
+          Vector3(ox1, oy1, oz1),
+          Vector3(ox0, oy0, oz0),
+          Vector3(0, 1, 0),
+          color: apronColor(0.5 * (ix0 + ox0), 0.5 * (iz0 + oz0), ri + 1),
+        );
+      }
+    }
+
     root
+      ..add(
+        Node(
+          mesh: Mesh(
+            horizonBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.packedEarth),
+          ),
+        ),
+      )
       ..add(
         Node(
           mesh: Mesh(
@@ -1093,7 +1669,7 @@ class TerrainBuilder {
           ),
         ),
       );
-    return root;
+    return markSubtreeShadowStatic(root);
   }
 
   static void _addOrientedStoneBlock(
@@ -1525,7 +2101,7 @@ class TerrainBuilder {
       );
     }
 
-    return root;
+    return markSubtreeShadowStatic(root);
   }
 
   Node buildTerraceNode(
@@ -1925,7 +2501,7 @@ class TerrainBuilder {
       root.add(Node(mesh: Mesh(stairTimberBuilder.build(), timberMaterial)));
     }
 
-    return root;
+    return markSubtreeShadowStatic(root);
   }
 
   Node buildWallNode(
@@ -2142,6 +2718,6 @@ class TerrainBuilder {
       }
     }
 
-    return root;
+    return markSubtreeShadowStatic(root);
   }
 }

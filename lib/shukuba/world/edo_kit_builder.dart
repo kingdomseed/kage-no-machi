@@ -20,6 +20,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         StrokeRibbonPreview,
         StructureKind,
         Vec3;
+import 'package:kage_no_machi/shukuba/world/scene_shadow_helper.dart';
 import 'package:vector_math/vector_math.dart'
     show Quaternion, Vector2, Vector3, Vector4;
 
@@ -45,9 +46,14 @@ class EdoKitBuilder {
         return const [];
       case StructureKind.marketStall:
         return const [Vec3(1.12, 1.96, 1.08)];
+      case StructureKind.minka:
+        return const [Vec3(1.15, 1.62, 2.15)];
       case StructureKind.toriiGate:
         return const [Vec3(-1.38, 3.06, 0), Vec3(1.38, 3.06, 0)];
       case StructureKind.kura ||
+          StructureKind.shoroBell ||
+          StructureKind.stoneWell ||
+          StructureKind.karesansuiGarden ||
           StructureKind.yaguraTower ||
           StructureKind.rockOutcrop ||
           StructureKind.mapleCluster ||
@@ -887,6 +893,7 @@ class EdoKitBuilder {
     required double yWall,
     required double yFront,
     double thick = 0.08,
+    Vector4? color,
   }) {
     final tW0 = Vector3(xMin, yWall + thick, zWall);
     final tW1 = Vector3(xMax, yWall + thick, zWall);
@@ -907,6 +914,7 @@ class EdoKitBuilder {
       tF0,
       Vector3(0, 1, zSign * 0.35),
       uvScale: 0.75,
+      color: color,
     );
     addQuadOutward(
       roofBuilder,
@@ -915,6 +923,7 @@ class EdoKitBuilder {
       bF1,
       bF0,
       Vector3(0, -1, -zSign * 0.35),
+      color: color,
     );
     addQuadOutward(
       roofBuilder,
@@ -924,9 +933,26 @@ class EdoKitBuilder {
       tF0,
       Vector3(0, 0, zSign),
       uvScale: 0.75,
+      color: color,
     );
-    addQuadOutward(roofBuilder, bW0, bF0, tF0, tW0, Vector3(-1, 0, 0));
-    addQuadOutward(roofBuilder, bW1, bF1, tF1, tW1, Vector3(1, 0, 0));
+    addQuadOutward(
+      roofBuilder,
+      bW0,
+      bF0,
+      tF0,
+      tW0,
+      Vector3(-1, 0, 0),
+      color: color,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bW1,
+      bF1,
+      tF1,
+      tW1,
+      Vector3(1, 0, 0),
+      color: color,
+    );
   }
 
   static void addGabledRoof(
@@ -1006,6 +1032,764 @@ class EdoKitBuilder {
       Vector3(-0.08, ridgeY - 0.24, zMin - 0.16),
       Vector3(0.08, ridgeY - 0.04, zMin - 0.02),
     );
+  }
+
+  static void addIrimoyaRoof(
+    GeometryBuilder roofBuilder,
+    GeometryBuilder timberBuilder,
+    GeometryBuilder plasterBuilder, {
+    required double xHalf,
+    required double zMin,
+    required double zMax,
+    required double eavesY,
+    required double ridgeY,
+    double thick = 0.14,
+    double soriFactor = 0.085,
+  }) {
+    final zLen = zMax - zMin;
+    final zCenter = (zMin + zMax) / 2.0;
+    final gableHalf = (zLen * 0.65) / 2.0;
+    final zGableMin = zCenter - gableHalf;
+    final zGableMax = zCenter + gableHalf;
+    final gableBaseY = eavesY + (ridgeY - eavesY) * 0.48;
+
+    final flareMid = soriFactor * 0.25;
+    final flareEave = soriFactor * 1.0;
+    final flareCorner = soriFactor * 1.35;
+
+    final r0 = Vector3(0, ridgeY + thick, zGableMin);
+    final r1 = Vector3(0, ridgeY + thick, zGableMax);
+
+    final xMid = xHalf * 0.52;
+    final yMid = eavesY + (ridgeY - eavesY) * 0.44 + thick + flareMid;
+
+    final yEaveL = eavesY + thick + flareEave;
+    final byEaveL = eavesY + flareEave;
+    final yCorner = eavesY + thick + flareCorner;
+    final byCorner = eavesY + flareCorner;
+
+    final tLMidMin = Vector3(-xMid, yMid, zGableMin);
+    final tLMidMax = Vector3(-xMid, yMid, zGableMax);
+    final tLEaveMin = Vector3(-xHalf, yEaveL, zMin + (zGableMin - zMin) * 0.5);
+    final tLEaveMax = Vector3(-xHalf, yEaveL, zMax - (zMax - zGableMax) * 0.5);
+    final tLCMin = Vector3(-xHalf, yCorner, zMin);
+    final tLCMax = Vector3(-xHalf, yCorner, zMax);
+
+    final tRMidMin = Vector3(xMid, yMid, zGableMin);
+    final tRMidMax = Vector3(xMid, yMid, zGableMax);
+    final tREaveMin = Vector3(xHalf, yEaveL, zMin + (zGableMin - zMin) * 0.5);
+    final tREaveMax = Vector3(xHalf, yEaveL, zMax - (zMax - zGableMax) * 0.5);
+    final tRCMin = Vector3(xHalf, yCorner, zMin);
+    final tRCMax = Vector3(xHalf, yCorner, zMax);
+
+    final tFCL = tLCMax;
+    final tFCR = tRCMax;
+    final tFEave = Vector3(0, yEaveL, zMax);
+
+    final tBCL = tLCMin;
+    final tBCR = tRCMin;
+    final tBEave = Vector3(0, yEaveL, zMin);
+
+    addQuadOutward(
+      roofBuilder,
+      tLMidMin,
+      tLMidMax,
+      r1,
+      r0,
+      Vector3(-0.6, 0.8, 0),
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLEaveMin,
+      tLEaveMax,
+      tLMidMax,
+      tLMidMin,
+      Vector3(-0.5, 0.86, 0),
+      uvScale: 0.75,
+    );
+    addTriangleOutward(
+      roofBuilder,
+      tLCMin,
+      tLEaveMin,
+      tLMidMin,
+      Vector3(-0.5, 0.8, -0.3),
+    );
+    addTriangleOutward(
+      roofBuilder,
+      tLEaveMax,
+      tLCMax,
+      tLMidMax,
+      Vector3(-0.5, 0.8, 0.3),
+    );
+
+    addQuadOutward(
+      roofBuilder,
+      r0,
+      r1,
+      tRMidMax,
+      tRMidMin,
+      Vector3(0.6, 0.8, 0),
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRMidMin,
+      tRMidMax,
+      tREaveMax,
+      tREaveMin,
+      Vector3(0.5, 0.86, 0),
+      uvScale: 0.75,
+    );
+    addTriangleOutward(
+      roofBuilder,
+      tREaveMin,
+      tRCMin,
+      tRMidMin,
+      Vector3(0.5, 0.8, -0.3),
+    );
+    addTriangleOutward(
+      roofBuilder,
+      tRCMax,
+      tREaveMax,
+      tRMidMax,
+      Vector3(0.5, 0.8, 0.3),
+    );
+
+    final gableBaseFront = Vector3(0, gableBaseY + thick, zGableMax);
+    addTriangleOutward(
+      roofBuilder,
+      r1,
+      tLMidMax,
+      gableBaseFront,
+      Vector3(-0.3, 0.8, 0.5),
+    );
+    addTriangleOutward(
+      roofBuilder,
+      r1,
+      gableBaseFront,
+      tRMidMax,
+      Vector3(0.3, 0.8, 0.5),
+    );
+    addQuadOutward(
+      roofBuilder,
+      tFCL,
+      tFEave,
+      gableBaseFront,
+      tLMidMax,
+      Vector3(-0.3, 0.8, 0.5),
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tFEave,
+      tFCR,
+      tRMidMax,
+      gableBaseFront,
+      Vector3(0.3, 0.8, 0.5),
+      uvScale: 0.75,
+    );
+
+    final gableBaseRear = Vector3(0, gableBaseY + thick, zGableMin);
+    addTriangleOutward(
+      roofBuilder,
+      r0,
+      gableBaseRear,
+      tLMidMin,
+      Vector3(-0.3, 0.8, -0.5),
+    );
+    addTriangleOutward(
+      roofBuilder,
+      r0,
+      tRMidMin,
+      gableBaseRear,
+      Vector3(0.3, 0.8, -0.5),
+    );
+    addQuadOutward(
+      roofBuilder,
+      tBEave,
+      tBCL,
+      tLMidMin,
+      gableBaseRear,
+      Vector3(-0.3, 0.8, -0.5),
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tBCR,
+      tBEave,
+      gableBaseRear,
+      tRMidMin,
+      Vector3(0.3, 0.8, -0.5),
+      uvScale: 0.75,
+    );
+
+    final bLCMin = Vector3(-xHalf, byCorner, zMin);
+    final bLCMax = Vector3(-xHalf, byCorner, zMax);
+    final bRCMin = Vector3(xHalf, byCorner, zMin);
+    final bRCMax = Vector3(xHalf, byCorner, zMax);
+    final bFEave = Vector3(0, byEaveL, zMax);
+    final bBEave = Vector3(0, byEaveL, zMin);
+
+    addQuadOutward(
+      roofBuilder,
+      bLCMin,
+      bLCMax,
+      tLCMax,
+      tLCMin,
+      Vector3(-1, 0, 0),
+    );
+    addQuadOutward(
+      roofBuilder,
+      bRCMax,
+      bRCMin,
+      tRCMin,
+      tRCMax,
+      Vector3(1, 0, 0),
+    );
+    addQuadOutward(
+      roofBuilder,
+      bLCMax,
+      bFEave,
+      tFEave,
+      tLCMax,
+      Vector3(0, 0, 1),
+    );
+    addQuadOutward(
+      roofBuilder,
+      bFEave,
+      bRCMax,
+      tRCMax,
+      tFEave,
+      Vector3(0, 0, 1),
+    );
+    addQuadOutward(
+      roofBuilder,
+      bBEave,
+      bLCMin,
+      tLCMin,
+      tBEave,
+      Vector3(0, 0, -1),
+    );
+    addQuadOutward(
+      roofBuilder,
+      bRCMin,
+      bBEave,
+      tBEave,
+      tRCMin,
+      Vector3(0, 0, -1),
+    );
+
+    addQuadOutward(
+      roofBuilder,
+      bLCMax,
+      bLCMin,
+      bRCMin,
+      bRCMax,
+      Vector3(0, -1, 0),
+    );
+
+    addTriangleOutward(
+      plasterBuilder,
+      Vector3(-xMid * 0.94, gableBaseY, zGableMax - 0.02),
+      Vector3(xMid * 0.94, gableBaseY, zGableMax - 0.02),
+      Vector3(0, ridgeY - 0.04, zGableMax - 0.02),
+      Vector3(0, 0, 1),
+    );
+    addTriangleOutward(
+      plasterBuilder,
+      Vector3(xMid * 0.94, gableBaseY, zGableMin + 0.02),
+      Vector3(-xMid * 0.94, gableBaseY, zGableMin + 0.02),
+      Vector3(0, ridgeY - 0.04, zGableMin + 0.02),
+      Vector3(0, 0, -1),
+    );
+
+    addBox(
+      timberBuilder,
+      Vector3(-xMid, gableBaseY - 0.03, zGableMax - 0.03),
+      Vector3(xMid, gableBaseY + 0.03, zGableMax + 0.03),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-xMid, gableBaseY - 0.03, zGableMin - 0.03),
+      Vector3(xMid, gableBaseY + 0.03, zGableMin + 0.03),
+    );
+
+    final crestBottom = ridgeY + thick + 0.02;
+    addBox(
+      roofBuilder,
+      Vector3(-0.16, crestBottom, zGableMin - 0.08),
+      Vector3(0.16, crestBottom + 0.20, zGableMax + 0.08),
+    );
+
+    addBox(
+      roofBuilder,
+      Vector3(-xMid * 0.52, (gableBaseY + crestBottom) * 0.5, zGableMax + 0.12),
+      Vector3(
+        -xMid * 0.44,
+        (gableBaseY + crestBottom) * 0.5 + 0.12,
+        zGableMax + 0.28,
+      ),
+    );
+    addBox(
+      roofBuilder,
+      Vector3(xMid * 0.44, (gableBaseY + crestBottom) * 0.5, zGableMax + 0.12),
+      Vector3(
+        xMid * 0.52,
+        (gableBaseY + crestBottom) * 0.5 + 0.12,
+        zGableMax + 0.28,
+      ),
+    );
+
+    for (final gz in [zGableMin - 0.08, zGableMax + 0.08]) {
+      final isRear = gz < zCenter;
+      addBox(
+        roofBuilder,
+        Vector3(-0.24, crestBottom, gz - (isRear ? 0.14 : 0.0)),
+        Vector3(0.24, crestBottom + 0.08, gz + (isRear ? 0.0 : 0.14)),
+      );
+      addBox(
+        roofBuilder,
+        Vector3(-0.20, crestBottom + 0.08, gz - (isRear ? 0.10 : 0.0)),
+        Vector3(0.20, crestBottom + 0.34, gz + (isRear ? 0.0 : 0.10)),
+      );
+      addBox(
+        roofBuilder,
+        Vector3(-0.25, crestBottom + 0.24, gz - (isRear ? 0.11 : 0.0)),
+        Vector3(-0.16, crestBottom + 0.36, gz + (isRear ? 0.0 : 0.11)),
+      );
+      addBox(
+        roofBuilder,
+        Vector3(0.16, crestBottom + 0.24, gz - (isRear ? 0.11 : 0.0)),
+        Vector3(0.25, crestBottom + 0.36, gz + (isRear ? 0.0 : 0.11)),
+      );
+    }
+
+    final rafterSteps = ((zMax - zMin) / 0.34).round().clamp(4, 16);
+    for (var i = 0; i <= rafterSteps; i++) {
+      final rz = zMin + 0.18 + (zMax - zMin - 0.36) * (i / rafterSteps);
+      addBox(
+        timberBuilder,
+        Vector3(-xHalf + 0.04, eavesY + flareEave - 0.04, rz - 0.025),
+        Vector3(-xHalf + 0.24, eavesY + flareEave + 0.04, rz + 0.025),
+      );
+      addBox(
+        timberBuilder,
+        Vector3(xHalf - 0.24, eavesY + flareEave - 0.04, rz - 0.025),
+        Vector3(xHalf - 0.04, eavesY + flareEave + 0.04, rz + 0.025),
+      );
+    }
+  }
+
+  static void addIshiOkiYaneRoof(
+    GeometryBuilder roofBuilder,
+    GeometryBuilder timberBuilder,
+    GeometryBuilder stoneBuilder, {
+    required double xHalf,
+    required double zMin,
+    required double zMax,
+    required double eavesY,
+    required double ridgeY,
+    double thick = 0.10,
+  }) {
+    final tR0 = Vector3(0, ridgeY + thick, zMin);
+    final tR1 = Vector3(0, ridgeY + thick, zMax);
+    final tL0 = Vector3(-xHalf, eavesY + thick, zMin);
+    final tL1 = Vector3(-xHalf, eavesY + thick, zMax);
+    final tRt0 = Vector3(xHalf, eavesY + thick, zMin);
+    final tRt1 = Vector3(xHalf, eavesY + thick, zMax);
+
+    final bR0 = Vector3(0, ridgeY, zMin);
+    final bR1 = Vector3(0, ridgeY, zMax);
+    final bL0 = Vector3(-xHalf, eavesY, zMin);
+    final bL1 = Vector3(-xHalf, eavesY, zMax);
+    final bRt0 = Vector3(xHalf, eavesY, zMin);
+    final bRt1 = Vector3(xHalf, eavesY, zMax);
+
+    final shakeSlopeColor = Vector4(1, 0.96, 0.90, 0.60);
+    final shakeEdgeColor = Vector4(0.84, 0.78, 0.72, 0.60);
+    addQuadOutward(
+      roofBuilder,
+      tL0,
+      tL1,
+      tR1,
+      tR0,
+      Vector3(-0.55, 0.84, 0),
+      uvScale: 0.75,
+      color: shakeSlopeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tR0,
+      tR1,
+      tRt1,
+      tRt0,
+      Vector3(0.55, 0.84, 0),
+      uvScale: 0.75,
+      color: shakeSlopeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bL0,
+      bL1,
+      bR1,
+      bR0,
+      Vector3(0.55, -0.84, 0),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bR0,
+      bR1,
+      bRt1,
+      bRt0,
+      Vector3(-0.55, -0.84, 0),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bL0,
+      bL1,
+      tL1,
+      tL0,
+      Vector3(-1, 0, 0),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bRt0,
+      bRt1,
+      tRt1,
+      tRt0,
+      Vector3(1, 0, 0),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bL1,
+      bR1,
+      tR1,
+      tL1,
+      Vector3(0, 0, 1),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bR1,
+      bRt1,
+      tRt1,
+      tR1,
+      Vector3(0, 0, 1),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bL0,
+      bR0,
+      tR0,
+      tL0,
+      Vector3(0, 0, -1),
+      color: shakeEdgeColor,
+    );
+    addQuadOutward(
+      roofBuilder,
+      bR0,
+      bRt0,
+      tRt0,
+      tR0,
+      Vector3(0, 0, -1),
+      color: shakeEdgeColor,
+    );
+
+    final crestBottom = ridgeY + thick + 0.02;
+    addBox(
+      timberBuilder,
+      Vector3(-0.14, crestBottom, zMin - 0.04),
+      Vector3(0.14, crestBottom + 0.16, zMax + 0.04),
+    );
+
+    final battenFracs = [0.28, 0.54, 0.80];
+    final zSpan = zMax - zMin;
+    final halfDepth = zSpan / 2.0;
+    final zCenter = (zMin + zMax) / 2.0;
+
+    for (final frac in battenFracs) {
+      final slopeY = eavesY + thick + 0.002 + (ridgeY - eavesY) * frac;
+      final slopeX = xHalf * (1.0 - frac);
+
+      addBox(
+        timberBuilder,
+        Vector3(-slopeX - 0.04, slopeY, zMin + 0.06),
+        Vector3(-slopeX + 0.04, slopeY + 0.038, zMax - 0.06),
+      );
+      addBox(
+        timberBuilder,
+        Vector3(slopeX - 0.04, slopeY, zMin + 0.06),
+        Vector3(slopeX + 0.04, slopeY + 0.038, zMax - 0.06),
+      );
+
+      final cobbleCount = (zSpan / 0.55).floor().clamp(3, 7);
+      for (var c = 0; c < cobbleCount; c++) {
+        final cz = zMin + 0.35 + (zSpan - 0.70) * (c / (cobbleCount - 1));
+        final cobbleZRel = (cz - zCenter).abs();
+        if (cobbleZRel >= halfDepth - 0.10) continue;
+
+        final leftCobbleX = slopeX - 0.05;
+        if (leftCobbleX < xHalf - 0.12) {
+          addRockBoulder(
+            stoneBuilder,
+            Vector3(-leftCobbleX, slopeY + 0.03, cz),
+            Vector3(0.09, 0.055, 0.08),
+            yaw: c * 1.25,
+            seed: frac * 10 + c,
+          );
+        }
+
+        final rightCobbleX = slopeX - 0.05;
+        if (rightCobbleX < xHalf - 0.12) {
+          addRockBoulder(
+            stoneBuilder,
+            Vector3(rightCobbleX, slopeY + 0.03, cz),
+            Vector3(0.09, 0.055, 0.08),
+            yaw: c * 1.25 + 0.8,
+            seed: frac * 10 + c + 5,
+          );
+        }
+      }
+    }
+  }
+
+  static void addKayabukiRoof(
+    GeometryBuilder roofBuilder,
+    GeometryBuilder timberBuilder, {
+    required double wallHalfWidth,
+    required double wallHalfDepth,
+    required double eavesY,
+    required double ridgeY,
+    double eaveOverhangMargin = 0.38,
+    double thatchThick = 0.36,
+  }) {
+    final xHalf = wallHalfWidth + eaveOverhangMargin;
+    final zMin = -wallHalfDepth - eaveOverhangMargin;
+    final zMax = wallHalfDepth + eaveOverhangMargin;
+
+    final strawRidge = Vector4(1.06, 0.98, 0.82, 0.25);
+    final strawMid = Vector4(0.94, 0.86, 0.70, 0.25);
+    final mossEave = Vector4(0.58, 0.74, 0.44, 0.25);
+
+    final r0 = Vector3(0, ridgeY + thatchThick, zMin + 0.15);
+    final r1 = Vector3(0, ridgeY + thatchThick, zMax - 0.15);
+
+    final xMid = xHalf * 0.56;
+    final yMid = eavesY + (ridgeY - eavesY) * 0.45 + thatchThick * 0.9;
+
+    final yEaveTop = eavesY + thatchThick;
+    final yEaveDrip = eavesY + thatchThick * 0.25;
+    final yUndercut = eavesY;
+
+    final tLR0 = r0;
+    final tLR1 = r1;
+    final tLM0 = Vector3(-xMid, yMid, zMin + 0.10);
+    final tLM1 = Vector3(-xMid, yMid, zMax - 0.10);
+    final tLE0 = Vector3(-xHalf, yEaveTop, zMin);
+    final tLE1 = Vector3(-xHalf, yEaveTop, zMax);
+    final tLD0 = Vector3(-xHalf - 0.04, yEaveDrip, zMin);
+    final tLD1 = Vector3(-xHalf - 0.04, yEaveDrip, zMax);
+    final tLU0 = Vector3(-wallHalfWidth, yUndercut, -wallHalfDepth);
+    final tLU1 = Vector3(-wallHalfWidth, yUndercut, wallHalfDepth);
+
+    final tRR0 = r0;
+    final tRR1 = r1;
+    final tRM0 = Vector3(xMid, yMid, zMin + 0.10);
+    final tRM1 = Vector3(xMid, yMid, zMax - 0.10);
+    final tRE0 = Vector3(xHalf, yEaveTop, zMin);
+    final tRE1 = Vector3(xHalf, yEaveTop, zMax);
+    final tRD0 = Vector3(xHalf + 0.04, yEaveDrip, zMin);
+    final tRD1 = Vector3(xHalf + 0.04, yEaveDrip, zMax);
+    final tRU0 = Vector3(wallHalfWidth, yUndercut, -wallHalfDepth);
+    final tRU1 = Vector3(wallHalfWidth, yUndercut, wallHalfDepth);
+
+    addQuadOutward(
+      roofBuilder,
+      tLM0,
+      tLM1,
+      tLR1,
+      tLR0,
+      Vector3(-0.5, 0.85, 0),
+      color: strawRidge,
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLE0,
+      tLE1,
+      tLM1,
+      tLM0,
+      Vector3(-0.55, 0.82, 0),
+      color: strawMid,
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLD0,
+      tLD1,
+      tLE1,
+      tLE0,
+      Vector3(-0.9, 0.4, 0),
+      color: mossEave,
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLU0,
+      tLU1,
+      tLD1,
+      tLD0,
+      Vector3(0.5, -0.85, 0),
+      color: mossEave,
+    );
+
+    addQuadOutward(
+      roofBuilder,
+      tRR0,
+      tRR1,
+      tRM1,
+      tRM0,
+      Vector3(0.5, 0.85, 0),
+      color: strawRidge,
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRM0,
+      tRM1,
+      tRE1,
+      tRE0,
+      Vector3(0.55, 0.82, 0),
+      color: strawMid,
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRE0,
+      tRE1,
+      tRD1,
+      tRD0,
+      Vector3(0.9, 0.4, 0),
+      color: mossEave,
+      uvScale: 0.75,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRD0,
+      tRD1,
+      tRU1,
+      tRU0,
+      Vector3(-0.5, -0.85, 0),
+      color: mossEave,
+    );
+
+    addTriangleOutward(
+      roofBuilder,
+      tLR1,
+      tLM1,
+      tRM1,
+      Vector3(0, 0.35, 0.93),
+      color: strawRidge,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLM1,
+      tLE1,
+      tRE1,
+      tRM1,
+      Vector3(0, 0.35, 0.93),
+      color: strawMid,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLE1,
+      tLD1,
+      tRD1,
+      tRE1,
+      Vector3(0, 0.2, 0.98),
+      color: mossEave,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tLD1,
+      tLU1,
+      tRU1,
+      tRD1,
+      Vector3(0, -0.8, 0.6),
+      color: mossEave,
+    );
+
+    addTriangleOutward(
+      roofBuilder,
+      tRR0,
+      tRM0,
+      tLM0,
+      Vector3(0, 0.35, -0.93),
+      color: strawRidge,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRM0,
+      tRE0,
+      tLE0,
+      tLM0,
+      Vector3(0, 0.35, -0.93),
+      color: strawMid,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRE0,
+      tRD0,
+      tLD0,
+      tLE0,
+      Vector3(0, 0.2, -0.98),
+      color: mossEave,
+    );
+    addQuadOutward(
+      roofBuilder,
+      tRD0,
+      tRU0,
+      tLU0,
+      tLD0,
+      Vector3(0, -0.8, -0.6),
+      color: mossEave,
+    );
+
+    const katsuogiCount = 4;
+    for (var i = 0; i < katsuogiCount; i++) {
+      final kz = zMin + 0.65 + (zMax - zMin - 1.30) * (i / (katsuogiCount - 1));
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(-0.36, ridgeY + thatchThick + 0.05, kz),
+        Vec3(0.36, ridgeY + thatchThick + 0.05, kz),
+        0.07,
+        0.07,
+        sides: 6,
+      );
+    }
+
+    for (final gz in [zMin + 0.25, zMax - 0.25]) {
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(-0.45, ridgeY + thatchThick - 0.12, gz),
+        Vec3(0.42, ridgeY + thatchThick + 0.42, gz),
+        0.055,
+        0.040,
+      );
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(0.45, ridgeY + thatchThick - 0.12, gz),
+        Vec3(-0.42, ridgeY + thatchThick + 0.42, gz),
+        0.055,
+        0.040,
+      );
+    }
   }
 
   static void addNoboriBanner(
@@ -1446,6 +2230,1015 @@ class EdoKitBuilder {
     );
   }
 
+  static void addFukinagashiStreamers(
+    GeometryBuilder clothBuilder,
+    GeometryBuilder timberBuilder,
+    Vec3 cordPos, {
+    required double length,
+    required int seed,
+    double yaw = 0,
+  }) {
+    addTaperedLimb(
+      timberBuilder,
+      Vec3(cordPos.x, cordPos.y + 0.018, cordPos.z),
+      Vec3(cordPos.x, cordPos.y - 0.025, cordPos.z),
+      0.024,
+      0.024,
+      sides: 6,
+    );
+
+    final festivalPalette = [
+      Vector4(0.95, 0.24, 0.14, 0.5),
+      Vector4(0.98, 0.76, 0.16, 0.5),
+      Vector4(0.16, 0.62, 0.42, 0.5),
+      Vector4(0.18, 0.34, 0.68, 0.5),
+      Vector4(0.98, 0.94, 0.84, 0.5),
+    ];
+
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+    final origin = cordPos.toVector3();
+    for (var r = 0; r < 2; r++) {
+      final lx = r == 0 ? -0.055 : 0.055;
+      final lz = r == 0 ? -0.012 : 0.012;
+      final ribbonColor =
+          festivalPalette[(seed.abs() * 3 + r * 2) % festivalPalette.length];
+      final ribbonLen = length * (0.84 + ((seed.abs() + r) % 3) * 0.14);
+      _addRotatedBox(
+        clothBuilder,
+        origin,
+        cy,
+        sy,
+        Vector3(lx - 0.042, -0.028 - ribbonLen, lz - 0.008),
+        Vector3(lx + 0.042, -0.028, lz + 0.008),
+        color: ribbonColor,
+      );
+    }
+  }
+
+  static void addWagasaUmbrella(
+    GeometryBuilder clothBuilder,
+    GeometryBuilder timberBuilder,
+    Vector3 origin, {
+    double scale = 1.0,
+    double yaw = 0.0,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+
+    _addRotatedBox(
+      timberBuilder,
+      origin,
+      cy,
+      sy,
+      Vector3(-0.25 * scale, 0.015, -0.04 * scale),
+      Vector3(0.25 * scale, 0.045, 0.04 * scale),
+    );
+    _addRotatedBox(
+      timberBuilder,
+      origin,
+      cy,
+      sy,
+      Vector3(-0.04 * scale, 0.019, -0.25 * scale),
+      Vector3(0.04 * scale, 0.049, 0.25 * scale),
+    );
+
+    final poleBase = _localPropPoint(origin, cy, sy, 0, 0.02, 0);
+    final poleApex = _localPropPoint(origin, cy, sy, 0, 2.24 * scale, 0);
+    addTaperedLimb(
+      timberBuilder,
+      Vec3(poleBase.x, poleBase.y, poleBase.z),
+      Vec3(poleApex.x, poleApex.y, poleApex.z),
+      0.028 * scale,
+      0.018 * scale,
+      sides: 6,
+    );
+
+    const spokeCount = 12;
+    final canopyRadius = 0.92 * scale;
+    final apexY = 2.22 * scale;
+    final eavesY = 1.88 * scale;
+    final apexPos = _localPropPoint(origin, cy, sy, 0, apexY, 0);
+
+    final vermilionCanopy = Vector4(0.98, 0.14, 0.08, 0.5);
+    final creamEaveBand = Vector4(0.98, 0.94, 0.84, 0.5);
+
+    for (var i = 0; i < spokeCount; i++) {
+      final a0 = (i * 2 * math.pi) / spokeCount;
+      final a1 = ((i + 1) * math.pi * 2) / spokeCount;
+      final c0 = math.cos(a0);
+      final s0 = math.sin(a0);
+      final c1 = math.cos(a1);
+      final s1 = math.sin(a1);
+
+      Vector3 conePt(double frac, double c, double s, {double yOff = 0}) =>
+          _localPropPoint(
+            origin,
+            cy,
+            sy,
+            canopyRadius * frac * c,
+            apexY + (eavesY - apexY) * frac + yOff,
+            canopyRadius * frac * s,
+          );
+
+      final rIn0 = conePt(0.32, c0, s0);
+      final rIn1 = conePt(0.32, c1, s1);
+      final rMid0 = conePt(0.54, c0, s0);
+      final rMid1 = conePt(0.54, c1, s1);
+      final p0 = conePt(1, c0, s0);
+      final p1 = conePt(1, c1, s1);
+      final uApex = _localPropPoint(origin, cy, sy, 0, apexY - 0.012, 0);
+      final u0 = conePt(1, c0, s0, yOff: -0.012);
+      final u1 = conePt(1, c1, s1, yOff: -0.012);
+
+      final normal = (p1 - apexPos).cross(p0 - apexPos).normalized();
+
+      addTriangleOutward(
+        clothBuilder,
+        apexPos,
+        rIn0,
+        rIn1,
+        normal,
+        color: vermilionCanopy,
+      );
+      addQuadOutward(
+        clothBuilder,
+        rIn0,
+        rMid0,
+        rMid1,
+        rIn1,
+        normal,
+        color: creamEaveBand,
+      );
+      addQuadOutward(
+        clothBuilder,
+        rMid0,
+        p0,
+        p1,
+        rMid1,
+        normal,
+        color: vermilionCanopy,
+      );
+      addTriangleOutward(
+        clothBuilder,
+        uApex,
+        u1,
+        u0,
+        -normal,
+        color: creamEaveBand,
+      );
+
+      final runnerPos = _localPropPoint(
+        origin,
+        cy,
+        sy,
+        0,
+        eavesY + 0.15 * scale,
+        0,
+      );
+      addCordSegment(
+        timberBuilder,
+        Vec3(runnerPos.x, runnerPos.y, runnerPos.z),
+        Vec3(p0.x, p0.y, p0.z),
+        halfThick: 0.008 * scale,
+      );
+    }
+
+    final ferrule = _localPropPoint(origin, cy, sy, 0, 2.26 * scale, 0);
+    addTaperedLimb(
+      timberBuilder,
+      Vec3(poleApex.x, poleApex.y, poleApex.z),
+      Vec3(ferrule.x, ferrule.y, ferrule.z),
+      0.024 * scale,
+      0.008 * scale,
+      sides: 6,
+    );
+  }
+
+  static void addMizuOkeTub(
+    GeometryBuilder timberBuilder,
+    GeometryBuilder waterBuilder,
+    Vector3 origin, {
+    double radius = 0.24,
+    double height = 0.48,
+  }) {
+    final yBase = origin.y + 0.015;
+    final yRim = origin.y + height;
+    addTaperedLimb(
+      timberBuilder,
+      Vec3(origin.x, yBase, origin.z),
+      Vec3(origin.x, yRim, origin.z),
+      radius * 0.92,
+      radius,
+      sides: 8,
+    );
+
+    for (final hFrac in [0.25, 0.75]) {
+      final hy = yBase + (yRim - yBase) * hFrac;
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(origin.x, hy - 0.015, origin.z),
+        Vec3(origin.x, hy + 0.015, origin.z),
+        radius * (0.92 + 0.08 * hFrac) + 0.012,
+        radius * (0.92 + 0.08 * hFrac) + 0.012,
+        sides: 8,
+      );
+    }
+
+    final yWater = yRim - 0.08;
+    addTaperedLimb(
+      waterBuilder,
+      Vec3(origin.x, yWater - 0.02, origin.z),
+      Vec3(origin.x, yWater, origin.z),
+      radius * 0.88,
+      radius * 0.88,
+      sides: 8,
+    );
+
+    addTaperedLimb(
+      timberBuilder,
+      Vec3(origin.x - radius * 0.8, yRim + 0.02, origin.z - radius * 0.4),
+      Vec3(origin.x + radius * 0.9, yRim + 0.02, origin.z + radius * 0.4),
+      0.012,
+      0.008,
+      sides: 4,
+      color: Vector4(0.88, 0.82, 0.62, 1),
+    );
+  }
+
+  static void addKomeDawaraBale(
+    GeometryBuilder strawBuilder,
+    GeometryBuilder cordBuilder,
+    Vector3 origin, {
+    double yaw = 0.0,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+    const baleRadius = 0.17;
+    const halfLen = 0.34;
+
+    final endA = _localPropPoint(origin, cy, sy, -halfLen, baleRadius, 0);
+    final endB = _localPropPoint(origin, cy, sy, halfLen, baleRadius, 0);
+
+    final strawColor = Vector4(1.05, 0.94, 0.72, 1);
+    addTaperedLimb(
+      strawBuilder,
+      Vec3(endA.x, endA.y, endA.z),
+      Vec3(endB.x, endB.y, endB.z),
+      baleRadius,
+      baleRadius,
+      sides: 8,
+      color: strawColor,
+    );
+
+    for (final endX in [-halfLen - 0.01, halfLen + 0.01]) {
+      final endCap = _localPropPoint(origin, cy, sy, endX, baleRadius, 0);
+      addTaperedLimb(
+        strawBuilder,
+        Vec3(endCap.x, endCap.y, endCap.z),
+        Vec3(
+          endCap.x + cy * (endX < 0 ? -0.02 : 0.02),
+          endCap.y,
+          endCap.z - sy * (endX < 0 ? -0.02 : 0.02),
+        ),
+        baleRadius * 0.72,
+        baleRadius * 0.35,
+        sides: 8,
+        color: strawColor,
+      );
+    }
+
+    for (final cx in [-0.20, 0.0, 0.20]) {
+      final ca = _localPropPoint(origin, cy, sy, cx - 0.015, baleRadius, 0);
+      final cb = _localPropPoint(origin, cy, sy, cx + 0.015, baleRadius, 0);
+      addTaperedLimb(
+        cordBuilder,
+        Vec3(ca.x, ca.y, ca.z),
+        Vec3(cb.x, cb.y, cb.z),
+        baleRadius + 0.012,
+        baleRadius + 0.012,
+        sides: 8,
+      );
+    }
+  }
+
+  static void addKomeDawaraStack(
+    GeometryBuilder strawBuilder,
+    GeometryBuilder cordBuilder,
+    Vector3 origin, {
+    int count = 3,
+    double yaw = 0.0,
+  }) {
+    const r = 0.17;
+    if (count <= 1) {
+      addKomeDawaraBale(strawBuilder, cordBuilder, origin, yaw: yaw);
+    } else if (count == 2) {
+      addKomeDawaraBale(
+        strawBuilder,
+        cordBuilder,
+        origin + Vector3(-r * 0.95, 0, 0),
+        yaw: yaw,
+      );
+      addKomeDawaraBale(
+        strawBuilder,
+        cordBuilder,
+        origin + Vector3(r * 0.95, 0, 0),
+        yaw: yaw,
+      );
+    } else {
+      addKomeDawaraBale(
+        strawBuilder,
+        cordBuilder,
+        origin + Vector3(-r * 0.95, 0, 0),
+        yaw: yaw,
+      );
+      addKomeDawaraBale(
+        strawBuilder,
+        cordBuilder,
+        origin + Vector3(r * 0.95, 0, 0),
+        yaw: yaw,
+      );
+      addKomeDawaraBale(
+        strawBuilder,
+        cordBuilder,
+        origin + Vector3(0, r * 1.65, 0),
+        yaw: yaw,
+      );
+    }
+  }
+
+  static void addSunokoDuckboard(
+    GeometryBuilder timberBuilder,
+    Vector3 origin, {
+    double width = 0.60,
+    double length = 1.40,
+    double yaw = 0.0,
+  }) {
+    final cy = math.cos(yaw);
+    final sy = math.sin(yaw);
+
+    for (final lx in [-length * 0.35, length * 0.35]) {
+      _addRotatedBox(
+        timberBuilder,
+        origin,
+        cy,
+        sy,
+        Vector3(lx - 0.035, 0.015, -width * 0.48),
+        Vector3(lx + 0.035, 0.040, width * 0.48),
+      );
+    }
+
+    const plankCount = 5;
+    final plankW = (width - 0.06) / plankCount;
+    for (var p = 0; p < plankCount; p++) {
+      final zOffset = -width * 0.5 + 0.03 + p * (plankW + 0.008);
+      _addRotatedBox(
+        timberBuilder,
+        origin,
+        cy,
+        sy,
+        Vector3(-length * 0.5, 0.040, zOffset),
+        Vector3(length * 0.5, 0.062, zOffset + plankW),
+      );
+    }
+  }
+
+  Node buildShoroBellNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final stoneBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final roofBuilder = GeometryBuilder();
+    final plasterBuilder = GeometryBuilder();
+    final bellBuilder = GeometryBuilder();
+
+    addBox(
+      stoneBuilder,
+      Vector3(-1.60, -1.20, -1.60),
+      Vector3(1.60, 0.40, 1.60),
+    );
+    addBox(stoneBuilder, Vector3(-0.75, 0, 1.60), Vector3(0.75, 0.20, 1.95));
+    addBox(stoneBuilder, Vector3(-0.65, 0.20, 1.60), Vector3(0.65, 0.40, 1.78));
+
+    addBox(
+      timberBuilder,
+      Vector3(-1.42, 0.40, -1.42),
+      Vector3(1.42, 0.52, 1.42),
+    );
+
+    const postLocs = [
+      (-1.18, -1.18),
+      (1.18, -1.18),
+      (-1.18, 1.18),
+      (1.18, 1.18),
+    ];
+    for (final loc in postLocs) {
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(loc.$1, 0.52, loc.$2),
+        Vec3(loc.$1 * 0.93, 2.70, loc.$2 * 0.93),
+        0.13,
+        0.11,
+        sides: 8,
+      );
+    }
+
+    addBox(
+      timberBuilder,
+      Vector3(-1.18, 0.88, -1.18),
+      Vector3(1.18, 0.94, -1.12),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.18, 0.88, -1.18),
+      Vector3(-1.12, 0.94, 1.18),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(1.12, 0.88, -1.18),
+      Vector3(1.18, 0.94, 1.18),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.18, 0.88, 1.12),
+      Vector3(-0.65, 0.94, 1.18),
+    );
+    addBox(timberBuilder, Vector3(0.65, 0.88, 1.12), Vector3(1.18, 0.94, 1.18));
+
+    addBox(
+      timberBuilder,
+      Vector3(-1.16, 2.54, -1.16),
+      Vector3(1.16, 2.68, -1.04),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.16, 2.54, 1.04),
+      Vector3(1.16, 2.68, 1.16),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.16, 2.54, -1.16),
+      Vector3(-1.04, 2.68, 1.16),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(1.04, 2.54, -1.16),
+      Vector3(1.16, 2.68, 1.16),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.12, 2.56, -0.08),
+      Vector3(1.12, 2.70, 0.08),
+    );
+
+    final bronzePatina = Vector4(0.24, 0.32, 0.30, 1);
+    addTaperedLimb(
+      bellBuilder,
+      const Vec3(0, 2.45, 0),
+      const Vec3(0, 2.30, 0),
+      0.08,
+      0.08,
+      sides: 6,
+      color: bronzePatina,
+    );
+    addTaperedLimb(
+      bellBuilder,
+      const Vec3(0, 2.30, 0),
+      const Vec3(0, 2.10, 0),
+      0.24,
+      0.34,
+      sides: 12,
+      color: bronzePatina,
+    );
+    addTaperedLimb(
+      bellBuilder,
+      const Vec3(0, 2.10, 0),
+      const Vec3(0, 1.42, 0),
+      0.34,
+      0.38,
+      sides: 12,
+      color: bronzePatina,
+    );
+    addTaperedLimb(
+      bellBuilder,
+      const Vec3(0, 1.42, 0),
+      const Vec3(0, 1.35, 0),
+      0.38,
+      0.35,
+      sides: 12,
+      color: bronzePatina,
+    );
+
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(-0.85, 1.55, 0.42),
+      const Vec3(-0.08, 1.55, 0.42),
+      0.05,
+      0.05,
+      sides: 6,
+      color: Vector4(0.92, 0.84, 0.68, 1),
+    );
+    addCordSegment(
+      timberBuilder,
+      const Vec3(-0.75, 2.55, 0.42),
+      const Vec3(-0.75, 1.58, 0.42),
+      halfThick: 0.012,
+    );
+    addCordSegment(
+      timberBuilder,
+      const Vec3(-0.25, 2.55, 0.42),
+      const Vec3(-0.25, 1.58, 0.42),
+      halfThick: 0.012,
+    );
+
+    addIrimoyaRoof(
+      roofBuilder,
+      timberBuilder,
+      plasterBuilder,
+      xHalf: 1.85,
+      zMin: -1.85,
+      zMax: 1.85,
+      eavesY: 2.70,
+      ridgeY: 4.55,
+      soriFactor: 0.10,
+    );
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            stoneBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            roofBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.kawaraTile),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            plasterBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.plasterWall),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            bellBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.kawaraTile),
+          ),
+        ),
+      );
+
+    return markSubtreeShadowStatic(root);
+  }
+
+  Node buildKaresansuiGardenNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final stoneBuilder = GeometryBuilder();
+    final gravelBuilder = GeometryBuilder();
+    final plasterBuilder = GeometryBuilder();
+    final roofBuilder = GeometryBuilder();
+    final mossBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final glowBuilder = GeometryBuilder();
+    final shrubBuilder = GeometryBuilder();
+
+    const xHalf = 2.10;
+    const zHalf = 1.80;
+    const curbThick = 0.14;
+    final curbStoneColor = Vector4(0.86, 0.84, 0.80, 1);
+    addBox(
+      stoneBuilder,
+      Vector3(-xHalf, 0, -zHalf),
+      Vector3(xHalf, 0.12, -zHalf + curbThick),
+      color: curbStoneColor,
+    );
+    addBox(
+      stoneBuilder,
+      Vector3(-xHalf, 0, zHalf - curbThick),
+      Vector3(xHalf, 0.12, zHalf),
+      color: curbStoneColor,
+    );
+    addBox(
+      stoneBuilder,
+      Vector3(-xHalf, 0, -zHalf + curbThick),
+      Vector3(-xHalf + curbThick, 0.12, zHalf - curbThick),
+      color: curbStoneColor,
+    );
+    addBox(
+      stoneBuilder,
+      Vector3(xHalf - curbThick, 0, -zHalf + curbThick),
+      Vector3(xHalf, 0.12, zHalf - curbThick),
+      color: curbStoneColor,
+    );
+
+    addBox(
+      timberBuilder,
+      Vector3(-2.04, 0.12, -1.78),
+      Vector3(2.04, 0.20, -1.68),
+    );
+    addBox(
+      plasterBuilder,
+      Vector3(-1.98, 0.20, -1.76),
+      Vector3(1.98, 1.18, -1.70),
+    );
+    for (final px in const [-2.02, -0.68, 0.68, 2.02]) {
+      addBox(
+        timberBuilder,
+        Vector3(px - 0.04, 0.12, -1.79),
+        Vector3(px + 0.04, 1.20, -1.67),
+      );
+    }
+    addBox(
+      timberBuilder,
+      Vector3(-2.04, 0.68, -1.78),
+      Vector3(2.04, 0.73, -1.68),
+    );
+    addGabledRoof(
+      roofBuilder,
+      timberBuilder,
+      xHalf: 2.08,
+      zMin: -1.80,
+      zMax: -1.60,
+      eavesY: 1.20,
+      ridgeY: 1.38,
+      thick: 0.05,
+    );
+
+    addBox(
+      timberBuilder,
+      Vector3(-2.08, 0.12, -1.66),
+      Vector3(-1.98, 0.20, -0.32),
+    );
+    addBox(
+      plasterBuilder,
+      Vector3(-2.06, 0.20, -1.64),
+      Vector3(-2, 1.12, -0.36),
+    );
+    for (final pz in const [-1.62, -0.98, -0.34]) {
+      addBox(
+        timberBuilder,
+        Vector3(-2.09, 0.12, pz - 0.04),
+        Vector3(-1.97, 1.14, pz + 0.04),
+      );
+    }
+    addLeanToRoof(
+      roofBuilder,
+      xMin: -2.10,
+      xMax: -1.92,
+      zWall: -1.60,
+      zFront: -0.28,
+      yWall: 1.18,
+      yFront: 1.12,
+      thick: 0.045,
+    );
+
+    const gL = -xHalf + curbThick;
+    const gR = xHalf - curbThick;
+    const gB = -zHalf + curbThick;
+    const gF = zHalf - curbThick;
+    final gravelColor = Vector4(0.46, 0.45, 0.42, 1);
+    final furrowColor = Vector4(0.33, 0.32, 0.30, 1);
+
+    addQuadOutward(
+      gravelBuilder,
+      Vector3(gL, 0.035, gB),
+      Vector3(gR, 0.035, gB),
+      Vector3(gR, 0.035, gF),
+      Vector3(gL, 0.035, gF),
+      Vector3(0, 1, 0),
+      color: gravelColor,
+    );
+
+    for (var fz = gB + 0.16; fz <= gF - 0.16; fz += 0.22) {
+      addBox(
+        gravelBuilder,
+        Vector3(gL + 0.06, 0.037, fz - 0.025),
+        Vector3(gR - 0.06, 0.045, fz + 0.025),
+        color: furrowColor,
+      );
+    }
+
+    for (var r = 1; r <= 4; r++) {
+      final rad = 0.68 + r * 0.17;
+      addTaperedLimb(
+        gravelBuilder,
+        const Vec3(-0.35, 0.046, -0.15),
+        const Vec3(-0.35, 0.054, -0.15),
+        rad,
+        rad - 0.04,
+        sides: 18,
+        color: r.isEven ? gravelColor : furrowColor,
+      );
+    }
+
+    addRockBoulder(
+      stoneBuilder,
+      Vector3(-0.35, 0.52, -0.15),
+      Vector3(0.38, 0.62, 0.35),
+      yaw: 0.25,
+      seed: 42,
+    );
+    addRockBoulder(
+      stoneBuilder,
+      Vector3(0.55, 0.24, -0.05),
+      Vector3(0.44, 0.24, 0.34),
+      yaw: -0.75,
+      seed: 108,
+    );
+    addRockBoulder(
+      stoneBuilder,
+      Vector3(-1.05, 0.34, -0.30),
+      Vector3(0.34, 0.36, 0.30),
+      yaw: 0.85,
+      seed: 77,
+    );
+
+    addTaperedLimb(
+      mossBuilder,
+      const Vec3(-0.35, 0.055, -0.15),
+      const Vec3(-0.35, 0.074, -0.15),
+      0.72,
+      0.64,
+      sides: 10,
+      color: Vector4(0.42, 0.56, 0.28, 1),
+    );
+    addTaperedLimb(
+      mossBuilder,
+      const Vec3(0.55, 0.055, -0.05),
+      const Vec3(0.55, 0.070, -0.05),
+      0.54,
+      0.46,
+      sides: 8,
+      color: Vector4(0.42, 0.56, 0.28, 1),
+    );
+
+    addStoneToro(stoneBuilder, glowBuilder, Vector3(1.35, 0.055, -1.05));
+
+    addTaperedLimb(
+      shrubBuilder,
+      const Vec3(1.15, 0.055, 0.85),
+      const Vec3(1.15, 0.36, 0.85),
+      0.38,
+      0.24,
+      sides: 8,
+    );
+    addTaperedLimb(
+      shrubBuilder,
+      const Vec3(1.15, 0.22, 0.85),
+      const Vec3(1.15, 0.44, 0.85),
+      0.30,
+      0.10,
+      sides: 8,
+    );
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            stoneBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            gravelBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.kuraPlaster),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            plasterBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.plasterWall),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            roofBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.kawaraTile),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            mossBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.livingMeadow),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            glowBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.shojiScreen),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            shrubBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.pineCanopy),
+          ),
+        ),
+      );
+
+    return markSubtreeShadowStatic(root);
+  }
+
+  Node buildStoneWellNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final stoneBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final roofBuilder = GeometryBuilder();
+    final waterBuilder = GeometryBuilder();
+
+    addBox(stoneBuilder, Vector3(-0.90, 0, -0.90), Vector3(0.90, 0.035, 0.90));
+
+    addTaperedLimb(
+      stoneBuilder,
+      const Vec3(0, 0.035, 0),
+      const Vec3(0, 0.56, 0),
+      0.58,
+      0.58,
+      sides: 8,
+    );
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(0, 0.54, 0),
+      const Vec3(0, 0.62, 0),
+      0.61,
+      0.61,
+      sides: 8,
+    );
+
+    addTaperedLimb(
+      stoneBuilder,
+      const Vec3(0, -0.75, 0),
+      const Vec3(0, 0.035, 0),
+      0.46,
+      0.46,
+      sides: 8,
+    );
+    addTaperedLimb(
+      waterBuilder,
+      const Vec3(0, -0.42, 0),
+      const Vec3(0, -0.38, 0),
+      0.44,
+      0.44,
+      sides: 8,
+    );
+
+    for (final xPost in const [-0.64, 0.64]) {
+      addTaperedLimb(
+        timberBuilder,
+        Vec3(xPost, 0.035, 0),
+        Vec3(xPost, 1.82, 0),
+        0.055,
+        0.045,
+        sides: 6,
+      );
+    }
+    addBox(
+      timberBuilder,
+      Vector3(-0.72, 1.74, -0.05),
+      Vector3(0.72, 1.82, 0.05),
+    );
+
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(-0.035, 1.68, 0),
+      const Vec3(0.035, 1.68, 0),
+      0.11,
+      0.11,
+      sides: 8,
+    );
+    addCordSegment(
+      timberBuilder,
+      const Vec3(0, 1.68, 0.08),
+      const Vec3(0, -0.35, 0.08),
+      halfThick: 0.012,
+    );
+    addCordSegment(
+      timberBuilder,
+      const Vec3(0, 1.68, 0.08),
+      const Vec3(0.38, 0.82, 0.12),
+      halfThick: 0.010,
+    );
+
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(0.38, 0.62, 0.12),
+      const Vec3(0.38, 0.80, 0.12),
+      0.10,
+      0.12,
+      sides: 6,
+    );
+    addTaperedLimb(
+      timberBuilder,
+      const Vec3(0.38, 0.78, 0.12),
+      const Vec3(0.38, 0.92, 0.12),
+      0.08,
+      0.08,
+      sides: 4,
+    );
+    addTaperedLimb(
+      waterBuilder,
+      const Vec3(0.38, 0.74, 0.12),
+      const Vec3(0.38, 0.77, 0.12),
+      0.09,
+      0.09,
+      sides: 6,
+    );
+
+    addIshiOkiYaneRoof(
+      roofBuilder,
+      timberBuilder,
+      stoneBuilder,
+      xHalf: 0.88,
+      zMin: -0.88,
+      zMax: 0.88,
+      eavesY: 1.76,
+      ridgeY: 2.32,
+      thick: 0.07,
+    );
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            stoneBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            roofBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.kawaraTile),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            waterBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.riverWater),
+          ),
+        ),
+      );
+
+    return markSubtreeShadowStatic(root);
+  }
+
   Node buildStructureNode(
     PlacedStructure structure,
     ShukubaMaterialResolver resolveMaterial,
@@ -1456,6 +3249,7 @@ class EdoKitBuilder {
 
     final content = switch (structure.kind) {
       StructureKind.machiya => buildMachiyaNode(structure, resolveMaterial),
+      StructureKind.minka => buildMinkaNode(structure, resolveMaterial),
       StructureKind.chaya => buildChayaNode(structure, resolveMaterial),
       StructureKind.kura => buildKuraNode(structure, resolveMaterial),
       StructureKind.marketStall => buildMarketStallNode(
@@ -1463,6 +3257,12 @@ class EdoKitBuilder {
         resolveMaterial,
       ),
       StructureKind.toriiGate => buildToriiGateNode(structure, resolveMaterial),
+      StructureKind.shoroBell => buildShoroBellNode(structure, resolveMaterial),
+      StructureKind.stoneWell => buildStoneWellNode(structure, resolveMaterial),
+      StructureKind.karesansuiGarden => buildKaresansuiGardenNode(
+        structure,
+        resolveMaterial,
+      ),
       StructureKind.yaguraTower => buildYaguraTowerNode(
         structure,
         resolveMaterial,
@@ -1481,7 +3281,253 @@ class EdoKitBuilder {
     };
 
     structureNode.add(content);
-    return structureNode;
+    return markSubtreeShadowStatic(structureNode);
+  }
+
+  Node buildMinkaNode(
+    PlacedStructure structure,
+    ShukubaMaterialResolver resolveMaterial,
+  ) {
+    final root = Node();
+    final stoneBuilder = GeometryBuilder();
+    final plasterBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final roofBuilder = GeometryBuilder();
+    final shojiBuilder = GeometryBuilder();
+
+    const wallHalfWidth = 1.80;
+    const wallHalfDepth = 2.10;
+    const foundationSkirtDepth = 1.20;
+    const wallHeight = 2.45;
+    const eavesY = 2.45;
+    const ridgeY = 3.80;
+
+    addBox(
+      stoneBuilder,
+      Vector3(
+        -wallHalfWidth - 0.04,
+        -foundationSkirtDepth,
+        -wallHalfDepth - 0.04,
+      ),
+      Vector3(wallHalfWidth + 0.04, 0.20, wallHalfDepth + 0.04),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-wallHalfWidth, 0.20, -wallHalfDepth),
+      Vector3(wallHalfWidth, 0.32, wallHalfDepth),
+    );
+
+    for (final cx in [-wallHalfWidth, wallHalfWidth - 0.12]) {
+      for (final cz in [-wallHalfDepth, wallHalfDepth - 0.12]) {
+        addBox(
+          timberBuilder,
+          Vector3(cx, 0.20, cz),
+          Vector3(cx + 0.12, wallHeight, cz + 0.12),
+        );
+      }
+    }
+
+    addBox(
+      plasterBuilder,
+      Vector3(-wallHalfWidth + 0.04, 0.33, -wallHalfDepth + 0.04),
+      Vector3(wallHalfWidth - 0.04, wallHeight - 0.03, wallHalfDepth - 0.04),
+    );
+
+    addBox(
+      timberBuilder,
+      Vector3(-0.65, 0.24, wallHalfDepth + 0.01),
+      Vector3(0.65, 1.82, wallHalfDepth + 0.06),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.74, 1.80, wallHalfDepth - 0.02),
+      Vector3(1.74, 1.88, wallHalfDepth + 0.05),
+    );
+    addBox(
+      shojiBuilder,
+      Vector3(0.74, 0.95, wallHalfDepth - 0.02),
+      Vector3(1.56, 1.76, wallHalfDepth + 0.03),
+    );
+    for (var i = 0; i < 4; i++) {
+      final bx = 0.80 + 0.70 * (i / 3);
+      addBox(
+        timberBuilder,
+        Vector3(bx - 0.016, 0.95, wallHalfDepth + 0.04),
+        Vector3(bx + 0.016, 1.76, wallHalfDepth + 0.07),
+      );
+    }
+    addBox(
+      timberBuilder,
+      Vector3(-1.62, 0.32, wallHalfDepth - 0.02),
+      Vector3(-0.72, 1.12, wallHalfDepth + 0.04),
+    );
+    addLeanToRoof(
+      roofBuilder,
+      xMin: -1.68,
+      xMax: 1.68,
+      zWall: wallHalfDepth - 0.02,
+      zFront: wallHalfDepth + 0.34,
+      yWall: 2.08,
+      yFront: 1.84,
+      thick: 0.06,
+      color: Vector4(0.64, 0.44, 0.28, 0.60),
+    );
+
+    for (final sideSign in const [-1.0, 1.0]) {
+      final xInner = sideSign < 0
+          ? -wallHalfWidth - 0.03
+          : wallHalfWidth - 0.01;
+      final xOuter = sideSign < 0
+          ? -wallHalfWidth + 0.01
+          : wallHalfWidth + 0.03;
+      final pMin = sideSign < 0 ? -wallHalfWidth - 0.06 : wallHalfWidth - 0.02;
+      final pMax = sideSign < 0 ? -wallHalfWidth + 0.02 : wallHalfWidth + 0.06;
+      for (final pz in const [-0.70, 0.70]) {
+        addBox(
+          timberBuilder,
+          Vector3(pMin, 0.20, pz - 0.05),
+          Vector3(pMax, wallHeight, pz + 0.05),
+        );
+      }
+      final nMin = sideSign < 0 ? -wallHalfWidth - 0.045 : wallHalfWidth - 0.01;
+      final nMax = sideSign < 0 ? -wallHalfWidth + 0.01 : wallHalfWidth + 0.045;
+      for (final ny in const [1.10, 1.82]) {
+        addBox(
+          timberBuilder,
+          Vector3(nMin, ny, -wallHalfDepth + 0.13),
+          Vector3(nMax, ny + 0.06, wallHalfDepth - 0.13),
+        );
+      }
+      addBox(
+        timberBuilder,
+        Vector3(xInner, 0.32, -wallHalfDepth + 0.12),
+        Vector3(xOuter, 1.10, wallHalfDepth - 0.12),
+      );
+      if (sideSign < 0) {
+        addBox(
+          shojiBuilder,
+          Vector3(-wallHalfWidth - 0.02, 1.18, -0.58),
+          Vector3(-wallHalfWidth + 0.02, 1.78, 0.58),
+        );
+        for (var b = 0; b < 4; b++) {
+          final bz = -0.50 + 1.0 * (b / 3);
+          addBox(
+            timberBuilder,
+            Vector3(-wallHalfWidth - 0.06, 1.18, bz - 0.016),
+            Vector3(-wallHalfWidth - 0.03, 1.78, bz + 0.016),
+          );
+        }
+      } else {
+        addBox(
+          shojiBuilder,
+          Vector3(wallHalfWidth - 0.02, 1.20, -0.52),
+          Vector3(wallHalfWidth + 0.02, 1.78, 0.52),
+        );
+        for (var b = 0; b < 4; b++) {
+          final bz = -0.44 + 0.88 * (b / 3);
+          addBox(
+            timberBuilder,
+            Vector3(wallHalfWidth + 0.03, 1.20, bz - 0.016),
+            Vector3(wallHalfWidth + 0.06, 1.78, bz + 0.016),
+          );
+        }
+      }
+    }
+
+    for (final rx in const [-0.60, 0.60]) {
+      addBox(
+        timberBuilder,
+        Vector3(rx - 0.05, 0.20, -wallHalfDepth - 0.05),
+        Vector3(rx + 0.05, wallHeight, -wallHalfDepth + 0.02),
+      );
+    }
+    for (final ny in const [1.10, 1.82]) {
+      addBox(
+        timberBuilder,
+        Vector3(-wallHalfWidth + 0.13, ny, -wallHalfDepth - 0.035),
+        Vector3(wallHalfWidth - 0.13, ny + 0.06, -wallHalfDepth + 0.005),
+      );
+    }
+    addBox(
+      timberBuilder,
+      Vector3(-wallHalfWidth + 0.12, 0.32, -wallHalfDepth - 0.02),
+      Vector3(wallHalfWidth - 0.12, 1.10, -wallHalfDepth + 0.02),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.26, 0.24, -wallHalfDepth - 0.07),
+      Vector3(-0.68, 1.78, -wallHalfDepth - 0.03),
+    );
+    addBox(
+      shojiBuilder,
+      Vector3(0.68, 1.18, -wallHalfDepth - 0.02),
+      Vector3(1.48, 1.76, -wallHalfDepth + 0.02),
+    );
+    addBox(
+      stoneBuilder,
+      Vector3(-1.34, 0.02, -wallHalfDepth - 0.28),
+      Vector3(-0.60, 0.18, -wallHalfDepth - 0.08),
+    );
+
+    addKayabukiRoof(
+      roofBuilder,
+      timberBuilder,
+      wallHalfWidth: wallHalfWidth,
+      wallHalfDepth: wallHalfDepth,
+      eavesY: eavesY,
+      ridgeY: ridgeY,
+    );
+
+    addFirewoodStack(
+      timberBuilder,
+      roofBuilder,
+      origin: Vector3(-wallHalfWidth - 0.45, 0, 0),
+      yaw: math.pi / 2,
+    );
+
+    root
+      ..add(
+        Node(
+          mesh: Mesh(
+            stoneBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            plasterBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.plasterWall),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            timberBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.charredTimber),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            shojiBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.shojiScreen),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            roofBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.kawaraTile),
+          ),
+        ),
+      );
+
+    return root;
   }
 
   Node buildMachiyaNode(
@@ -1501,255 +3547,391 @@ class EdoKitBuilder {
     final awningBuilder = GeometryBuilder();
     final lanternBuilder = GeometryBuilder();
 
+    final wallHeight = isTwoStory ? 3.28 : 2.28;
+    final eavesY = isTwoStory ? 3.34 : 2.34;
+    final ridgeY = isTwoStory ? 4.18 : 3.15;
+
     addBox(
       stoneBuilder,
-      Vector3(-2.60, -1.40, -3.28),
-      Vector3(2.60, 0.22, 3.28),
+      Vector3(-1.94, -1.20, -2.44),
+      Vector3(1.94, 0.20, 2.44),
     );
 
-    final wallHeight = isTwoStory ? 4.45 : 3.18;
-    final eavesY = wallHeight + 0.08;
-    final ridgeY = eavesY + 1.38;
+    addBox(
+      timberBuilder,
+      Vector3(-1.90, 0.20, -2.40),
+      Vector3(1.90, 0.32, 2.40),
+    );
 
     addBox(
       plasterBuilder,
-      Vector3(-2.44, 0.26, -3.12),
-      Vector3(2.44, wallHeight, 3.12),
+      Vector3(-1.82, 0.32, -2.32),
+      Vector3(1.82, wallHeight, 2.32),
     );
     addTriangleOutward(
       plasterBuilder,
-      Vector3(-2.40, wallHeight + 0.02, 3.10),
-      Vector3(2.40, wallHeight + 0.02, 3.10),
-      Vector3(0, ridgeY - 0.16, 3.10),
+      Vector3(-1.80, wallHeight + 0.02, 2.30),
+      Vector3(1.80, wallHeight + 0.02, 2.30),
+      Vector3(0, ridgeY - 0.12, 2.30),
       Vector3(0, 0, 1),
     );
     addTriangleOutward(
       plasterBuilder,
-      Vector3(-2.40, wallHeight + 0.02, -3.10),
-      Vector3(2.40, wallHeight + 0.02, -3.10),
-      Vector3(0, ridgeY - 0.16, -3.10),
+      Vector3(1.80, wallHeight + 0.02, -2.30),
+      Vector3(-1.80, wallHeight + 0.02, -2.30),
+      Vector3(0, ridgeY - 0.12, -2.30),
       Vector3(0, 0, -1),
     );
 
     const cornerPosts = [
-      (-2.54, -2.38, 3.04, 3.20),
-      (2.38, 2.54, 3.04, 3.20),
-      (-2.54, -2.38, -3.20, -3.04),
-      (2.38, 2.54, -3.20, -3.04),
+      (-1.90, -1.78, 2.28, 2.40),
+      (1.78, 1.90, 2.28, 2.40),
+      (-1.90, -1.78, -2.40, -2.28),
+      (1.78, 1.90, -2.40, -2.28),
     ];
     for (final post in cornerPosts) {
       addBox(
         timberBuilder,
-        Vector3(post.$1, 0.24, post.$3),
+        Vector3(post.$1, 0.20, post.$3),
         Vector3(post.$2, wallHeight + 0.04, post.$4),
       );
     }
 
     addBox(
       timberBuilder,
-      Vector3(-2.34, 0.28, 3.16),
-      Vector3(-0.88, 0.94, 3.23),
+      Vector3(-1.84, 1.78, 2.34),
+      Vector3(1.84, 1.88, 2.42),
     );
-    addBox(timberBuilder, Vector3(0.88, 0.28, 3.16), Vector3(2.34, 0.94, 3.23));
-    addBox(timberBuilder, Vector3(-2.52, 0.28, -3), Vector3(-2.47, 1.38, 3));
-    addBox(timberBuilder, Vector3(2.47, 0.28, -3), Vector3(2.52, 1.38, 3));
     addBox(
       timberBuilder,
-      Vector3(-2.34, 0.28, -3.21),
-      Vector3(2.34, 1.38, -3.16),
+      Vector3(-0.64, 0.20, 2.34),
+      Vector3(-0.54, 1.78, 2.42),
     );
-    for (final sideSign in const [-1.0, 1.0]) {
-      final xIn = sideSign < 0 ? -2.53 : 2.47;
-      final xOut = sideSign < 0 ? -2.47 : 2.53;
-      addBox(timberBuilder, Vector3(xIn, 2.26, -3), Vector3(xOut, 2.36, 3));
-      addBox(
-        timberBuilder,
-        Vector3(xIn, wallHeight - 0.08, -3),
-        Vector3(xOut, wallHeight + 0.02, 3),
-      );
-      addBox(
-        timberBuilder,
-        Vector3(xIn, 1.40, -0.05),
-        Vector3(xOut, 2.24, 0.05),
-      );
-      addBox(
-        timberBuilder,
-        Vector3(xIn, 2.38, -0.05),
-        Vector3(xOut, wallHeight - 0.10, 0.05),
-      );
-      if (isTwoStory) {
-        final sxIn = sideSign < 0 ? -2.51 : 2.47;
-        final sxOut = sideSign < 0 ? -2.47 : 2.51;
-        addBox(
-          shojiBuilder,
-          Vector3(sxIn, 2.96, -0.94),
-          Vector3(sxOut, 3.62, -0.22),
-        );
-        addBox(
-          shojiBuilder,
-          Vector3(sxIn, 2.96, 0.22),
-          Vector3(sxOut, 3.62, 0.94),
-        );
-      }
-    }
-
-    addBox(
-      timberBuilder,
-      Vector3(-0.84, 0.24, 3.15),
-      Vector3(-0.72, 2.22, 3.30),
-    );
-    addBox(timberBuilder, Vector3(0.72, 0.24, 3.15), Vector3(0.84, 2.22, 3.30));
-    addBox(
-      timberBuilder,
-      Vector3(-2.36, 2.24, 3.15),
-      Vector3(2.36, 2.36, 3.28),
-    );
+    addBox(timberBuilder, Vector3(0.54, 0.20, 2.34), Vector3(0.64, 1.78, 2.42));
 
     addBox(
       shojiBuilder,
-      Vector3(-2.28, 0.98, 3.16),
-      Vector3(-0.90, 2.20, 3.21),
+      Vector3(-1.76, 0.32, 2.32),
+      Vector3(-0.66, 1.76, 2.37),
     );
-    addBox(shojiBuilder, Vector3(-0.68, 0.32, 3.16), Vector3(0.68, 2.20, 3.21));
-    addBox(shojiBuilder, Vector3(0.90, 0.98, 3.16), Vector3(2.28, 2.20, 3.21));
-
-    for (final span in const [(-2.22, -0.96), (0.96, 2.22)]) {
+    addBox(shojiBuilder, Vector3(0.66, 0.32, 2.32), Vector3(1.76, 1.76, 2.37));
+    for (final span in const [(-1.70, -0.72), (0.72, 1.70)]) {
       const bars = 5;
       for (var i = 0; i < bars; i++) {
         final bx = span.$1 + (span.$2 - span.$1) * (i / (bars - 1));
         addBox(
           timberBuilder,
-          Vector3(bx - 0.025, 0.96, 3.24),
-          Vector3(bx + 0.025, 2.20, 3.28),
+          Vector3(bx - 0.02, 0.34, 2.38),
+          Vector3(bx + 0.02, 1.76, 2.42),
         );
       }
     }
 
-    const norenPanels = [(-0.62, -0.24), (-0.18, 0.18), (0.24, 0.62)];
+    const norenPanels = [(-0.48, -0.20), (-0.14, 0.14), (0.20, 0.48)];
     for (final p in norenPanels) {
       addBox(
         awningBuilder,
-        Vector3(p.$1, 1.48, 3.32),
-        Vector3(p.$2, 2.16, 3.36),
+        Vector3(p.$1, 1.35, 2.42),
+        Vector3(p.$2, 1.76, 2.45),
       );
     }
 
     addLeanToRoof(
       roofBuilder,
-      xMin: -2.78,
-      xMax: 2.78,
-      zWall: 3.16,
-      zFront: 4.02,
-      yWall: 2.52,
-      yFront: 2.18,
+      xMin: -1.78,
+      xMax: 1.78,
+      zWall: 2.34,
+      zFront: 2.70,
+      yWall: 2.14,
+      yFront: 1.86,
+      thick: 0.07,
     );
-    for (final px in const [-2.48, 2.48]) {
+    for (final px in const [-1.55, 1.55]) {
       addBox(
         timberBuilder,
-        Vector3(px - 0.055, 0.02, 3.84),
-        Vector3(px + 0.055, 2.16, 3.95),
+        Vector3(px - 0.045, 0.02, 2.66),
+        Vector3(px + 0.045, 1.86, 2.74),
       );
     }
 
     if (isTwoStory) {
       addBox(
-        shojiBuilder,
-        Vector3(-1.68, 2.92, 3.16),
-        Vector3(1.68, 3.96, 3.22),
+        timberBuilder,
+        Vector3(-1.18, 2.36, 2.34),
+        Vector3(1.18, 2.94, 2.40),
+      );
+      addBox(
+        plasterBuilder,
+        Vector3(-1.12, 2.40, 2.32),
+        Vector3(1.12, 2.90, 2.36),
       );
       for (var i = 0; i < 7; i++) {
-        final bx = -1.62 + 3.24 * (i / 6);
+        final bx = -1.05 + 2.10 * (i / 6);
         addBox(
           timberBuilder,
-          Vector3(bx - 0.025, 2.90, 3.25),
-          Vector3(bx + 0.025, 3.42, 3.32),
+          Vector3(bx - 0.02, 2.40, 2.38),
+          Vector3(bx + 0.02, 2.90, 2.43),
         );
       }
+    }
+
+    for (final sideSign in const [-1.0, 1.0]) {
+      for (final pz in const [-0.75, 0.75]) {
+        addBox(
+          timberBuilder,
+          Vector3(sideSign < 0 ? -1.90 : 1.78, 0.20, pz - 0.06),
+          Vector3(sideSign < 0 ? -1.78 : 1.90, wallHeight + 0.02, pz + 0.06),
+        );
+      }
+
       addBox(
         timberBuilder,
-        Vector3(-1.76, 3.44, 3.24),
-        Vector3(1.76, 3.50, 3.34),
+        Vector3(sideSign < 0 ? -1.89 : 1.83, 1.08, -2.28),
+        Vector3(sideSign < 0 ? -1.83 : 1.89, 1.16, 2.28),
+      );
+      addBox(
+        timberBuilder,
+        Vector3(sideSign < 0 ? -1.89 : 1.83, 1.78, -2.28),
+        Vector3(sideSign < 0 ? -1.83 : 1.89, 1.86, 2.28),
+      );
+
+      addBox(
+        timberBuilder,
+        Vector3(sideSign < 0 ? -1.88 : 1.84, 0.32, -2.26),
+        Vector3(sideSign < 0 ? -1.84 : 1.88, 1.08, 2.26),
+      );
+
+      for (var b = -4; b <= 4; b++) {
+        final bz = b * 0.46;
+        addBox(
+          timberBuilder,
+          Vector3(sideSign < 0 ? -1.91 : 1.87, 0.30, bz - 0.015),
+          Vector3(sideSign < 0 ? -1.87 : 1.91, 1.10, bz + 0.015),
+        );
+      }
+
+      addBox(
+        timberBuilder,
+        Vector3(sideSign < 0 ? -1.98 : 1.86, 0.32, 1.38),
+        Vector3(sideSign < 0 ? -1.86 : 1.98, 1.84, 2.24),
+      );
+
+      addBox(
+        shojiBuilder,
+        Vector3(sideSign < 0 ? -1.88 : 1.85, 1.18, -0.42),
+        Vector3(sideSign < 0 ? -1.85 : 1.88, 1.72, 0.42),
+      );
+      addLeanToRoof(
+        roofBuilder,
+        xMin: sideSign < 0 ? -2.16 : 1.86,
+        xMax: sideSign < 0 ? -1.86 : 2.16,
+        zWall: -0.48,
+        zFront: 0.48,
+        yWall: 1.88,
+        yFront: 1.74,
+        thick: 0.04,
+      );
+      for (final bz in [-0.44, 0.44]) {
+        addTaperedLimb(
+          timberBuilder,
+          Vec3(sideSign < 0 ? -1.88 : 1.88, 1.54, bz),
+          Vec3(sideSign < 0 ? -2.12 : 2.12, 1.76, bz),
+          0.035,
+          0.025,
+          sides: 4,
+        );
+      }
+
+      for (var arc = 0; arc < 4; arc++) {
+        final arcZ = 1.0 + arc * 0.30;
+        addTaperedLimb(
+          timberBuilder,
+          Vec3(sideSign < 0 ? -1.88 : 1.88, 0.02, arcZ),
+          Vec3(sideSign < 0 ? -2.04 : 2.04, 0.44, arcZ),
+          0.030,
+          0.020,
+        );
+      }
+
+      if (isTwoStory) {
+        addBox(
+          shojiBuilder,
+          Vector3(sideSign < 0 ? -1.87 : 1.84, 2.45, -0.75),
+          Vector3(sideSign < 0 ? -1.84 : 1.87, 2.95, 0.75),
+        );
+      }
+    }
+
+    addBox(
+      timberBuilder,
+      Vector3(-0.06, 0.20, -2.42),
+      Vector3(0.06, wallHeight + 0.02, -2.34),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.22, 0.24, -2.42),
+      Vector3(-0.46, 1.78, -2.36),
+    );
+    addBox(stoneBuilder, Vector3(-1.30, 0, -2.62), Vector3(-0.38, 0.18, -2.42));
+
+    addBox(
+      timberBuilder,
+      Vector3(0.38, 0.32, -2.41),
+      Vector3(1.78, 1.08, -2.36),
+    );
+    addBox(
+      shojiBuilder,
+      Vector3(0.46, 1.18, -2.40),
+      Vector3(1.14, 1.68, -2.36),
+    );
+    for (var b = 0; b < 4; b++) {
+      final bx = 0.54 + 0.50 * (b / 3);
+      addBox(
+        timberBuilder,
+        Vector3(bx - 0.015, 1.16, -2.42),
+        Vector3(bx + 0.015, 1.70, -2.38),
       );
     }
 
+    addBox(
+      timberBuilder,
+      Vector3(-1.05, ridgeY - 0.35, -1.75),
+      Vector3(-0.55, ridgeY + 0.25, -1.25),
+    );
     addGabledRoof(
       roofBuilder,
       timberBuilder,
-      xHalf: 3.06,
-      zMin: -3.72,
-      zMax: 3.72,
-      eavesY: eavesY,
-      ridgeY: ridgeY,
+      xHalf: 0.32,
+      zMin: -1.82,
+      zMax: -1.18,
+      eavesY: ridgeY + 0.20,
+      ridgeY: ridgeY + 0.38,
+      thick: 0.05,
     );
 
-    if (variant == 0) {
-      addBox(
-        timberBuilder,
-        Vector3(1.72, 0.04, 3.40),
-        Vector3(2.24, 0.86, 3.92),
-      );
-      addBox(
-        shojiBuilder,
-        Vector3(1.80, 0.16, 3.94),
-        Vector3(2.16, 0.76, 3.99),
-      );
+    for (final lx in [1.26, 1.54]) {
       addTaperedLimb(
         timberBuilder,
-        const Vec3(-1.95, 0.04, 3.58),
-        const Vec3(-1.95, 0.68, 3.58),
-        0.24,
-        0.22,
-        sides: 6,
+        Vec3(lx, 0.02, -2.70),
+        Vec3(lx, eavesY + 0.15, -2.44),
+        0.040,
+        0.030,
+        sides: 4,
       );
-    } else if (variant == 1) {
+    }
+    for (var r = 0; r < 7; r++) {
+      final rFrac = (r + 1) / 8.0;
+      final ry = 0.02 + (eavesY + 0.15) * rFrac;
+      final rz = -2.70 + 0.26 * rFrac;
       addBox(
         timberBuilder,
-        Vector3(-2.22, 0.04, 3.36),
-        Vector3(-1.58, 0.56, 3.88),
+        Vector3(1.24, ry - 0.02, rz - 0.02),
+        Vector3(1.56, ry + 0.02, rz + 0.02),
+      );
+    }
+
+    if (variant == 1) {
+      addIshiOkiYaneRoof(
+        roofBuilder,
+        timberBuilder,
+        stoneBuilder,
+        xHalf: 2.12,
+        zMin: -2.68,
+        zMax: 2.68,
+        eavesY: eavesY,
+        ridgeY: ridgeY,
+      );
+
+      addBox(
+        timberBuilder,
+        Vector3(-0.65, ridgeY - 0.10, -0.65),
+        Vector3(0.65, ridgeY - 0.02, 0.65),
+      );
+      for (final hx in [-0.60, 0.60]) {
+        for (final hz in [-0.60, 0.60]) {
+          addBox(
+            timberBuilder,
+            Vector3(hx - 0.03, ridgeY - 0.02, hz - 0.03),
+            Vector3(hx + 0.03, ridgeY + 0.58, hz + 0.03),
+          );
+        }
+      }
+      addBox(
+        timberBuilder,
+        Vector3(-0.62, ridgeY + 0.52, -0.62),
+        Vector3(0.62, ridgeY + 0.58, -0.56),
       );
       addBox(
         timberBuilder,
-        Vector3(-2.12, 0.58, 3.42),
-        Vector3(-1.64, 0.98, 3.84),
+        Vector3(-0.62, ridgeY + 0.52, 0.56),
+        Vector3(0.62, ridgeY + 0.58, 0.62),
       );
+      addBox(
+        timberBuilder,
+        Vector3(-0.62, ridgeY + 0.52, -0.58),
+        Vector3(-0.56, ridgeY + 0.58, 0.58),
+      );
+      addBox(
+        timberBuilder,
+        Vector3(0.56, ridgeY + 0.52, -0.58),
+        Vector3(0.62, ridgeY + 0.58, 0.58),
+      );
+
       addLanternBody(
         lanternBuilder,
         timberBuilder,
-        Vector3(1.08, 2.16, 3.86),
-        radius: 0.15,
-        height: 0.34,
+        Vector3(1.08, 1.86, 2.76),
+        radius: 0.14,
+        height: 0.32,
       );
       addNoboriBanner(
         timberBuilder,
         awningBuilder,
-        xPole: 2.26,
-        zPole: 4.14,
+        xPole: 1.76,
+        zPole: 2.78,
         dirX: -1,
         mainColor: Vector4(0.14, 0.24, 0.48, 0.5),
         crestColor: Vector4(0.94, 0.88, 0.72, 0.5),
       );
     } else {
-      addBox(
+      addIrimoyaRoof(
+        roofBuilder,
         timberBuilder,
-        Vector3(1.32, 0.04, 3.42),
-        Vector3(2.28, 0.42, 3.84),
+        plasterBuilder,
+        xHalf: 2.12,
+        zMin: -2.68,
+        zMax: 2.68,
+        eavesY: eavesY,
+        ridgeY: ridgeY,
       );
-      addLanternBody(
-        lanternBuilder,
-        timberBuilder,
-        Vector3(-1.08, 2.16, 3.86),
-        radius: 0.15,
-        height: 0.34,
-      );
-      addNoboriBanner(
-        timberBuilder,
-        awningBuilder,
-        xPole: -2.26,
-        zPole: 4.14,
-        dirX: 1,
-        mainColor: Vector4(0.58, 0.18, 0.12, 0.5),
-        crestColor: Vector4(0.92, 0.82, 0.62, 0.5),
-      );
+
+      if (variant == 0) {
+        addTaperedLimb(
+          timberBuilder,
+          const Vec3(-1.65, 0.04, 2.72),
+          const Vec3(-1.65, 0.62, 2.72),
+          0.22,
+          0.19,
+          sides: 6,
+        );
+      } else {
+        addLanternBody(
+          lanternBuilder,
+          timberBuilder,
+          Vector3(-1.08, 1.86, 2.76),
+          radius: 0.14,
+          height: 0.32,
+        );
+        addNoboriBanner(
+          timberBuilder,
+          awningBuilder,
+          xPole: -1.76,
+          zPole: 2.78,
+          dirX: 1,
+          mainColor: Vector4(0.58, 0.18, 0.12, 0.5),
+          crestColor: Vector4(0.92, 0.82, 0.62, 0.5),
+        );
+      }
     }
 
     final clutterStyle = (hash ~/ 3) % 3;
@@ -1757,21 +3939,21 @@ class EdoKitBuilder {
       addSakeBarrelRack(
         timberBuilder,
         plasterBuilder,
-        origin: Vector3(-2.92, 0, 1.15),
+        origin: Vector3(-2.22, 0, 0.95),
         yaw: math.pi / 2,
       );
     } else if (clutterStyle == 1) {
       addFirewoodStack(
         timberBuilder,
         roofBuilder,
-        origin: Vector3(2.90, 0, -0.55),
+        origin: Vector3(2.20, 0, -0.45),
         yaw: -math.pi / 2,
       );
     } else {
       addHandcart(
         timberBuilder,
         plasterBuilder,
-        origin: Vector3(-2.98, 0, -0.35),
+        origin: Vector3(-2.26, 0, -0.30),
         yaw: 0.05,
       );
     }
@@ -1853,132 +4035,234 @@ class EdoKitBuilder {
     final awningBuilder = GeometryBuilder();
     final lanternBuilder = GeometryBuilder();
 
+    const wallHalfWidth = 2.08;
+    const wallHalfDepth = 2.08;
+    const eavesY = 2.48;
+    const ridgeY = 3.58;
+
     addBox(
       stoneBuilder,
-      Vector3(-2.90, -1.40, -2.75),
-      Vector3(2.10, 0.20, 1.55),
+      Vector3(-2.24, -1.20, -2.24),
+      Vector3(2.24, 0.20, 2.24),
     );
     addBox(
       stoneBuilder,
-      Vector3(-0.45, -0.20, 2.72),
-      Vector3(0.45, 0.05, 3.12),
+      Vector3(-0.45, -0.20, 2.24),
+      Vector3(0.45, 0.05, 2.52),
     );
 
     addBox(
       timberBuilder,
-      Vector3(-2.92, 0.22, 1.58),
-      Vector3(2.92, 0.35, 2.58),
+      Vector3(-2.20, 0.20, -2.20),
+      Vector3(2.20, 0.32, 2.20),
     );
+
     addBox(
       timberBuilder,
-      Vector3(2.12, 0.22, -2.68),
-      Vector3(2.92, 0.35, 1.56),
+      Vector3(-2.20, 0.22, 1.48),
+      Vector3(2.20, 0.34, 2.28),
     );
-    for (final st in const [(-2.60, 2.48), (0.0, 2.48), (2.78, 2.48)]) {
-      addBox(
-        stoneBuilder,
-        Vector3(st.$1 - 0.14, -0.80, st.$2 - 0.14),
-        Vector3(st.$1 + 0.14, 0.20, st.$2 + 0.14),
-      );
-    }
-    for (final vp in const [
-      (-2.80, 2.46),
-      (-0.92, 2.46),
-      (0.92, 2.46),
-      (2.78, 2.46),
-      (2.78, 0.0),
-      (2.78, -2.46),
-    ]) {
+    for (final px in const [-2.05, -0.68, 0.68, 2.05]) {
       addBox(
         timberBuilder,
-        Vector3(vp.$1 - 0.06, 0.37, vp.$2 - 0.06),
-        Vector3(vp.$1 + 0.06, 2.46, vp.$2 + 0.06),
+        Vector3(px - 0.05, 0.34, 2.20),
+        Vector3(px + 0.05, 1.94, 2.28),
       );
     }
 
-    const wallTop = 3.06;
     addBox(
       plasterBuilder,
-      Vector3(-2.72, 0.37, -2.58),
-      Vector3(2.06, wallTop, 1.52),
-    );
-    addTriangleOutward(
-      plasterBuilder,
-      Vector3(-2.68, wallTop + 0.02, 1.50),
-      Vector3(2.04, wallTop + 0.02, 1.50),
-      Vector3(-0.32, 4.38, 1.50),
-      Vector3(0, 0, 1),
-    );
-    addTriangleOutward(
-      plasterBuilder,
-      Vector3(-2.68, wallTop + 0.02, -2.56),
-      Vector3(2.04, wallTop + 0.02, -2.56),
-      Vector3(-0.32, 4.38, -2.56),
-      Vector3(0, 0, -1),
+      Vector3(-wallHalfWidth, 0.34, -wallHalfDepth),
+      Vector3(wallHalfWidth, eavesY, 1.46),
     );
 
     addBox(
       shojiBuilder,
-      Vector3(-2.42, 0.42, 1.54),
-      Vector3(-0.88, 2.28, 1.59),
+      Vector3(-1.88, 0.38, 1.48),
+      Vector3(-0.72, 1.88, 1.53),
     );
-    addBox(shojiBuilder, Vector3(-0.68, 0.42, 1.54), Vector3(0.68, 2.28, 1.59));
-    addBox(shojiBuilder, Vector3(0.88, 0.42, 1.54), Vector3(1.88, 2.28, 1.59));
-    addBox(shojiBuilder, Vector3(2.08, 0.42, -1.90), Vector3(2.13, 2.28, 1.24));
-
-    for (final p in const [(-0.78, -0.30), (-0.22, 0.22), (0.30, 0.78)]) {
+    addBox(shojiBuilder, Vector3(-0.54, 0.38, 1.48), Vector3(0.54, 1.88, 1.53));
+    addBox(shojiBuilder, Vector3(0.72, 0.38, 1.48), Vector3(1.88, 1.88, 1.53));
+    addBox(
+      shojiBuilder,
+      Vector3(wallHalfWidth + 0.008, 1.12, -1.32),
+      Vector3(wallHalfWidth + 0.035, 1.86, 0.90),
+    );
+    for (var b = 0; b < 6; b++) {
+      final bz = -1.24 + 2.06 * (b / 5);
       addBox(
-        awningBuilder,
-        Vector3(p.$1, 1.72, 2.50),
-        Vector3(p.$2, 2.34, 2.55),
+        timberBuilder,
+        Vector3(wallHalfWidth + 0.075, 1.12, bz - 0.018),
+        Vector3(wallHalfWidth + 0.11, 1.86, bz + 0.018),
+      );
+    }
+    addBox(
+      timberBuilder,
+      Vector3(wallHalfWidth + 0.042, 0.34, 0.96),
+      Vector3(wallHalfWidth + 0.18, 1.90, 1.42),
+    );
+
+    for (final sideSign in const [-1.0, 1.0]) {
+      final pMin = sideSign < 0
+          ? -wallHalfWidth - 0.105
+          : wallHalfWidth + 0.042;
+      final pMax = sideSign < 0
+          ? -wallHalfWidth - 0.042
+          : wallHalfWidth + 0.105;
+      for (final pz in const [-2.04, -0.72, 0.62, 1.42]) {
+        addBox(
+          timberBuilder,
+          Vector3(pMin, 0.32, pz - 0.05),
+          Vector3(pMax, eavesY - 0.02, pz + 0.05),
+        );
+      }
+      final nMin = sideSign < 0 ? -wallHalfWidth - 0.08 : wallHalfWidth + 0.045;
+      final nMax = sideSign < 0 ? -wallHalfWidth - 0.045 : wallHalfWidth + 0.08;
+      for (final ny in const [1.07, 1.88]) {
+        addBox(
+          timberBuilder,
+          Vector3(nMin, ny, -wallHalfDepth + 0.02),
+          Vector3(nMax, ny + 0.06, 1.36),
+        );
+      }
+      final boardMin = sideSign < 0
+          ? -wallHalfWidth - 0.065
+          : wallHalfWidth + 0.042;
+      final boardMax = sideSign < 0
+          ? -wallHalfWidth - 0.042
+          : wallHalfWidth + 0.065;
+      addBox(
+        timberBuilder,
+        Vector3(boardMin, 0.34, -2),
+        Vector3(boardMax, 1.06, sideSign > 0 ? 0.94 : 1.38),
       );
     }
 
-    const eavesY = 3.12;
-    const ridgeY = 4.54;
-    addGabledRoof(
+    addBox(
+      shojiBuilder,
+      Vector3(-wallHalfWidth - 0.035, 1.14, -0.64),
+      Vector3(-wallHalfWidth - 0.008, 1.86, 0.54),
+    );
+    for (var b = 0; b < 4; b++) {
+      final bz = -0.56 + 1.02 * (b / 3);
+      addBox(
+        timberBuilder,
+        Vector3(-wallHalfWidth - 0.105, 1.14, bz - 0.018),
+        Vector3(-wallHalfWidth - 0.075, 1.86, bz + 0.018),
+      );
+    }
+    addBox(
+      roofBuilder,
+      Vector3(-wallHalfWidth - 0.28, 1.95, -0.64),
+      Vector3(-wallHalfWidth - 0.048, 2.01, 0.54),
+    );
+
+    for (final rx in const [-2.04, -0.68, 0.68, 2.04]) {
+      addBox(
+        timberBuilder,
+        Vector3(rx - 0.05, 0.32, -wallHalfDepth - 0.105),
+        Vector3(rx + 0.05, eavesY - 0.02, -wallHalfDepth - 0.042),
+      );
+    }
+    for (final ny in const [1.07, 1.88]) {
+      addBox(
+        timberBuilder,
+        Vector3(-wallHalfWidth + 0.02, ny, -wallHalfDepth - 0.08),
+        Vector3(wallHalfWidth - 0.02, ny + 0.06, -wallHalfDepth - 0.045),
+      );
+    }
+    addBox(
+      timberBuilder,
+      Vector3(-2, 0.34, -wallHalfDepth - 0.065),
+      Vector3(2, 1.06, -wallHalfDepth - 0.042),
+    );
+    addBox(
+      timberBuilder,
+      Vector3(-1.56, 0.34, -wallHalfDepth - 0.115),
+      Vector3(-0.78, 1.84, -wallHalfDepth - 0.07),
+    );
+    addBox(
+      stoneBuilder,
+      Vector3(-1.66, -0.08, -wallHalfDepth - 0.40),
+      Vector3(-0.68, 0.18, -wallHalfDepth - 0.12),
+    );
+    addBox(
+      shojiBuilder,
+      Vector3(0.76, 1.14, -wallHalfDepth - 0.035),
+      Vector3(1.88, 1.84, -wallHalfDepth - 0.008),
+    );
+    for (var b = 0; b < 4; b++) {
+      final bx = 0.86 + 0.92 * (b / 3);
+      addBox(
+        timberBuilder,
+        Vector3(bx - 0.018, 1.14, -wallHalfDepth - 0.105),
+        Vector3(bx + 0.018, 1.84, -wallHalfDepth - 0.075),
+      );
+    }
+    for (var s = 0; s < 9; s++) {
+      final sx = -2.04 + 4.08 * (s / 8);
+      addBox(
+        timberBuilder,
+        Vector3(sx - 0.02, 0.02, 2.22),
+        Vector3(sx + 0.02, 0.22, 2.26),
+      );
+    }
+
+    for (final p in const [(-0.68, -0.24), (-0.18, 0.18), (0.24, 0.68)]) {
+      addBox(
+        awningBuilder,
+        Vector3(p.$1, 1.58, 2.22),
+        Vector3(p.$2, 1.94, 2.26),
+      );
+    }
+
+    addIrimoyaRoof(
       roofBuilder,
       timberBuilder,
-      xHalf: 3.18,
-      zMin: -3.05,
-      zMax: 2.15,
+      plasterBuilder,
+      xHalf: 2.38,
+      zMin: -2.38,
+      zMax: 2.38,
       eavesY: eavesY,
       ridgeY: ridgeY,
     );
+
     addLeanToRoof(
       roofBuilder,
-      xMin: -3.08,
-      xMax: 3.04,
-      zWall: 1.54,
-      zFront: 2.96,
-      yWall: 2.74,
-      yFront: 2.36,
+      xMin: -2.28,
+      xMax: 2.28,
+      zWall: 1.46,
+      zFront: 2.45,
+      yWall: 2.28,
+      yFront: 1.92,
+      thick: 0.07,
     );
 
     addBox(
       timberBuilder,
-      Vector3(-2.42, 0.02, 2.74),
-      Vector3(-0.92, 0.36, 3.24),
+      Vector3(-1.85, 0.02, 2.35),
+      Vector3(-0.65, 0.32, 2.75),
     );
     addBox(
       lacquerBuilder,
-      Vector3(-2.46, 0.38, 2.70),
-      Vector3(-0.88, 0.46, 3.28),
+      Vector3(-1.88, 0.32, 2.32),
+      Vector3(-0.62, 0.38, 2.78),
     );
 
-    addStoneToro(stoneBuilder, shojiBuilder, Vector3(2.48, 0, 2.94));
+    addStoneToro(stoneBuilder, shojiBuilder, Vector3(2.15, 0, 2.45));
+
     if (structure.id.value.hashCode.abs().isEven) {
       addSakeBarrelRack(
         timberBuilder,
         plasterBuilder,
-        origin: Vector3(-3.22, 0, -0.70),
+        origin: Vector3(-2.45, 0, -0.55),
         yaw: math.pi / 2,
       );
     } else {
       addFirewoodStack(
         timberBuilder,
         roofBuilder,
-        origin: Vector3(-3.18, 0, -0.60),
+        origin: Vector3(-2.45, 0, -0.55),
         yaw: math.pi / 2,
       );
     }
@@ -1986,22 +4270,20 @@ class EdoKitBuilder {
     addLanternBody(
       lanternBuilder,
       timberBuilder,
-      Vector3(-1.58, 2.34, 2.84),
-      radius: 0.18,
-      height: 0.40,
+      Vector3(-1.65, 1.92, 2.45),
+      radius: 0.16,
     );
     addLanternBody(
       lanternBuilder,
       timberBuilder,
-      Vector3(1.58, 2.34, 2.84),
-      radius: 0.18,
-      height: 0.40,
+      Vector3(1.65, 1.92, 2.45),
+      radius: 0.16,
     );
     addNoboriBanner(
       timberBuilder,
       awningBuilder,
-      xPole: -2.68,
-      zPole: 3.12,
+      xPole: -2.35,
+      zPole: 2.55,
       dirX: 1,
       mainColor: Vector4(0.68, 0.14, 0.09, 0.5),
       crestColor: Vector4(0.96, 0.88, 0.70, 0.5),
@@ -2087,12 +4369,12 @@ class EdoKitBuilder {
     final timberBuilder = GeometryBuilder();
     final roofBuilder = GeometryBuilder();
 
-    const wBase = 2.38;
-    const dBase = 2.88;
-    const wTop = 2.26;
-    const dTop = 2.76;
-    const yBase = -1.50;
-    const yStone = 0.68;
+    const wBase = 1.76;
+    const dBase = 2.06;
+    const wTop = 1.66;
+    const dTop = 1.96;
+    const yBase = -1.30;
+    const yStone = 0.40;
 
     final sb0 = Vector3(-wBase, yBase, -dBase);
     final sb1 = Vector3(wBase, yBase, -dBase);
@@ -2111,90 +4393,148 @@ class EdoKitBuilder {
 
     addBox(
       stoneBuilder,
-      Vector3(-0.92, -0.40, dTop + 0.03),
-      Vector3(0.92, 0.34, dTop + 0.44),
+      Vector3(-0.75, -0.30, dTop + 0.02),
+      Vector3(0.75, 0.20, dTop + 0.35),
     );
     addBox(
       stoneBuilder,
-      Vector3(-0.88, 0.36, dTop + 0.03),
-      Vector3(0.88, 0.66, dTop + 0.24),
+      Vector3(-0.70, 0.22, dTop + 0.02),
+      Vector3(0.70, 0.38, dTop + 0.18),
     );
 
-    addBox(
-      timberBuilder,
-      Vector3(-2.22, 0.70, -2.72),
-      Vector3(2.22, 1.72, 2.72),
-    );
+    addBox(roofBuilder, Vector3(-1.65, 0.42, -1.95), Vector3(1.65, 1.36, 1.95));
+    for (final ry in const [0.72, 1.04, 1.34]) {
+      addBox(
+        kuraBuilder,
+        Vector3(-1.695, ry, -1.995),
+        Vector3(1.695, ry + 0.045, 1.995),
+      );
+    }
+    for (final sideSign in const [-1.0, 1.0]) {
+      final x0 = sideSign < 0 ? -1.68 : 1.66;
+      final x1 = sideSign < 0 ? -1.66 : 1.68;
+      for (var vz = -1.50; vz <= 1.50; vz += 0.60) {
+        addBox(
+          kuraBuilder,
+          Vector3(x0, 0.43, vz - 0.022),
+          Vector3(x1, 1.33, vz + 0.022),
+        );
+      }
+    }
+    for (var vx = -1.20; vx <= 1.20; vx += 0.60) {
+      addBox(
+        kuraBuilder,
+        Vector3(vx - 0.022, 0.43, -1.98),
+        Vector3(vx + 0.022, 1.33, -1.96),
+      );
+    }
 
-    const wallTop = 4.86;
-    const eavesY = 4.92;
-    const ridgeY = 6.32;
+    const wallTop = 3.45;
+    const eavesY = 3.50;
+    const ridgeY = 4.55;
     addBox(
       kuraBuilder,
-      Vector3(-2.18, 1.74, -2.68),
-      Vector3(2.18, wallTop, 2.68),
+      Vector3(-1.62, 1.40, -1.92),
+      Vector3(1.62, wallTop, 1.92),
     );
+    addBox(kuraBuilder, Vector3(-1.67, 3.30, -1.97), Vector3(1.67, 3.43, 1.97));
     addTriangleOutward(
       kuraBuilder,
-      Vector3(-2.16, wallTop + 0.02, 2.66),
-      Vector3(2.16, wallTop + 0.02, 2.66),
-      Vector3(0, ridgeY - 0.14, 2.66),
+      Vector3(-1.60, wallTop + 0.02, 1.90),
+      Vector3(1.60, wallTop + 0.02, 1.90),
+      Vector3(0, ridgeY - 0.12, 1.90),
       Vector3(0, 0, 1),
     );
     addTriangleOutward(
       kuraBuilder,
-      Vector3(-2.16, wallTop + 0.02, -2.66),
-      Vector3(2.16, wallTop + 0.02, -2.66),
-      Vector3(0, ridgeY - 0.14, -2.66),
+      Vector3(1.60, wallTop + 0.02, -1.90),
+      Vector3(-1.60, wallTop + 0.02, -1.90),
+      Vector3(0, ridgeY - 0.12, -1.90),
       Vector3(0, 0, -1),
     );
 
-    addBox(kuraBuilder, Vector3(-0.92, 0.72, 2.74), Vector3(0.92, 2.66, 2.86));
+    addBox(kuraBuilder, Vector3(-0.75, 0.42, 1.99), Vector3(0.75, 2.18, 2.06));
     addBox(
       timberBuilder,
-      Vector3(-0.74, 0.74, 2.88),
-      Vector3(-0.04, 2.50, 2.94),
+      Vector3(-0.62, 0.44, 2.07),
+      Vector3(-0.03, 2.08, 2.12),
     );
-    addBox(timberBuilder, Vector3(0.04, 0.74, 2.88), Vector3(0.74, 2.50, 2.94));
+    addBox(timberBuilder, Vector3(0.03, 0.44, 2.07), Vector3(0.62, 2.08, 2.12));
     addLeanToRoof(
       roofBuilder,
-      xMin: -1.36,
-      xMax: 1.36,
-      zWall: 2.70,
-      zFront: 3.38,
-      yWall: 2.98,
-      yFront: 2.70,
+      xMin: -1.05,
+      xMax: 1.05,
+      zWall: 1.94,
+      zFront: 2.38,
+      yWall: 2.48,
+      yFront: 2.25,
+      thick: 0.07,
     );
 
-    addBox(kuraBuilder, Vector3(-0.56, 3.38, 2.70), Vector3(0.56, 4.20, 2.82));
+    addBox(kuraBuilder, Vector3(-0.44, 2.62, 1.94), Vector3(0.44, 3.20, 2.02));
     addBox(
       timberBuilder,
-      Vector3(-0.42, 3.48, 2.84),
-      Vector3(0.42, 4.10, 2.89),
+      Vector3(-0.35, 2.68, 2.03),
+      Vector3(0.35, 3.14, 2.07),
     );
 
-    addGabledRoof(
+    for (final sideSign in const [-1.0, 1.0]) {
+      final fMin = sideSign < 0 ? -1.70 : 1.63;
+      final fMax = sideSign < 0 ? -1.63 : 1.70;
+      final bMin = sideSign < 0 ? -1.75 : 1.71;
+      final bMax = sideSign < 0 ? -1.71 : 1.75;
+      addBox(
+        kuraBuilder,
+        Vector3(fMin, 2.46, -0.44),
+        Vector3(fMax, 3.08, 0.44),
+      );
+      addBox(
+        timberBuilder,
+        Vector3(bMin, 2.52, -0.35),
+        Vector3(bMax, 3.02, 0.35),
+      );
+      addBox(
+        roofBuilder,
+        Vector3(sideSign < 0 ? -1.86 : 1.63, 3.09, -0.54),
+        Vector3(sideSign < 0 ? -1.63 : 1.86, 3.16, 0.54),
+      );
+    }
+
+    addBox(kuraBuilder, Vector3(-0.44, 2.46, -2), Vector3(0.44, 3.08, -1.93));
+    addBox(
+      timberBuilder,
+      Vector3(-0.35, 2.52, -2.05),
+      Vector3(0.35, 3.02, -2.01),
+    );
+    addBox(
+      roofBuilder,
+      Vector3(-0.54, 3.09, -2.14),
+      Vector3(0.54, 3.16, -1.93),
+    );
+
+    addIshiOkiYaneRoof(
       roofBuilder,
       timberBuilder,
-      xHalf: 2.74,
-      zMin: -3.22,
-      zMax: 3.22,
+      stoneBuilder,
+      xHalf: 1.95,
+      zMin: -2.24,
+      zMax: 2.24,
       eavesY: eavesY,
       ridgeY: ridgeY,
-      thick: 0.16,
+      thick: 0.12,
     );
 
     final strawBuilder = GeometryBuilder();
     addSakeBarrelRack(
       timberBuilder,
       strawBuilder,
-      origin: Vector3(-1.76, 0, 3.24),
+      origin: Vector3(-1.42, 0, 2.45),
       yaw: 0.06,
     );
     addHandcart(
       timberBuilder,
       strawBuilder,
-      origin: Vector3(2.86, 0, 0.45),
+      origin: Vector3(2.25, 0, 0.35),
       yaw: 0.10,
     );
 
@@ -2252,101 +4592,110 @@ class EdoKitBuilder {
     final goodsBuilder = GeometryBuilder();
     final lacquerBuilder = GeometryBuilder();
     final lanternBuilder = GeometryBuilder();
+    final waterBuilder = GeometryBuilder();
 
     const postCoords = [
-      (-1.18, -0.98),
-      (1.08, -0.98),
-      (-1.18, 0.88),
-      (1.08, 0.88),
+      (-1.02, -0.88),
+      (1.02, -0.88),
+      (-1.02, 0.88),
+      (1.02, 0.88),
     ];
     for (final coord in postCoords) {
       addBox(
         timberBuilder,
-        Vector3(coord.$1, -0.60, coord.$2),
-        Vector3(coord.$1 + 0.10, 2.24, coord.$2 + 0.10),
+        Vector3(coord.$1 - 0.04, -0.55, coord.$2 - 0.04),
+        Vector3(coord.$1 + 0.04, 2.24, coord.$2 + 0.04),
       );
     }
 
     addBox(
       timberBuilder,
-      Vector3(-0.96, 0.06, -0.38),
-      Vector3(0.96, 0.84, 0.48),
+      Vector3(-0.92, 0.04, -0.36),
+      Vector3(0.92, 0.78, 0.42),
     );
     addBox(
       goodsBuilder,
-      Vector3(-0.82, 0.86, -0.26),
-      Vector3(-0.18, 1.22, 0.34),
+      Vector3(-0.80, 0.80, -0.24),
+      Vector3(-0.16, 1.15, 0.32),
     );
     addBox(
       lacquerBuilder,
-      Vector3(0.08, 0.86, -0.22),
-      Vector3(0.78, 1.02, 0.36),
+      Vector3(0.08, 0.80, -0.20),
+      Vector3(0.75, 0.98, 0.34),
     );
-    addTaperedLimb(
-      timberBuilder,
-      const Vec3(-1.32, 0.02, 0.32),
-      const Vec3(-1.32, 0.62, 0.32),
-      0.21,
-      0.19,
-      sides: 6,
-    );
-    if (structure.id.value.hashCode.abs().isEven) {
+
+    final hash = structure.id.value.hashCode.abs();
+    final (primaryAwningColor, secondaryAwningColor) = switch (hash % 4) {
+      0 => (Vector4(0.76, 0.16, 0.10, 0.5), Vector4(0.80, 0.74, 0.62, 0.5)),
+      1 => (Vector4(0.16, 0.42, 0.22, 0.5), Vector4(0.84, 0.60, 0.16, 0.5)),
+      2 => (Vector4(0.14, 0.26, 0.50, 0.5), Vector4(0.80, 0.74, 0.62, 0.5)),
+      _ => (Vector4(0.84, 0.56, 0.14, 0.5), Vector4(0.18, 0.38, 0.22, 0.5)),
+    };
+
+    const stripeCount = 8;
+    const awningW = 2.36;
+    const stripeW = awningW / stripeCount;
+    for (var s = 0; s < stripeCount; s++) {
+      final sx0 = -1.18 + s * stripeW;
+      final sx1 = sx0 + stripeW;
+      final col = s.isEven ? primaryAwningColor : secondaryAwningColor;
+      addLeanToRoof(
+        awningBuilder,
+        xMin: sx0,
+        xMax: sx1,
+        zWall: -0.95,
+        zFront: 0.98,
+        yWall: 2.24,
+        yFront: 1.84,
+        thick: 0.05,
+        color: col,
+      );
+      addBox(
+        awningBuilder,
+        Vector3(sx0 + 0.02, 1.62, 0.96),
+        Vector3(sx1 - 0.02, 1.84, 1),
+        color: col,
+      );
+    }
+
+    addSunokoDuckboard(timberBuilder, Vector3(0, 0.015, 1.25), length: 1.80);
+
+    addMizuOkeTub(timberBuilder, waterBuilder, Vector3(-1.25, 0, 0.35));
+
+    if (hash.isEven) {
       addSakeBarrelRack(
         timberBuilder,
         goodsBuilder,
-        origin: Vector3(1.42, 0, -0.16),
+        origin: Vector3(1.30, 0, -0.15),
         yaw: -math.pi / 2,
         twoTier: false,
       );
     } else {
-      addBox(
-        timberBuilder,
-        Vector3(1.22, 0.02, -0.44),
-        Vector3(1.66, 0.42, 0.06),
-      );
-      addBox(
-        goodsBuilder,
-        Vector3(1.26, 0.44, -0.38),
-        Vector3(1.62, 0.74, 0.02),
-      );
+      addKomeDawaraStack(goodsBuilder, timberBuilder, Vector3(1.28, 0, 0.28));
     }
 
-    addLeanToRoof(
-      awningBuilder,
-      xMin: -1.42,
-      xMax: 1.42,
-      zWall: -1.20,
-      zFront: 1.22,
-      yWall: 2.66,
-      yFront: 2.26,
-      thick: 0.06,
-    );
-    for (final flap in const [(-1.32, -0.50), (-0.40, 0.40), (0.50, 1.32)]) {
-      addBox(
-        awningBuilder,
-        Vector3(flap.$1, 1.94, 1.18),
-        Vector3(flap.$2, 2.24, 1.23),
-      );
+    if (hash.isEven) {
+      addWagasaUmbrella(awningBuilder, timberBuilder, Vector3(-1.35, 0, -0.65));
     }
 
     addLanternBody(
       lanternBuilder,
       timberBuilder,
-      Vector3(1.12, 2.24, 1.08),
-      radius: 0.16,
-      height: 0.36,
+      Vector3(0.92, 1.84, 0.98),
+      radius: 0.15,
+      height: 0.34,
     );
     addNoboriBanner(
       timberBuilder,
       awningBuilder,
-      xPole: -1.24,
-      zPole: 1.28,
+      xPole: -1.15,
+      zPole: 1.10,
       dirX: 1,
       mainColor: Vector4(0.84, 0.52, 0.14, 0.5),
       crestColor: Vector4(0.18, 0.26, 0.46, 0.5),
-      topY: 2.46,
-      bottomY: 0.84,
-      bannerWidth: 0.32,
+      topY: 2.42,
+      bottomY: 0.82,
+      bannerWidth: 0.30,
     );
 
     root
@@ -2387,6 +4736,14 @@ class EdoKitBuilder {
           mesh: Mesh(
             lanternBuilder.build(),
             resolveMaterial(ShukubaSurfaceRole.chochinLantern),
+          ),
+        ),
+      )
+      ..add(
+        Node(
+          mesh: Mesh(
+            waterBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.riverWater),
           ),
         ),
       );
@@ -2944,49 +5301,49 @@ class EdoKitBuilder {
       _ => dna.bucket(4, 1),
     };
 
-    final hScale = 0.88 + 0.30 * dna.unit(2);
-    final spread = 0.90 + 0.28 * dna.unit(3);
-    final leanX = 0.24 * dna.signed(4);
-    final leanZ = 0.24 * dna.signed(5);
+    final hScale = 0.92 + 0.18 * dna.unit(2);
+    final spread = 1.05 + 0.25 * dna.unit(3);
+    final leanX = 0.28 * dna.signed(4);
+    final leanZ = 0.28 * dna.signed(5);
     final twist = dna.unit(6) * math.pi * 2;
 
-    final forkPt = Vec3(leanX * 0.72, 1.78 * hScale, leanZ * 0.72);
+    final forkPt = Vec3(leanX * 0.85, 2.85 * hScale, leanZ * 0.85);
     addCurvedTube(
       timberBuilder,
       sampleCubicSpine(
         const Vec3(0, -0.04, 0),
-        Vec3(leanX * 0.28, 0.62 * hScale, leanZ * 0.28),
-        Vec3(leanX * 0.92, 1.24 * hScale, leanZ * 0.92),
+        Vec3(leanX * 0.32, 0.95 * hScale, leanZ * 0.32),
+        Vec3(leanX * 0.95, 1.95 * hScale, leanZ * 0.95),
         forkPt,
-        segments: 5,
+        segments: 6,
       ),
-      0.27 * (0.92 + 0.14 * dna.unit(7)),
-      0.16,
+      0.32 * (0.92 + 0.14 * dna.unit(7)),
+      0.18,
       sides: 7,
     );
 
     for (var r = 0; r < 4; r++) {
       final rAng = twist + r * (math.pi * 0.5) + 0.24 * dna.signed(10 + r);
-      final reach = 0.56 + 0.22 * dna.unit(14 + r);
+      final reach = 0.72 + 0.28 * dna.unit(14 + r);
       addCurvedTube(
         timberBuilder,
         sampleCubicSpine(
-          Vec3(math.cos(rAng) * 0.10, 0.38, math.sin(rAng) * 0.10),
+          Vec3(math.cos(rAng) * 0.12, 0.48, math.sin(rAng) * 0.12),
           Vec3(
             math.cos(rAng) * reach * 0.55,
-            0.18,
+            0.24,
             math.sin(rAng) * reach * 0.55,
           ),
           Vec3(
             math.cos(rAng) * reach * 0.85,
-            0.04,
+            0.06,
             math.sin(rAng) * reach * 0.85,
           ),
           Vec3(math.cos(rAng) * reach, -0.08, math.sin(rAng) * reach),
           segments: 3,
         ),
-        0.105,
-        0.036,
+        0.125,
+        0.042,
         sides: 5,
       );
     }
@@ -3029,37 +5386,37 @@ class EdoKitBuilder {
       final ang =
           twist + (b / scaffoldCount) * math.pi * 2 + 0.22 * dna.signed(50 + b);
       final tier = b / (scaffoldCount - 1);
-      final bReach = (1.18 + 0.56 * dna.unit(60 + b)) * spread;
-      final bHeight = (3.10 + tier * 1.45 + 0.28 * dna.signed(70 + b)) * hScale;
+      final bReach = (1.65 + 0.70 * dna.unit(60 + b)) * spread;
+      final bHeight = (4.80 + tier * 2.20 + 0.35 * dna.signed(70 + b)) * hScale;
       final tip = Vec3(
         forkPt.x + math.cos(ang) * bReach,
         bHeight,
         forkPt.z + math.sin(ang) * bReach,
       );
       final mid1 = Vec3(
-        forkPt.x + math.cos(ang + 0.18) * bReach * 0.42,
-        forkPt.y + (bHeight - forkPt.y) * 0.56,
-        forkPt.z + math.sin(ang + 0.18) * bReach * 0.42,
+        forkPt.x + math.cos(ang + 0.18) * bReach * 0.45,
+        forkPt.y + (bHeight - forkPt.y) * 0.55,
+        forkPt.z + math.sin(ang + 0.18) * bReach * 0.45,
       );
       final mid2 = Vec3(
         forkPt.x + math.cos(ang - 0.12) * bReach * 0.82,
-        bHeight - 0.18,
+        bHeight - 0.22,
         forkPt.z + math.sin(ang - 0.12) * bReach * 0.82,
       );
       addCurvedTube(
         timberBuilder,
         sampleCubicSpine(forkPt, mid1, mid2, tip),
-        0.115,
-        0.042,
+        0.135,
+        0.048,
       );
 
       addLeafSprayCloud(
         mapleBuilder,
-        Vector3(tip.x, tip.y + 0.06, tip.z),
+        Vector3(tip.x, tip.y + 0.08, tip.z),
         Vector3(
-          (1.24 + 0.24 * dna.unit(80 + b)) * spread,
-          0.38 + 0.08 * dna.unit(85 + b),
-          (1.12 + 0.22 * dna.unit(90 + b)) * spread,
+          (1.45 + 0.28 * dna.unit(80 + b)) * spread,
+          0.44 + 0.10 * dna.unit(85 + b),
+          (1.32 + 0.26 * dna.unit(90 + b)) * spread,
         ),
         color: padTint(tier * 0.72, b),
         phase: twist + b * 1.37,
@@ -3068,9 +5425,9 @@ class EdoKitBuilder {
       if (b.isEven) {
         final subAng = ang + 0.48 * (b == 0 ? 1 : -1);
         final subTip = Vec3(
-          mid1.x + math.cos(subAng) * 0.82 * spread,
-          mid1.y + 0.92 * hScale,
-          mid1.z + math.sin(subAng) * 0.82 * spread,
+          mid1.x + math.cos(subAng) * 0.98 * spread,
+          mid1.y + 1.25 * hScale,
+          mid1.z + math.sin(subAng) * 0.98 * spread,
         );
         addCurvedTube(
           timberBuilder,
@@ -3078,21 +5435,21 @@ class EdoKitBuilder {
             mid1,
             Vec3(
               (mid1.x + subTip.x) * 0.5,
-              mid1.y + 0.58 * hScale,
+              mid1.y + 0.75 * hScale,
               (mid1.z + subTip.z) * 0.5,
             ),
-            Vec3(subTip.x * 0.92, subTip.y - 0.08, subTip.z * 0.92),
+            Vec3(subTip.x * 0.92, subTip.y - 0.10, subTip.z * 0.92),
             subTip,
             segments: 3,
           ),
-          0.068,
-          0.028,
+          0.082,
+          0.034,
           sides: 5,
         );
         addLeafSprayCloud(
           mapleBuilder,
-          Vector3(subTip.x, subTip.y + 0.05, subTip.z),
-          Vector3(1.06 * spread, 0.36, 0.98 * spread),
+          Vector3(subTip.x, subTip.y + 0.06, subTip.z),
+          Vector3(1.24 * spread, 0.40, 1.15 * spread),
           color: padTint(0.55 + tier * 0.35, b + 10),
           phase: twist + b * 2.1 + 0.7,
         );
@@ -3101,32 +5458,32 @@ class EdoKitBuilder {
 
     final apex = Vec3(
       forkPt.x + leanX * 0.65,
-      (5.15 + 0.45 * dna.unit(95)) * hScale,
+      (8.40 + 0.80 * dna.unit(95)) * hScale,
       forkPt.z + leanZ * 0.65,
     );
     addCurvedTube(
       timberBuilder,
       sampleCubicSpine(
         forkPt,
-        Vec3(forkPt.x - leanX * 0.35, 3.10 * hScale, forkPt.z - leanZ * 0.35),
-        Vec3(apex.x + 0.16, apex.y - 0.85, apex.z - 0.14),
+        Vec3(forkPt.x - leanX * 0.35, 5.20 * hScale, forkPt.z - leanZ * 0.35),
+        Vec3(apex.x + 0.16, apex.y - 1.20, apex.z - 0.14),
         apex,
-        segments: 5,
+        segments: 6,
       ),
-      0.125,
-      0.036,
+      0.155,
+      0.044,
     );
     addLeafSprayCloud(
       mapleBuilder,
-      Vector3(apex.x * 0.7, apex.y - 0.62, apex.z * 0.7),
-      Vector3(1.38 * spread, 0.44, 1.26 * spread),
+      Vector3(apex.x * 0.7, apex.y - 0.75, apex.z * 0.7),
+      Vector3(1.62 * spread, 0.52, 1.48 * spread),
       color: padTint(0.82, 21),
       phase: twist + 3.8,
     );
     addLeafSprayCloud(
       mapleBuilder,
-      Vector3(apex.x, apex.y + 0.04, apex.z),
-      Vector3(1.08 * spread, 0.38, 1.00 * spread),
+      Vector3(apex.x, apex.y + 0.05, apex.z),
+      Vector3(1.28 * spread, 0.44, 1.18 * spread),
       color: padTint(1, 22),
       phase: twist + 4.9,
     );
@@ -3211,15 +5568,15 @@ class EdoKitBuilder {
 
     final culmCount = 12 + dna.bucket(4, 1);
     final baseTwist = dna.unit(2) * math.pi * 2;
-    final hScale = 0.88 + 0.28 * dna.unit(3);
+    final hScale = 0.94 + 0.12 * dna.unit(3);
 
     for (var i = 0; i < culmCount; i++) {
       final ringFrac = i / culmCount;
       final ang =
           baseTwist + ringFrac * math.pi * 2 + 0.24 * dna.signed(10 + i);
       final rBase = 0.16 + 0.78 * math.sqrt((i % 7 + 0.4) / 7.4);
-      final archOut = rBase + 0.42 + 0.56 * dna.unit(30 + i);
-      final height = (5.45 + 2.15 * dna.unit(50 + i)) * hScale;
+      final archOut = rBase + 0.48 + 0.68 * dna.unit(30 + i);
+      final height = ((9.8 + 2.8 * dna.unit(50 + i)) * hScale).clamp(9.5, 13.5);
 
       final bx = math.cos(ang) * rBase;
       final bz = math.sin(ang) * rBase;
@@ -3228,54 +5585,62 @@ class EdoKitBuilder {
 
       final age = dna.unit(70 + i);
       final culmColor = age < 0.35
-          ? Vector4(0.42, 0.68, 0.34, 1)
+          ? Vector4(0.52, 0.62, 0.28, 1)
           : (age < 0.76
-                ? Vector4(0.56, 0.72, 0.28, 1)
-                : Vector4(0.76, 0.68, 0.25, 1));
+                ? Vector4(0.68, 0.64, 0.30, 1)
+                : Vector4(0.74, 0.68, 0.36, 1));
 
       final spine = sampleCubicSpine(
-        Vec3(bx, 0.02, bz),
-        Vec3(bx * 1.08, height * 0.36, bz * 1.08),
-        Vec3(bx + (tx - bx) * 0.54, height * 0.72, bz + (tz - bz) * 0.54),
+        Vec3(bx, -0.35, bz),
+        Vec3(bx * 1.05, height * 0.32, bz * 1.05),
+        Vec3(bx + (tx - bx) * 0.45, height * 0.68, bz + (tz - bz) * 0.45),
         Vec3(tx, height, tz),
-        segments: 5,
+        segments: 10,
       );
       addCurvedTube(
         culmBuilder,
         spine,
-        0.046 - 0.008 * dna.unit(90 + i),
-        0.020,
+        0.052 - 0.008 * dna.unit(90 + i),
+        0.022,
         color: culmColor,
         nodalRings: true,
       );
 
       if (i.isEven || i == culmCount - 1) {
-        final upperPt = spine[4];
-        final tipPt = spine[5];
+        final upperPt = spine[7];
+        final tipPt = spine[10];
         final shade = 0.90 + 0.26 * dna.unit(110 + i);
         addLeafSprayCloud(
           foliageBuilder,
-          Vector3(upperPt.x, upperPt.y - 0.12, upperPt.z),
-          Vector3(1.16, 0.38, 1.08),
+          Vector3(upperPt.x, upperPt.y - 0.15, upperPt.z),
+          Vector3(1.35, 0.42, 1.25),
           color: Vector4(shade * 0.90, shade * 1.04, shade * 0.80, 1),
           phase: baseTwist + i * 0.93,
         );
         addLeafSprayCloud(
           foliageBuilder,
-          Vector3(tipPt.x, tipPt.y + 0.04, tipPt.z),
-          Vector3(1.02, 0.34, 0.96),
+          Vector3(tipPt.x, tipPt.y + 0.05, tipPt.z),
+          Vector3(1.15, 0.38, 1.08),
           color: Vector4(shade * 1.02, shade * 1.12, shade * 0.86, 1),
           phase: baseTwist + i * 1.47 + 0.6,
         );
       } else if (i % 3 == 1) {
-        final midPt = spine[3];
+        final midPt = spine[6];
+        final highPt = spine[9];
         final shade = 0.84 + 0.20 * dna.unit(130 + i);
         addLeafSprayCloud(
           foliageBuilder,
-          Vector3(midPt.x * 1.12, midPt.y, midPt.z * 1.12),
-          Vector3(1.06, 0.36, 0.98),
+          Vector3(midPt.x * 1.08, midPt.y, midPt.z * 1.08),
+          Vector3(1.22, 0.40, 1.12),
           color: Vector4(shade * 0.88, shade * 1.02, shade * 0.78, 1),
           phase: baseTwist + i * 1.19,
+        );
+        addLeafSprayCloud(
+          foliageBuilder,
+          Vector3(highPt.x, highPt.y, highPt.z),
+          Vector3(1.10, 0.36, 1.02),
+          color: Vector4(shade * 0.96, shade * 1.08, shade * 0.84, 1),
+          phase: baseTwist + i * 1.72 + 0.3,
         );
       }
     }
@@ -3341,142 +5706,228 @@ class EdoKitBuilder {
     final rockBuilder = GeometryBuilder();
     final fernBuilder = GeometryBuilder();
 
-    final hScale = 0.92 + 0.24 * dna.unit(1);
+    final hScale = 0.92 + 0.18 * dna.unit(1);
     final sweepAng = dna.unit(2) * math.pi * 2;
     final sweepCos = math.cos(sweepAng);
     final sweepSin = math.sin(sweepAng);
     final barkColor = Vector4(0.86, 0.82, 0.80, 1);
 
-    final elbow1 = Vec3(sweepCos * 0.88, 1.95 * hScale, sweepSin * 0.88);
-    final elbow2 = Vec3(-sweepCos * 0.42, 3.85 * hScale, -sweepSin * 0.42);
-    final crownApex = Vec3(sweepCos * 0.28, 5.65 * hScale, sweepSin * 0.28);
+    final isCedar =
+        structure.id.value.contains('sugi') ||
+        structure.id.value.contains('cedar') ||
+        dna.bucket(3, 2) == 1;
 
-    addCurvedTube(
-      timberBuilder,
-      sampleCubicSpine(
+    if (isCedar) {
+      final spireApex = Vec3(sweepCos * 0.10, 9.60 * hScale, sweepSin * 0.10);
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          const Vec3(0, -0.06, 0),
+          Vec3(sweepCos * 0.08, 3.20 * hScale, sweepSin * 0.08),
+          Vec3(-sweepCos * 0.05, 6.40 * hScale, -sweepSin * 0.05),
+          spireApex,
+          segments: 8,
+        ),
+        0.36,
+        0.068,
+        sides: 7,
+        color: barkColor,
+      );
+
+      for (var r = 0; r < 5; r++) {
+        final rAng = r * 1.256 + 0.16 * dna.signed(10 + r);
+        final rr = 0.85 + 0.25 * dna.unit(15 + r);
+        addCurvedTube(
+          timberBuilder,
+          sampleCubicSpine(
+            Vec3(math.cos(rAng) * 0.16, 0.52, math.sin(rAng) * 0.16),
+            Vec3(math.cos(rAng) * rr * 0.55, 0.28, math.sin(rAng) * rr * 0.55),
+            Vec3(math.cos(rAng) * rr * 0.88, 0.08, math.sin(rAng) * rr * 0.88),
+            Vec3(math.cos(rAng) * rr, -0.10, math.sin(rAng) * rr),
+            segments: 3,
+          ),
+          0.14,
+          0.045,
+          sides: 5,
+          color: barkColor,
+        );
+      }
+
+      const whorlTiers = 7;
+      for (var w = 0; w < whorlTiers; w++) {
+        final frac = 0.30 + 0.62 * (w / (whorlTiers - 1));
+        final tierY = frac * spireApex.y;
+        final tierReach =
+            (2.25 * (1.0 - frac * 0.65)) * (0.90 + 0.20 * dna.unit(30 + w));
+        final padR =
+            (1.65 * (1.0 - frac * 0.58)) * (0.92 + 0.16 * dna.unit(40 + w));
+        const bCount = 4;
+        for (var b = 0; b < bCount; b++) {
+          final bAng = sweepAng + (b / bCount) * math.pi * 2 + w * 0.45;
+          final tip = Vec3(
+            math.cos(bAng) * tierReach,
+            tierY - 0.12 * frac,
+            math.sin(bAng) * tierReach,
+          );
+          addTaperedLimb(
+            timberBuilder,
+            Vec3(0, tierY, 0),
+            tip,
+            0.085 * (1.0 - frac * 0.4),
+            0.030,
+            color: barkColor,
+          );
+          final shade = 0.86 + 0.24 * frac;
+          addPineCloudPad(
+            pineBuilder,
+            Vector3(tip.x, tip.y + 0.06, tip.z),
+            Vector3(padR, 0.22, padR * 0.90),
+            color: Vector4(shade * 0.90, shade * 1.02, shade * 0.92, 1),
+            phase: sweepAng + w * 1.4 + b * 0.8,
+          );
+        }
+      }
+
+      addPineCloudPad(
+        pineBuilder,
+        Vector3(spireApex.x, spireApex.y + 0.12, spireApex.z),
+        Vector3(0.95, 0.35, 0.95),
+        color: Vector4(1.05, 1.15, 1, 1),
+        phase: sweepAng + 5.5,
+      );
+    } else {
+      final elbow1 = Vec3(sweepCos * 1.35, 3.20 * hScale, sweepSin * 1.35);
+      final elbow2 = Vec3(-sweepCos * 0.65, 6.40 * hScale, -sweepSin * 0.65);
+      final crownApex = Vec3(sweepCos * 0.40, 9.40 * hScale, sweepSin * 0.40);
+
+      addCurvedTube(
+        timberBuilder,
+        sampleCubicSpine(
+          const Vec3(0, -0.06, 0),
+          elbow1,
+          elbow2,
+          crownApex,
+          segments: 8,
+        ),
+        0.36,
+        0.075,
+        sides: 7,
+        color: barkColor,
+      );
+
+      for (var r = 0; r < 4; r++) {
+        final rAng = sweepAng + r * 1.57 + 0.28 * dna.signed(10 + r);
+        final rr = 0.82 + 0.26 * dna.unit(15 + r);
+        addCurvedTube(
+          timberBuilder,
+          sampleCubicSpine(
+            Vec3(math.cos(rAng) * 0.15, 0.48, math.sin(rAng) * 0.15),
+            Vec3(math.cos(rAng) * rr * 0.52, 0.26, math.sin(rAng) * rr * 0.52),
+            Vec3(math.cos(rAng) * rr * 0.86, 0.06, math.sin(rAng) * rr * 0.86),
+            Vec3(math.cos(rAng) * rr, -0.10, math.sin(rAng) * rr),
+            segments: 3,
+          ),
+          0.13,
+          0.044,
+          sides: 5,
+          color: barkColor,
+        );
+      }
+
+      final shelfSpecs = [
+        (0.28, sweepAng + 0.12, 2.45, 1.95, 0.32),
+        (0.40, sweepAng + 2.38, 2.25, 1.80, 0.30),
+        (0.52, sweepAng - 1.85, 2.10, 1.68, 0.28),
+        (0.64, sweepAng + 1.05, 1.90, 1.55, 0.26),
+        (0.76, sweepAng + 3.25, 1.65, 1.38, 0.24),
+        (0.88, sweepAng - 0.95, 1.40, 1.20, 0.22),
+      ];
+
+      final trunkPts = sampleCubicSpine(
         const Vec3(0, -0.06, 0),
         elbow1,
         elbow2,
         crownApex,
-        segments: 7,
-      ),
-      0.30,
-      0.068,
-      sides: 7,
-      color: barkColor,
-    );
-
-    for (var r = 0; r < 4; r++) {
-      final rAng = sweepAng + r * 1.57 + 0.28 * dna.signed(10 + r);
-      final rr = 0.72 + 0.24 * dna.unit(15 + r);
-      addCurvedTube(
-        timberBuilder,
-        sampleCubicSpine(
-          Vec3(math.cos(rAng) * 0.14, 0.44, math.sin(rAng) * 0.14),
-          Vec3(math.cos(rAng) * rr * 0.52, 0.26, math.sin(rAng) * rr * 0.52),
-          Vec3(math.cos(rAng) * rr * 0.86, 0.06, math.sin(rAng) * rr * 0.86),
-          Vec3(math.cos(rAng) * rr, -0.10, math.sin(rAng) * rr),
-          segments: 3,
-        ),
-        0.12,
-        0.042,
-        sides: 5,
-        color: barkColor,
-      );
-    }
-
-    final shelfSpecs = [
-      (0.32, sweepAng + 0.12, 1.72, 1.44, 0.26),
-      (0.46, sweepAng + 2.38, 1.58, 1.32, 0.25),
-      (0.60, sweepAng - 1.85, 1.48, 1.24, 0.24),
-      (0.73, sweepAng + 1.05, 1.34, 1.16, 0.23),
-      (0.85, sweepAng + 3.25, 1.18, 1.04, 0.22),
-    ];
-
-    final trunkPts = sampleCubicSpine(
-      const Vec3(0, -0.06, 0),
-      elbow1,
-      elbow2,
-      crownApex,
-      segments: 20,
-    );
-
-    for (var s = 0; s < shelfSpecs.length; s++) {
-      final spec = shelfSpecs[s];
-      final idx = (spec.$1 * 20).round().clamp(2, 19);
-      final origin = trunkPts[idx];
-      final bAng = spec.$2 + 0.18 * dna.signed(30 + s);
-      final reach = spec.$3 * (0.90 + 0.22 * dna.unit(40 + s));
-      final padR = spec.$4 * (0.92 + 0.18 * dna.unit(50 + s));
-
-      final tip = Vec3(
-        origin.x + math.cos(bAng) * reach,
-        origin.y + (0.12 - 0.06 * s) * hScale,
-        origin.z + math.sin(bAng) * reach,
-      );
-      final dip = Vec3(
-        origin.x + math.cos(bAng + 0.16) * reach * 0.52,
-        origin.y - 0.18,
-        origin.z + math.sin(bAng + 0.16) * reach * 0.52,
-      );
-      addCurvedTube(
-        timberBuilder,
-        sampleCubicSpine(
-          origin,
-          dip,
-          Vec3(
-            origin.x + math.cos(bAng) * reach * 0.84,
-            tip.y - 0.06,
-            origin.z + math.sin(bAng) * reach * 0.84,
-          ),
-          tip,
-        ),
-        0.115 - 0.012 * s,
-        0.038,
-        color: barkColor,
+        segments: 24,
       );
 
-      final shade = 0.88 + 0.22 * (s / shelfSpecs.length);
-      addPineCloudPad(
-        pineBuilder,
-        Vector3(tip.x, tip.y + 0.08, tip.z),
-        Vector3(padR, spec.$5, padR * 0.92),
-        color: Vector4(shade * 0.94, shade * 1.04, shade * 0.96, 1),
-        phase: sweepAng + s * 1.63,
-      );
+      for (var s = 0; s < shelfSpecs.length; s++) {
+        final spec = shelfSpecs[s];
+        final idx = (spec.$1 * 24).round().clamp(2, 23);
+        final origin = trunkPts[idx];
+        final bAng = spec.$2 + 0.18 * dna.signed(30 + s);
+        final reach = spec.$3 * (0.90 + 0.22 * dna.unit(40 + s));
+        final padR = spec.$4 * (0.92 + 0.18 * dna.unit(50 + s));
 
-      if (s < 3) {
-        final subAng = bAng + (s.isEven ? 0.62 : -0.62);
-        final subTip = Vec3(
-          dip.x + math.cos(subAng) * reach * 0.56,
-          dip.y + 0.28,
-          dip.z + math.sin(subAng) * reach * 0.56,
+        final tip = Vec3(
+          origin.x + math.cos(bAng) * reach,
+          origin.y + (0.16 - 0.08 * s) * hScale,
+          origin.z + math.sin(bAng) * reach,
         );
-        addTaperedLimb(
+        final dip = Vec3(
+          origin.x + math.cos(bAng + 0.16) * reach * 0.52,
+          origin.y - 0.22,
+          origin.z + math.sin(bAng + 0.16) * reach * 0.52,
+        );
+        addCurvedTube(
           timberBuilder,
-          dip,
-          subTip,
-          0.058,
-          0.026,
+          sampleCubicSpine(
+            origin,
+            dip,
+            Vec3(
+              origin.x + math.cos(bAng) * reach * 0.84,
+              tip.y - 0.06,
+              origin.z + math.sin(bAng) * reach * 0.84,
+            ),
+            tip,
+          ),
+          0.135 - 0.012 * s,
+          0.042,
           color: barkColor,
         );
+
+        final shade = 0.88 + 0.22 * (s / shelfSpecs.length);
         addPineCloudPad(
           pineBuilder,
-          Vector3(subTip.x, subTip.y + 0.06, subTip.z),
-          Vector3(padR * 0.72, spec.$5 * 0.86, padR * 0.68),
-          color: Vector4(shade * 0.88, shade * 0.98, shade * 0.92, 1),
-          phase: sweepAng + s * 2.41 + 0.9,
+          Vector3(tip.x, tip.y + 0.08, tip.z),
+          Vector3(padR, spec.$5, padR * 0.92),
+          color: Vector4(shade * 0.94, shade * 1.04, shade * 0.96, 1),
+          phase: sweepAng + s * 1.63,
         );
-      }
-    }
 
-    addPineCloudPad(
-      pineBuilder,
-      Vector3(crownApex.x, crownApex.y + 0.10, crownApex.z),
-      Vector3(1.36, 0.26, 1.24),
-      color: Vector4(1.08, 1.16, 1.02, 1),
-      phase: sweepAng + 5.1,
-    );
+        if (s < 4) {
+          final subAng = bAng + (s.isEven ? 0.62 : -0.62);
+          final subTip = Vec3(
+            dip.x + math.cos(subAng) * reach * 0.56,
+            dip.y + 0.32,
+            dip.z + math.sin(subAng) * reach * 0.56,
+          );
+          addTaperedLimb(
+            timberBuilder,
+            dip,
+            subTip,
+            0.068,
+            0.030,
+            color: barkColor,
+          );
+          addPineCloudPad(
+            pineBuilder,
+            Vector3(subTip.x, subTip.y + 0.06, subTip.z),
+            Vector3(padR * 0.72, spec.$5 * 0.86, padR * 0.68),
+            color: Vector4(shade * 0.88, shade * 0.98, shade * 0.92, 1),
+            phase: sweepAng + s * 2.41 + 0.9,
+          );
+        }
+      }
+
+      addPineCloudPad(
+        pineBuilder,
+        Vector3(crownApex.x, crownApex.y + 0.12, crownApex.z),
+        Vector3(1.55, 0.30, 1.40),
+        color: Vector4(1.08, 1.16, 1.02, 1),
+        phase: sweepAng + 5.1,
+      );
+    }
 
     addRockBoulder(
       rockBuilder,
@@ -3737,7 +6188,7 @@ class EdoKitBuilder {
     final dna = _TreeDna.fromStructure(structure);
     final phenotype = dna.bucket(4, 1);
     final twist = dna.unit(2) * math.pi * 2;
-    final hScale = 0.88 + 0.28 * dna.unit(3);
+    final hScale = (0.88 + 0.22 * dna.unit(3)).clamp(0.85, 1.08);
     final spread = 0.90 + 0.22 * dna.unit(4);
 
     final rockBuilder = GeometryBuilder();
@@ -3761,7 +6212,7 @@ class EdoKitBuilder {
         addStratifiedCliffBlock(
           rockBuilder,
           Vector3(-0.18 * spread, 0, -0.14 * spread),
-          Vector3(1.06 * spread, 1.12 * hScale, 0.88 * spread),
+          Vector3(1.06 * spread, 1.08 * hScale, 0.88 * spread),
           yaw: twist,
           tiltX: 0.09,
           tiltZ: -0.06,
@@ -3797,7 +6248,7 @@ class EdoKitBuilder {
         addStratifiedCliffBlock(
           rockBuilder,
           Vector3(0, 0, -0.10 * spread),
-          Vector3(0.72 * spread, 1.18 * hScale, 0.62 * spread),
+          Vector3(0.72 * spread, 1.08 * hScale, 0.62 * spread),
           yaw: twist,
           tiltX: 0.05,
           tiltZ: 0.04,
@@ -3843,7 +6294,7 @@ class EdoKitBuilder {
         addStratifiedCliffBlock(
           rockBuilder,
           Vector3(-0.62 * spread, 0, -0.08 * spread),
-          Vector3(0.76 * spread, 1.04 * hScale, 0.96 * spread),
+          Vector3(0.76 * spread, 1.02 * hScale, 0.96 * spread),
           yaw: twist - 0.22,
           tiltX: 0.11,
           tiltZ: -0.04,
@@ -3947,6 +6398,7 @@ class EdoKitBuilder {
     final root = Node();
     final timberBuilder = GeometryBuilder();
     final lanternBuilder = GeometryBuilder();
+    final streamerBuilder = GeometryBuilder();
 
     const segs = 12;
     var prev = span.sampleCatenary(0);
@@ -3961,6 +6413,38 @@ class EdoKitBuilder {
     final hangPoints = span.lanternHangPoints();
     for (final hp in hangPoints) {
       addLanternBody(lanternBuilder, timberBuilder, hp.toVector3());
+    }
+
+    if (span.hasFestivalStreamers) {
+      final pStart = span.sampleCatenary(0);
+      final pEnd = span.sampleCatenary(1);
+      final dx = pEnd.x - pStart.x;
+      final dz = pEnd.z - pStart.z;
+      final chordLen = math.sqrt(dx * dx + dz * dz);
+      final cordYaw = math.atan2(dx, dz) + math.pi / 2;
+      final streamerCount = math.max(9, (chordLen / 0.34).round());
+      for (var i = 0; i < streamerCount; i++) {
+        final t = 0.07 + 0.86 * (i / (streamerCount - 1));
+        final cordPt = span.sampleCatenary(t);
+        var nearLantern = false;
+        for (final hp in hangPoints) {
+          final hx = cordPt.x - hp.x;
+          final hz = cordPt.z - hp.z;
+          if (hx * hx + hz * hz < 0.038) {
+            nearLantern = true;
+            break;
+          }
+        }
+        if (nearLantern) continue;
+        addFukinagashiStreamers(
+          streamerBuilder,
+          timberBuilder,
+          cordPt,
+          length: 0.54 + (i % 3) * 0.10,
+          yaw: cordYaw,
+          seed: span.id.value.hashCode + i * 7,
+        );
+      }
     }
 
     root
@@ -3981,7 +6465,18 @@ class EdoKitBuilder {
         ),
       );
 
-    return root;
+    if (span.hasFestivalStreamers) {
+      root.add(
+        Node(
+          mesh: Mesh(
+            streamerBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.fabricAwning),
+          ),
+        ),
+      );
+    }
+
+    return markSubtreeShadowStatic(root);
   }
 
   Node buildStreetAgentNode(

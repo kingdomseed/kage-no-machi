@@ -110,14 +110,14 @@ class EdoLookDriver implements ShukubaLookDriver {
       shadowMaxDistance: 95,
       shadowMapResolution: 2048,
       shadowFilter: DirectionalShadowFilter.pcss,
-      shadowAmbientStrength: 0.32,
+      shadowAmbientStrength: 0.15,
       contactShadows: true,
     );
     scene.directionalLight = _keyLight;
 
     _fillLight = DirectionalLight(
-      intensity: 0.65,
-      color: Vector3(0.38, 0.48, 0.72),
+      intensity: 0.24,
+      color: Vector3(0.24, 0.38, 0.58),
     );
     _fillLightNode = Node(name: 'edo_fill_light')
       ..addComponent(
@@ -175,9 +175,11 @@ class EdoLookDriver implements ShukubaLookDriver {
         bloomScatter: 0.74,
         ambientOcclusionEnabled: true,
         ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-        ambientOcclusionIntensity: 1.38,
+        ambientOcclusionIntensity: 1.56,
         ambientOcclusionPower: 1.75,
-        ambientOcclusionRadius: 0.48,
+        ambientOcclusionRadius: 0.88,
+        ambientOcclusionBentNormals: true,
+        ambientOcclusionSpecularMode: SpecularAmbientOcclusionMode.bentCone,
         fogEnabled: true,
         fogColor: Vector3(0.18, 0.30, 0.38),
         fogDensity: 0.0086,
@@ -206,9 +208,11 @@ class EdoLookDriver implements ShukubaLookDriver {
         bloomScatter: 0.82,
         ambientOcclusionEnabled: true,
         ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-        ambientOcclusionIntensity: 1.48,
+        ambientOcclusionIntensity: 1.56,
         ambientOcclusionPower: 1.85,
-        ambientOcclusionRadius: 0.50,
+        ambientOcclusionRadius: 0.88,
+        ambientOcclusionBentNormals: true,
+        ambientOcclusionSpecularMode: SpecularAmbientOcclusionMode.bentCone,
         fogEnabled: true,
         fogColor: Vector3(0.036, 0.088, 0.175),
         fogDensity: 0.0112,
@@ -287,12 +291,14 @@ class EdoLookDriver implements ShukubaLookDriver {
         ..direction = rig.celestialRayDirection.toVector3()
         ..color = rig.celestialLinearRgb.toVector3()
         ..intensity = rig.celestialIntensity
-        ..shadowAmbientStrength = 0.28 + 0.10 * rig.nightFactor;
+        ..shadowAmbientStrength = 0.15 + 0.05 * rig.nightFactor;
     }
 
     final fill = _fillLight;
     if (fill != null) {
-      fill.intensity = 0.45 + 0.25 * (1 - rig.nightFactor);
+      fill
+        ..intensity = 0.24
+        ..color = Vector3(0.24, 0.38, 0.58);
     }
 
     _setParamFloat(

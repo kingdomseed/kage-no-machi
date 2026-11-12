@@ -190,12 +190,59 @@ enum PentatonicScale {
   double frequencyHzAt(int degree) => rootD4Hz * pitchRatioAt(degree);
 }
 
+enum RoofCraft { irimoyaKawara, ishiOkiYane, kayabukiThatch }
+
+enum BootStageId {
+  lookAndShaders(
+    'Look & Shaders',
+    'Compiling Gouache Lit and Sumi Ink shaders',
+  ),
+  audioSynthesis(
+    'Audio Synthesis',
+    'Synthesizing procedural WAV sound effects',
+  ),
+  valleyTerrain(
+    'Valley Terrain',
+    'Generating stepped terraces, kaidan stairs, and roads',
+  ),
+  townArchitecture(
+    'Town Architecture',
+    'Framing Edo post-and-beam machiya, chaya, and kura',
+  ),
+  floraAndAir(
+    'Flora & Atmosphere',
+    'Populating cedar groves, bamboo, and river mist',
+  ),
+  gpuWarmup(
+    'GPU Warmup',
+    'Prewarming GPU pipeline state objects and shadow maps',
+  );
+
+  new(this.label, this.detail);
+  final String label;
+  final String detail;
+}
+
+enum HudToolCategory {
+  dwellingsAndShops('Dwellings & Shops'),
+  roadsAndWalls('Roads & Walls'),
+  treesAndRocks('Trees & Rocks'),
+  shrinesAndCourtyards('Shrines & Courtyards');
+
+  new(this.label);
+  final String label;
+}
+
 enum StructureKind {
   machiya,
+  minka,
   chaya,
   kura,
   marketStall,
   toriiGate,
+  shoroBell,
+  stoneWell,
+  karesansuiGarden,
   yaguraTower,
   rockOutcrop,
   mapleCluster,
@@ -216,10 +263,14 @@ enum StructureKind {
 
   StructureSpec get spec => switch (this) {
     StructureKind.machiya => StructureSpec.machiya,
+    StructureKind.minka => StructureSpec.minka,
     StructureKind.chaya => StructureSpec.chaya,
     StructureKind.kura => StructureSpec.kura,
     StructureKind.marketStall => StructureSpec.marketStall,
     StructureKind.toriiGate => StructureSpec.toriiGate,
+    StructureKind.shoroBell => StructureSpec.shoroBell,
+    StructureKind.stoneWell => StructureSpec.stoneWell,
+    StructureKind.karesansuiGarden => StructureSpec.karesansuiGarden,
     StructureKind.yaguraTower => StructureSpec.yaguraTower,
     StructureKind.rockOutcrop => StructureSpec.rockOutcrop,
     StructureKind.mapleCluster => StructureSpec.mapleCluster,
@@ -259,6 +310,7 @@ class StructureSpec {
     required this.foundationSkirtDepth,
     required this.eaveAnchors,
     required this.instrument,
+    this.roofCraft = RoofCraft.irimoyaKawara,
     this.sightconeRange = 0,
     this.sightconeHalfAngleRad = 0,
     this.snapsToRoadTangent = true,
@@ -270,21 +322,21 @@ class StructureSpec {
     kind: StructureKind.machiya,
     displayName: 'Townhouse',
     edoSubtitle: 'Machiya shop',
-    footprintWidth: 5.4,
-    footprintDepth: 6.8,
-    height: 5.8,
-    foundationSkirtDepth: 1.4,
+    footprintWidth: 3.8,
+    footprintDepth: 4.8,
+    height: 4.18,
+    foundationSkirtDepth: 1.2,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(-2.3, 3.05, 3.55),
+        localOffset: Vec3(-1.55, 1.86, 2.70),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(2.3, 3.05, 3.55),
+        localOffset: Vec3(1.55, 1.86, 2.70),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(0, 3.05, -3.45),
+        localOffset: Vec3(0, 2.15, -2.48),
         localOutwardNormal: Vec3(0, 0, -1),
       ),
     ],
@@ -292,25 +344,48 @@ class StructureSpec {
     hasShojiWindows: true,
   );
 
+  static const StructureSpec minka = StructureSpec(
+    kind: StructureKind.minka,
+    displayName: 'Farmhouse',
+    edoSubtitle: 'Minka cottage',
+    footprintWidth: 3.6,
+    footprintDepth: 4.2,
+    height: 3.8,
+    foundationSkirtDepth: 1.2,
+    eaveAnchors: [
+      EaveAnchor(
+        localOffset: Vec3(-1.45, 1.88, 2.28),
+        localOutwardNormal: Vec3.forward,
+      ),
+      EaveAnchor(
+        localOffset: Vec3(1.45, 1.88, 2.28),
+        localOutwardNormal: Vec3.forward,
+      ),
+    ],
+    instrument: EdoInstrument.koto,
+    hasShojiWindows: true,
+    roofCraft: RoofCraft.kayabukiThatch,
+  );
+
   static const StructureSpec chaya = StructureSpec(
     kind: StructureKind.chaya,
     displayName: 'Teahouse',
     edoSubtitle: 'Chaya rest inn',
-    footprintWidth: 6.2,
-    footprintDepth: 6,
-    height: 5.4,
-    foundationSkirtDepth: 1.4,
+    footprintWidth: 4.4,
+    footprintDepth: 4.4,
+    height: 3.58,
+    foundationSkirtDepth: 1.2,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(-2.4, 2.95, 3.15),
+        localOffset: Vec3(-1.80, 1.92, 2.45),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(2.4, 2.95, 3.15),
+        localOffset: Vec3(1.80, 1.92, 2.45),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(3.18, 2.95, 0),
+        localOffset: Vec3(2.35, 1.92, 0),
         localOutwardNormal: Vec3(1, 0, 0),
       ),
     ],
@@ -322,43 +397,44 @@ class StructureSpec {
     kind: StructureKind.kura,
     displayName: 'Storehouse',
     edoSubtitle: 'Kura plaster vault',
-    footprintWidth: 4.8,
-    footprintDepth: 5.8,
-    height: 6.6,
-    foundationSkirtDepth: 1.5,
+    footprintWidth: 3.4,
+    footprintDepth: 4,
+    height: 4.55,
+    foundationSkirtDepth: 1.2,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(0, 3.10, 3.02),
+        localOffset: Vec3(0, 2.25, 2.28),
         localOutwardNormal: Vec3.forward,
       ),
     ],
     instrument: EdoInstrument.bonsho,
+    roofCraft: RoofCraft.ishiOkiYane,
   );
 
   static const StructureSpec marketStall = StructureSpec(
     kind: StructureKind.marketStall,
     displayName: 'Market Stall',
     edoSubtitle: 'Yatai booth',
-    footprintWidth: 2.8,
-    footprintDepth: 2.4,
-    height: 2.8,
+    footprintWidth: 2.2,
+    footprintDepth: 1.9,
+    height: 2.24,
     foundationSkirtDepth: 0.6,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(-1.2, 2.30, 1.22),
+        localOffset: Vec3(-0.95, 1.84, 1.15),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(1.2, 2.30, 1.22),
+        localOffset: Vec3(0.95, 1.84, 1.15),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(-1.35, 2.30, 0),
-        localOutwardNormal: Vec3(-1, 0, 0),
+        localOffset: Vec3(-0.95, 1.84, -1.15),
+        localOutwardNormal: Vec3(0, 0, -1),
       ),
       EaveAnchor(
-        localOffset: Vec3(1.35, 2.30, 0),
-        localOutwardNormal: Vec3(1, 0, 0),
+        localOffset: Vec3(0.95, 1.84, -1.15),
+        localOutwardNormal: Vec3(0, 0, -1),
       ),
     ],
     instrument: EdoInstrument.hyoshigi,
@@ -368,26 +444,74 @@ class StructureSpec {
     kind: StructureKind.toriiGate,
     displayName: 'Lantern Gate',
     edoSubtitle: 'Highway archway',
-    footprintWidth: 4.6,
-    footprintDepth: 1.4,
-    height: 4.9,
-    foundationSkirtDepth: 1,
+    footprintWidth: 4,
+    footprintDepth: 1.3,
+    height: 4.3,
+    foundationSkirtDepth: 0.8,
     eaveAnchors: [
       EaveAnchor(
-        localOffset: Vec3(-2, 3.35, 0.45),
+        localOffset: Vec3(-1.8, 3.4, 0.4),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(2, 3.35, 0.45),
+        localOffset: Vec3(1.8, 3.4, 0.4),
         localOutwardNormal: Vec3.forward,
       ),
       EaveAnchor(
-        localOffset: Vec3(0, 3.35, -0.45),
+        localOffset: Vec3(0, 3.4, -0.4),
         localOutwardNormal: Vec3(0, 0, -1),
       ),
     ],
     instrument: EdoInstrument.koto,
     straddlesRoad: true,
+  );
+
+  static const StructureSpec shoroBell = StructureSpec(
+    kind: StructureKind.shoroBell,
+    displayName: 'Bell Pavilion',
+    edoSubtitle: 'Shoro pavilion',
+    footprintWidth: 3.2,
+    footprintDepth: 3.2,
+    height: 4.6,
+    foundationSkirtDepth: 1.2,
+    eaveAnchors: [
+      EaveAnchor(
+        localOffset: Vec3(-1.4, 2.3, 1.7),
+        localOutwardNormal: Vec3.forward,
+      ),
+      EaveAnchor(
+        localOffset: Vec3(1.4, 2.3, 1.7),
+        localOutwardNormal: Vec3.forward,
+      ),
+    ],
+    instrument: EdoInstrument.bonsho,
+  );
+
+  static const StructureSpec stoneWell = StructureSpec(
+    kind: StructureKind.stoneWell,
+    displayName: 'Courtyard Well',
+    edoSubtitle: 'Idobata well',
+    footprintWidth: 1.8,
+    footprintDepth: 1.8,
+    height: 2.35,
+    foundationSkirtDepth: 0.8,
+    eaveAnchors: [],
+    instrument: EdoInstrument.hyoshigi,
+    snapsToRoadTangent: false,
+    roofCraft: RoofCraft.ishiOkiYane,
+  );
+
+  static const StructureSpec karesansuiGarden = StructureSpec(
+    kind: StructureKind.karesansuiGarden,
+    displayName: 'Zen Gravel Court',
+    edoSubtitle: 'Karesansui court',
+    footprintWidth: 4.2,
+    footprintDepth: 3.6,
+    height: 1.45,
+    foundationSkirtDepth: 0.4,
+    eaveAnchors: [],
+    instrument: EdoInstrument.shakuhachi,
+    snapsToRoadTangent: false,
   );
 
   static const StructureSpec yaguraTower = StructureSpec(
@@ -428,8 +552,8 @@ class StructureSpec {
     edoSubtitle: 'Layered Iwa',
     footprintWidth: 3.2,
     footprintDepth: 3,
-    height: 2.5,
-    foundationSkirtDepth: 0.65,
+    height: 2.4,
+    foundationSkirtDepth: 0.8,
     eaveAnchors: [],
     instrument: EdoInstrument.bonsho,
     snapsToRoadTangent: false,
@@ -439,10 +563,10 @@ class StructureSpec {
     kind: StructureKind.mapleCluster,
     displayName: 'Maple & Rocks',
     edoSubtitle: 'Autumn momiji',
-    footprintWidth: 3.4,
-    footprintDepth: 3.4,
-    height: 6.2,
-    foundationSkirtDepth: 0.5,
+    footprintWidth: 3.8,
+    footprintDepth: 3.8,
+    height: 9.2,
+    foundationSkirtDepth: 0.8,
     eaveAnchors: [],
     instrument: EdoInstrument.koto,
     snapsToRoadTangent: false,
@@ -452,10 +576,10 @@ class StructureSpec {
     kind: StructureKind.bambooGrove,
     displayName: 'Bamboo Grove',
     edoSubtitle: 'Take culms',
-    footprintWidth: 3.6,
-    footprintDepth: 3.6,
-    height: 7.4,
-    foundationSkirtDepth: 0.5,
+    footprintWidth: 4,
+    footprintDepth: 4,
+    height: 12.2,
+    foundationSkirtDepth: 0.8,
     eaveAnchors: [],
     instrument: EdoInstrument.shakuhachi,
     snapsToRoadTangent: false,
@@ -465,10 +589,10 @@ class StructureSpec {
     kind: StructureKind.pineTree,
     displayName: 'Black Pine',
     edoSubtitle: 'Gnarled Matsu',
-    footprintWidth: 3.4,
-    footprintDepth: 3.4,
-    height: 6.8,
-    foundationSkirtDepth: 0.5,
+    footprintWidth: 3.8,
+    footprintDepth: 3.8,
+    height: 10.2,
+    foundationSkirtDepth: 0.8,
     eaveAnchors: [],
     instrument: EdoInstrument.bonsho,
     snapsToRoadTangent: false,
@@ -478,27 +602,17 @@ class StructureSpec {
     kind: StructureKind.weepingWillow,
     displayName: 'Weeping Willow',
     edoSubtitle: 'Yanagi fronds',
-    footprintWidth: 3.6,
-    footprintDepth: 3.6,
-    height: 6.4,
-    foundationSkirtDepth: 0.5,
+    footprintWidth: 3.8,
+    footprintDepth: 3.8,
+    height: 7.8,
+    foundationSkirtDepth: 0.8,
     eaveAnchors: [],
     instrument: EdoInstrument.shakuhachi,
     snapsToRoadTangent: false,
   );
 
-  static const Map<StructureKind, StructureSpec> byKind = {
-    StructureKind.machiya: machiya,
-    StructureKind.chaya: chaya,
-    StructureKind.kura: kura,
-    StructureKind.marketStall: marketStall,
-    StructureKind.toriiGate: toriiGate,
-    StructureKind.yaguraTower: yaguraTower,
-    StructureKind.rockOutcrop: rockOutcrop,
-    StructureKind.mapleCluster: mapleCluster,
-    StructureKind.bambooGrove: bambooGrove,
-    StructureKind.pineTree: pineTree,
-    StructureKind.weepingWillow: weepingWillow,
+  static final Map<StructureKind, StructureSpec> byKind = {
+    for (final kind in StructureKind.values) kind: kind.spec,
   };
 
   final StructureKind kind;
@@ -510,6 +624,7 @@ class StructureSpec {
   final double foundationSkirtDepth;
   final List<EaveAnchor> eaveAnchors;
   final EdoInstrument instrument;
+  final RoofCraft roofCraft;
   final double sightconeRange;
   final double sightconeHalfAngleRad;
   final bool snapsToRoadTangent;
@@ -550,6 +665,30 @@ sealed class PlacementTool {
     BuildTerraceTool() => EdoInstrument.bonsho,
     StampStructureTool(:final kind) => kind.spec.instrument,
     ExploreTool() || InspectWatchTool() => null,
+  };
+
+  HudToolCategory? get hudCategory => switch (this) {
+    DrawLaneTool() ||
+    BuildTerraceTool() ||
+    BuildWallTool() => HudToolCategory.roadsAndWalls,
+    StampStructureTool(:final kind) => switch (kind) {
+      StructureKind.machiya ||
+      StructureKind.minka ||
+      StructureKind.chaya ||
+      StructureKind.kura ||
+      StructureKind.marketStall => HudToolCategory.dwellingsAndShops,
+      StructureKind.rockOutcrop ||
+      StructureKind.pineTree ||
+      StructureKind.mapleCluster ||
+      StructureKind.weepingWillow ||
+      StructureKind.bambooGrove => HudToolCategory.treesAndRocks,
+      StructureKind.toriiGate ||
+      StructureKind.shoroBell ||
+      StructureKind.karesansuiGarden ||
+      StructureKind.stoneWell => HudToolCategory.shrinesAndCourtyards,
+      _ => null,
+    },
+    _ => null,
   };
 
   MagistrateVisionState resolveVision(MagistrateVisionState explicit) {
@@ -1413,7 +1552,7 @@ class LanternSpan {
     required this.sagMeters,
   });
 
-  static const double maxSpanMeters = 6.5;
+  static const double maxSpanMeters = 8.2;
   static const double minSpanMeters = 0.9;
   static const double minFacingCos = 0.5;
   static const double maxHeightDeltaMeters = 2.2;
@@ -1424,6 +1563,15 @@ class LanternSpan {
   final EaveEndpoint endpointB;
   final double lengthMeters;
   final double sagMeters;
+
+  bool get hasFestivalStreamers {
+    var hash = 0x811c9dc5;
+    for (final unit in id.value.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0xffffffff;
+    }
+    return (hash & 0x3) != 0;
+  }
 
   Vec3 get startWorld => endpointA.worldPosition;
 
@@ -2155,12 +2303,24 @@ class CameraPreset {
     timeOfDay: TimeOfDayRig.blueHourNight,
   );
 
+  static const CameraPreset countrysideVista = CameraPreset(
+    id: 'countryside_vista',
+    label: 'Terraced Countryside Vista',
+    eye: Vec3(-66, 56, -66),
+    target: Vec3(2, 2.2, 0),
+    timeOfDay: TimeOfDayRig.goldenDusk,
+    verticalFovDegrees: 22,
+    nearMeters: 4,
+    farMeters: 350,
+  );
+
   static const List<CameraPreset> verificationPresets = [
     duskOverview,
     nightMarket,
     riverCrossing,
     meadowCloseup,
     motionOffset,
+    countrysideVista,
   ];
 
   final String id;
@@ -2460,6 +2620,18 @@ abstract interface class ShukubaWorldDriver {
 }
 
 abstract interface class ShukubaAudioDriver {
+  bool get isMuted;
+
+  double get masterVolume;
+
+  Future<void> prewarm();
+
+  // Single-argument setter takes a positional boolean.
+  // ignore: avoid_positional_boolean_parameters
+  void setMuted(bool muted);
+
+  void setMasterVolume(double volume);
+
   Future<void> attach(
     Scene scene, {
     Map<AmbientLoopKind, Vec3> loopAnchors = const {},

@@ -153,7 +153,7 @@ void main() {
         if (scene != null) {
           expect(
             scene.directionalLight!.shadowAmbientStrength,
-            greaterThan(0.35),
+            inInclusiveRange(0.15, 0.25),
           );
         }
 

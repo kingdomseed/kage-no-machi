@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_scene/scene.dart' show Scene;
+import 'package:flutter_scene/scene.dart' show Node, Scene;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
@@ -8,6 +8,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         CameraPreset,
         CourtyardWall,
         EntityId,
+        NoBuildPreview,
         PlacedStructure,
         RoadSpline,
         RoadStyle,
@@ -38,7 +39,7 @@ void main() {
     test(
       'buildStarterShukubaGraph builds city-builder ward without watchtowers',
       () {
-        const terrain = TerrainBuilder();
+        final terrain = TerrainBuilder();
         final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
 
         expect(graph.roads.length, greaterThanOrEqualTo(4));
@@ -90,7 +91,7 @@ void main() {
       'sampleGroundHeight resolves bridge arch, terraces, and kaidan stairs',
       () {
         expect(TerrainConfig.gridStep, 0.5);
-        const terrain = TerrainBuilder();
+        final terrain = TerrainBuilder();
         final lowerTerrace = TerraceCourse(
           id: const EntityId('terrace_lower_east'),
           crestPoints: const [Vec3(4.8, 1.8, -24), Vec3(4.8, 1.8, 24)],
@@ -178,7 +179,7 @@ void main() {
     test(
       'FloraScatterBuilder excludes river, bridge, roads, and footprints',
       () {
-        const terrain = TerrainBuilder();
+        final terrain = TerrainBuilder();
         final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
 
         expect(
@@ -238,7 +239,7 @@ void main() {
     test(
       'AtmosphereBuilder and stylized townsfolk build expected child meshes',
       () {
-        const terrain = TerrainBuilder();
+        final terrain = TerrainBuilder();
         const kit = EdoKitBuilder();
         const atmosphere = AtmosphereBuilder();
         final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
@@ -434,6 +435,137 @@ void main() {
         );
 
         driver.dispose();
+      },
+      skip: !impellerAvailable ? impellerSkipReason : false,
+    );
+  });
+
+  group('Static mesh shadow caching (markSubtreeShadowStatic)', () {
+    void assertSubtreeShadowStatic(Node node, Matcher expected) {
+      expect(node.shadowStatic, expected);
+      for (final child in node.children) {
+        assertSubtreeShadowStatic(child, expected);
+      }
+    }
+
+    test(
+      'markSubtreeShadowStatic recursively sets and unsets shadowStatic',
+      () {
+        final root = Node();
+        final childA = Node();
+        final childB = Node();
+        final grandchildA1 = Node();
+        final grandchildA2 = Node();
+        final grandchildB1 = Node();
+
+        root
+          ..add(
+            childA
+              ..add(grandchildA1)
+              ..add(grandchildA2),
+          )
+          ..add(childB..add(grandchildB1));
+
+        assertSubtreeShadowStatic(root, isFalse);
+
+        markSubtreeShadowStatic(root);
+        assertSubtreeShadowStatic(root, isTrue);
+
+        markSubtreeShadowStatic(root, shadowStatic: false);
+        assertSubtreeShadowStatic(root, isFalse);
+      },
+    );
+
+    test('static geometry builders produce shadowStatic == true nodes', () {
+      final terrain = TerrainBuilder();
+      const kit = EdoKitBuilder();
+      const flora = FloraScatterBuilder();
+      final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
+
+      final terrainNode = terrain.buildTerrainNode(
+        defaultShukubaMaterial,
+        terraces: graph.terraces,
+        roads: graph.roads,
+        structures: graph.structures.values,
+      );
+      assertSubtreeShadowStatic(terrainNode, isTrue);
+
+      final bridgeNode = terrain.buildBridgeNode(defaultShukubaMaterial);
+      assertSubtreeShadowStatic(bridgeNode, isTrue);
+
+      final waterNode = terrain.buildWaterNode(defaultShukubaMaterial);
+      assertSubtreeShadowStatic(waterNode, isTrue);
+
+      final gorgeNode = terrain.buildGorgeDressingNode(defaultShukubaMaterial);
+      assertSubtreeShadowStatic(gorgeNode, isTrue);
+
+      for (final road in graph.roads) {
+        final roadNode = terrain.buildRoadNode(
+          road,
+          defaultShukubaMaterial,
+          terrain.sampleGroundHeight,
+        );
+        assertSubtreeShadowStatic(roadNode, isTrue);
+      }
+
+      for (final terrace in graph.terraces) {
+        final terraceNode = terrain.buildTerraceNode(
+          terrace,
+          defaultShukubaMaterial,
+        );
+        assertSubtreeShadowStatic(terraceNode, isTrue);
+      }
+
+      for (final wall in graph.walls) {
+        final wallNode = terrain.buildWallNode(
+          wall,
+          defaultShukubaMaterial,
+          terrain.sampleGroundHeight,
+        );
+        assertSubtreeShadowStatic(wallNode, isTrue);
+      }
+
+      for (final structure in graph.structures.values) {
+        final structNode = kit.buildStructureNode(
+          structure,
+          defaultShukubaMaterial,
+        );
+        assertSubtreeShadowStatic(structNode, isTrue);
+      }
+
+      for (final span in graph.lanternSpans) {
+        final spanNode = kit.buildLanternSpanNode(span, defaultShukubaMaterial);
+        assertSubtreeShadowStatic(spanNode, isTrue);
+      }
+
+      final floraNode = flora.buildFloraScatterNode(
+        graph: graph,
+        resolveMaterial: defaultShukubaMaterial,
+        sampleGroundY: terrain.sampleGroundHeight,
+      );
+      assertSubtreeShadowStatic(floraNode, isTrue);
+    }, skip: !impellerAvailable ? impellerSkipReason : false);
+
+    test(
+      'dynamic street agents and build preview remain shadowStatic == false',
+      () {
+        const kit = EdoKitBuilder();
+        final terrain = TerrainBuilder();
+
+        for (final role in StreetAgentRole.values) {
+          final agentNode = kit.buildStreetAgentNode(
+            role,
+            defaultShukubaMaterial,
+          );
+          assertSubtreeShadowStatic(agentNode, isFalse);
+        }
+
+        final previewNode = kit.buildPreviewNode(
+          const NoBuildPreview(),
+          defaultShukubaMaterial,
+          terrain.sampleGroundHeight,
+        );
+        assertSubtreeShadowStatic(previewNode, isFalse);
       },
       skip: !impellerAvailable ? impellerSkipReason : false,
     );

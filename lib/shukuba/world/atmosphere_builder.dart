@@ -268,9 +268,16 @@ class AtmosphereBuilder {
           localVent = const Vec3(0.25, 1.28, 0.15);
           width = 0.78;
           height = 1.65;
+        case StructureKind.minka:
+          localVent = const Vec3(0, 3.2, -0.8);
+          width = 0.85;
+          height = 1.85;
         case StructureKind.machiya ||
             StructureKind.kura ||
             StructureKind.toriiGate ||
+            StructureKind.shoroBell ||
+            StructureKind.stoneWell ||
+            StructureKind.karesansuiGarden ||
             StructureKind.yaguraTower ||
             StructureKind.rockOutcrop ||
             StructureKind.mapleCluster ||
@@ -356,17 +363,21 @@ class AtmosphereBuilder {
     final warmHalo = Vector4(1, 0.86, 0.62, 0.92);
     for (final span in graph.lanternSpans) {
       for (final hp in span.lanternHangPoints()) {
-        addHalo(hp + const Vec3(0, -0.18, 0), 1.95, warmHalo);
+        addHalo(hp + const Vec3(0, -0.18, 0), 1.80, warmHalo);
       }
     }
 
     for (final s in graph.structures.values) {
       final isGate = s.kind == StructureKind.toriiGate;
       final size = switch (s.kind) {
-        StructureKind.chaya => 2.05,
-        StructureKind.machiya => 1.85,
-        StructureKind.marketStall => 1.70,
-        StructureKind.toriiGate => 1.95,
+        StructureKind.chaya => 1.65,
+        StructureKind.machiya => 1.45,
+        StructureKind.minka => 1.45,
+        StructureKind.marketStall => 1.45,
+        StructureKind.toriiGate => 1.75,
+        StructureKind.karesansuiGarden => 1.05,
+        StructureKind.shoroBell ||
+        StructureKind.stoneWell ||
         StructureKind.kura ||
         StructureKind.yaguraTower ||
         StructureKind.rockOutcrop ||

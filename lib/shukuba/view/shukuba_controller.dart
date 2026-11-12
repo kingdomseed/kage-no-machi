@@ -1,8 +1,12 @@
 import 'dart:math' as math;
+import 'dart:ui' show Rect;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
-import 'package:flutter_scene/scene.dart' show Scene;
+import 'package:flutter_scene/scene.dart' show Camera, RenderView, Scene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
+import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
+import 'package:kage_no_machi/shukuba/world/edo_world_driver.dart'
+    show EdoWorldDriver;
 
 class ShukubaController extends ChangeNotifier {
   new({
@@ -48,6 +52,10 @@ class ShukubaController extends ChangeNotifier {
 
   ShukubaGraph get graph => world.graph;
 
+  BootReport? _bootReport;
+
+  BootReport? get bootReport => _bootReport;
+
   Future<void> initialize([Scene? scene]) async {
     if (scene != null) {
       await look.attach(scene);
@@ -67,6 +75,92 @@ class ShukubaController extends ChangeNotifier {
     );
     _isReady = true;
     notifyListeners();
+  }
+
+  Future<BootReport> initializeStaged({
+    required Scene scene,
+    required Camera camera,
+    void Function(BootStageId stage, double elapsedMs)? onStage,
+  }) async {
+    final timings = <BootStageTiming>[];
+    final totalSw = Stopwatch()..start();
+    final stageSw = Stopwatch()..start();
+
+    await Scene.initializeStaticResources();
+    await look.attach(scene);
+    var elapsed = stageSw.elapsedMicroseconds / 1000.0;
+    timings.add(
+      BootStageTiming(stage: BootStageId.lookAndShaders, durationMs: elapsed),
+    );
+    onStage?.call(BootStageId.lookAndShaders, elapsed);
+    await Future<void>.delayed(Duration.zero);
+
+    stageSw.reset();
+    await audio.prewarm();
+    elapsed = stageSw.elapsedMicroseconds / 1000.0;
+    timings.add(
+      BootStageTiming(stage: BootStageId.audioSynthesis, durationMs: elapsed),
+    );
+    onStage?.call(BootStageId.audioSynthesis, elapsed);
+    await Future<void>.delayed(Duration.zero);
+
+    if (world is EdoWorldDriver) {
+      await (world as EdoWorldDriver).attachStaged(
+        scene,
+        resolveMaterial: look.materialFor,
+        onStage: (stage, ms) async {
+          timings.add(BootStageTiming(stage: stage, durationMs: ms));
+          onStage?.call(stage, ms);
+        },
+      );
+    } else {
+      await world.attach(scene, resolveMaterial: look.materialFor);
+      for (final stage in [
+        BootStageId.valleyTerrain,
+        BootStageId.townArchitecture,
+        BootStageId.floraAndAir,
+      ]) {
+        timings.add(BootStageTiming(stage: stage, durationMs: 1));
+        onStage?.call(stage, 1);
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
+
+    stageSw.reset();
+    look.syncFrame(
+      rig: _timeOfDay,
+      vision: effectiveVision,
+      sightcones: world.activeSightcones,
+      lanternOrigins: world.activeLanternOrigins,
+      elapsedSeconds: 0,
+    );
+    audio.syncAtmosphere(
+      rig: _timeOfDay,
+      loopAnchors: world.ambientLoopAnchors,
+    );
+    try {
+      await scene.warmUp([
+        RenderView(
+          camera: camera,
+          viewport: const Rect.fromLTWH(0, 0, 1440, 778),
+        ),
+      ], allShadingTiers: true);
+    } on Object catch (_) {}
+    elapsed = stageSw.elapsedMicroseconds / 1000.0;
+    timings.add(
+      BootStageTiming(stage: BootStageId.gpuWarmup, durationMs: elapsed),
+    );
+    onStage?.call(BootStageId.gpuWarmup, elapsed);
+
+    final report = BootReport(
+      stages: timings,
+      totalMs: totalSw.elapsedMicroseconds / 1000.0,
+    );
+    _bootReport = report;
+    _isReady = true;
+    notifyListeners();
+    return report;
   }
 
   void setTimeOfDay(double rawValue) {

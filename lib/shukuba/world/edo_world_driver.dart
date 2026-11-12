@@ -5,14 +5,18 @@ import 'package:flutter_scene/scene.dart' show Node, Scene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         AmbientLoopKind,
+        BootStageId,
         BuildPreview,
         EntityId,
         NoBuildPreview,
+        PlacedStructure,
+        RoadSpline,
         ShukubaGraph,
         ShukubaMaterialResolver,
         ShukubaWorldDriver,
         StreetAgentRole,
         StreetAgentSnapshot,
+        TerraceCourse,
         TimeOfDayRig,
         Vec3,
         WatchSightcone,
@@ -20,9 +24,11 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
 import 'package:kage_no_machi/shukuba/world/atmosphere_builder.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart';
 import 'package:kage_no_machi/shukuba/world/flora_scatter_builder.dart';
+import 'package:kage_no_machi/shukuba/world/scene_shadow_helper.dart';
 import 'package:kage_no_machi/shukuba/world/starter_ward.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
-import 'package:vector_math/vector_math.dart' show Quaternion, Vector3;
+import 'package:vector_math/vector_math.dart'
+    show Aabb2, Quaternion, Vector2, Vector3;
 
 class _SimAgent {
   new({
@@ -62,8 +68,10 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
   Scene? _scene;
   ShukubaMaterialResolver _resolveMaterial = defaultShukubaMaterial;
-  late final TerrainBuilder _terrainBuilder = const TerrainBuilder();
+  late final TerrainBuilder _terrainBuilder = TerrainBuilder();
   late final EdoKitBuilder _kitBuilder = const EdoKitBuilder();
+
+  TerrainBuilder get terrainBuilder => _terrainBuilder;
   late final FloraScatterBuilder _floraBuilder = const FloraScatterBuilder();
   late final AtmosphereBuilder _atmosphereBuilder = const AtmosphereBuilder();
 
@@ -159,11 +167,15 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _resolveMaterial = resolveMaterial;
 
     _worldRoot = Node();
-    _waterNode = _terrainBuilder.buildWaterNode(_resolveMaterial);
-    _gorgeDressingNode = _terrainBuilder.buildGorgeDressingNode(
-      _resolveMaterial,
+    _waterNode = markSubtreeShadowStatic(
+      _terrainBuilder.buildWaterNode(_resolveMaterial),
     );
-    _bridgeNode = _terrainBuilder.buildBridgeNode(_resolveMaterial);
+    _gorgeDressingNode = markSubtreeShadowStatic(
+      _terrainBuilder.buildGorgeDressingNode(_resolveMaterial),
+    );
+    _bridgeNode = markSubtreeShadowStatic(
+      _terrainBuilder.buildBridgeNode(_resolveMaterial),
+    );
 
     _worldRoot!
       ..add(_terrainContainerNode)
@@ -187,14 +199,88 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _rebuildPreviewNode();
   }
 
-  void initSimulation({ShukubaGraph? initialGraph}) {
+  Future<void> attachStaged(
+    Scene scene, {
+    ShukubaMaterialResolver resolveMaterial = defaultShukubaMaterial,
+    ShukubaGraph? initialGraph,
+    Future<void> Function(BootStageId stage, double elapsedMs)? onStage,
+  }) async {
+    _scene = scene;
+    _resolveMaterial = resolveMaterial;
+
+    final stopwatch = Stopwatch()..start();
+
+    _worldRoot = Node();
+    _waterNode = markSubtreeShadowStatic(
+      _terrainBuilder.buildWaterNode(_resolveMaterial),
+    );
+    _gorgeDressingNode = markSubtreeShadowStatic(
+      _terrainBuilder.buildGorgeDressingNode(_resolveMaterial),
+    );
+    _bridgeNode = markSubtreeShadowStatic(
+      _terrainBuilder.buildBridgeNode(_resolveMaterial),
+    );
+
+    _worldRoot!
+      ..add(_terrainContainerNode)
+      ..add(_waterNode)
+      ..add(_gorgeDressingNode)
+      ..add(_bridgeNode)
+      ..add(_floraNode)
+      ..add(_roadsNode)
+      ..add(_terracesNode)
+      ..add(_wallsNode)
+      ..add(_structuresNode)
+      ..add(_lanternSpansNode)
+      ..add(_agentsNode)
+      ..add(_atmosphereNode)
+      ..add(_previewNode);
+
+    _scene!.add(_worldRoot!);
+
+    initSimulation(initialGraph: initialGraph, rebuildAgentNodes: false);
+    _rebuildTerrainAndWayNodes();
+
+    if (onStage != null) {
+      await onStage(
+        BootStageId.valleyTerrain,
+        stopwatch.elapsedMicroseconds / 1000.0,
+      );
+    }
+    await Future<void>.delayed(Duration.zero);
+
+    stopwatch.reset();
+    _rebuildArchitectureAndAgentNodes();
+    if (onStage != null) {
+      await onStage(
+        BootStageId.townArchitecture,
+        stopwatch.elapsedMicroseconds / 1000.0,
+      );
+    }
+    await Future<void>.delayed(Duration.zero);
+
+    stopwatch.reset();
+    _rebuildFloraAtmosphereAndPreviewNodes();
+    if (onStage != null) {
+      await onStage(
+        BootStageId.floraAndAir,
+        stopwatch.elapsedMicroseconds / 1000.0,
+      );
+    }
+  }
+
+  void initSimulation({
+    ShukubaGraph? initialGraph,
+    bool rebuildAgentNodes = true,
+  }) {
+    _terrainBuilder.markAllDirty();
     _graph =
         initialGraph ??
         buildStarterShukubaGraph(_terrainBuilder.sampleGroundHeight);
-    _initAgents();
+    _initAgents(rebuildNodes: rebuildAgentNodes);
   }
 
-  void _initAgents() {
+  void _initAgents({bool rebuildNodes = true}) {
     _simAgents
       ..clear()
       ..addAll([
@@ -248,7 +334,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         ),
       ]);
 
-    _rebuildAgentNodes();
+    if (rebuildNodes) {
+      _rebuildAgentNodes();
+    }
   }
 
   void _rebuildAgentNodes() {
@@ -278,8 +366,94 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       return;
     }
 
+    _markGraphDeltaDirty(_graph, nextGraph);
     _graph = nextGraph;
     _rebuildGraphNodes();
+  }
+
+  void _markGraphDeltaDirty(ShukubaGraph prev, ShukubaGraph next) {
+    void markPoints(List<Vec3> pts, double pad) {
+      if (pts.isEmpty) return;
+      var minX = pts.first.x;
+      var maxX = pts.first.x;
+      var minZ = pts.first.z;
+      var maxZ = pts.first.z;
+      for (var i = 1; i < pts.length; i++) {
+        final p = pts[i];
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.z < minZ) minZ = p.z;
+        if (p.z > maxZ) maxZ = p.z;
+      }
+      _terrainBuilder.markDirty(
+        Aabb2.minMax(
+          Vector2(minX - pad, minZ - pad),
+          Vector2(maxX + pad, maxZ + pad),
+        ),
+      );
+    }
+
+    void markStructure(PlacedStructure s) {
+      final halfR =
+          math.max(s.spec.footprintWidth, s.spec.footprintDepth) + 2.5;
+      _terrainBuilder.markDirty(
+        Aabb2.minMax(
+          Vector2(s.position.x - halfR, s.position.z - halfR),
+          Vector2(s.position.x + halfR, s.position.z + halfR),
+        ),
+      );
+    }
+
+    final prevRoads = <EntityId, RoadSpline>{
+      for (final r in prev.roads) r.id: r,
+    };
+    final nextRoads = <EntityId, RoadSpline>{
+      for (final r in next.roads) r.id: r,
+    };
+    for (final entry in prevRoads.entries) {
+      if (nextRoads[entry.key] != entry.value) {
+        markPoints(
+          entry.value.controlPoints,
+          entry.value.widthMeters * 0.5 + 3.0,
+        );
+      }
+    }
+    for (final entry in nextRoads.entries) {
+      if (prevRoads[entry.key] != entry.value) {
+        markPoints(
+          entry.value.controlPoints,
+          entry.value.widthMeters * 0.5 + 3.0,
+        );
+      }
+    }
+
+    final prevTerraces = <EntityId, TerraceCourse>{
+      for (final t in prev.terraces) t.id: t,
+    };
+    final nextTerraces = <EntityId, TerraceCourse>{
+      for (final t in next.terraces) t.id: t,
+    };
+    for (final entry in prevTerraces.entries) {
+      if (nextTerraces[entry.key] != entry.value) {
+        markPoints(entry.value.crestPoints, entry.value.depthMeters + 6.0);
+      }
+    }
+    for (final entry in nextTerraces.entries) {
+      if (prevTerraces[entry.key] != entry.value) {
+        markPoints(entry.value.crestPoints, entry.value.depthMeters + 6.0);
+      }
+    }
+
+    for (final entry in prev.structures.entries) {
+      if (next.structures[entry.key] != entry.value) {
+        markStructure(entry.value);
+      }
+    }
+    for (final entry in next.structures.entries) {
+      if (prev.structures[entry.key] != entry.value) {
+        markStructure(entry.value);
+      }
+    }
   }
 
   @override
@@ -307,7 +481,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
-  void _rebuildGraphNodes() {
+  void _rebuildTerrainAndWayNodes() {
     if (_scene == null) {
       return;
     }
@@ -315,33 +489,27 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _terrainContainerNode
       ..removeAll()
       ..add(
-        _terrainBuilder.buildTerrainNode(
-          _resolveMaterial,
-          terraces: _graph.terraces,
-          roads: _graph.roads,
-          structures: _graph.structures.values,
-        ),
-      );
-
-    _floraNode
-      ..removeAll()
-      ..add(
-        _floraBuilder.buildFloraScatterNode(
-          graph: _graph,
-          resolveMaterial: _resolveMaterial,
-          sampleGroundY: sampleGroundHeight,
+        markSubtreeShadowStatic(
+          _terrainBuilder.buildTerrainNode(
+            _resolveMaterial,
+            terraces: _graph.terraces,
+            roads: _graph.roads,
+            structures: _graph.structures.values,
+          ),
         ),
       );
 
     _roadsNode.removeAll();
     for (final road in _graph.roads) {
       _roadsNode.add(
-        _terrainBuilder.buildRoadNode(
-          road,
-          _resolveMaterial,
-          sampleGroundHeight,
-          allRoads: _graph.roads,
-          terraces: _graph.terraces,
+        markSubtreeShadowStatic(
+          _terrainBuilder.buildRoadNode(
+            road,
+            _resolveMaterial,
+            sampleGroundHeight,
+            allRoads: _graph.roads,
+            terraces: _graph.terraces,
+          ),
         ),
       );
     }
@@ -349,11 +517,13 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _terracesNode.removeAll();
     for (final terrace in _graph.terraces) {
       _terracesNode.add(
-        _terrainBuilder.buildTerraceNode(
-          terrace,
-          _resolveMaterial,
-          roads: _graph.roads,
-          allTerraces: _graph.terraces,
+        markSubtreeShadowStatic(
+          _terrainBuilder.buildTerraceNode(
+            terrace,
+            _resolveMaterial,
+            roads: _graph.roads,
+            allTerraces: _graph.terraces,
+          ),
         ),
       );
     }
@@ -361,27 +531,59 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _wallsNode.removeAll();
     for (final wall in _graph.walls) {
       _wallsNode.add(
-        _terrainBuilder.buildWallNode(
-          wall,
-          _resolveMaterial,
-          sampleGroundHeight,
+        markSubtreeShadowStatic(
+          _terrainBuilder.buildWallNode(
+            wall,
+            _resolveMaterial,
+            sampleGroundHeight,
+          ),
         ),
       );
+    }
+  }
+
+  void _rebuildArchitectureAndAgentNodes() {
+    if (_scene == null) {
+      return;
     }
 
     _structuresNode.removeAll();
     for (final structure in _graph.structures.values) {
       _structuresNode.add(
-        _kitBuilder.buildStructureNode(structure, _resolveMaterial),
+        markSubtreeShadowStatic(
+          _kitBuilder.buildStructureNode(structure, _resolveMaterial),
+        ),
       );
     }
 
     _lanternSpansNode.removeAll();
     for (final span in _graph.lanternSpans) {
       _lanternSpansNode.add(
-        _kitBuilder.buildLanternSpanNode(span, _resolveMaterial),
+        markSubtreeShadowStatic(
+          _kitBuilder.buildLanternSpanNode(span, _resolveMaterial),
+        ),
       );
     }
+
+    _rebuildAgentNodes();
+  }
+
+  void _rebuildFloraAtmosphereAndPreviewNodes() {
+    if (_scene == null) {
+      return;
+    }
+
+    _floraNode
+      ..removeAll()
+      ..add(
+        markSubtreeShadowStatic(
+          _floraBuilder.buildFloraScatterNode(
+            graph: _graph,
+            resolveMaterial: _resolveMaterial,
+            sampleGroundY: sampleGroundHeight,
+          ),
+        ),
+      );
 
     _atmosphereNode
       ..removeAll()
@@ -392,6 +594,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           sampleGroundY: sampleGroundHeight,
         ),
       );
+
+    _rebuildPreviewNode();
+  }
+
+  void _rebuildGraphNodes() {
+    if (_scene == null) {
+      return;
+    }
+    _rebuildTerrainAndWayNodes();
+    _rebuildArchitectureAndAgentNodes();
+    _rebuildFloraAtmosphereAndPreviewNodes();
   }
 
   @override

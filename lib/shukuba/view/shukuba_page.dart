@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show exit, stderr;
+import 'dart:ui' show FrameTiming;
 
 import 'package:flutter/gestures.dart'
     show
@@ -15,17 +16,26 @@ import 'package:kage_no_machi/shukuba/audio/audio.dart';
 import 'package:kage_no_machi/shukuba/look/look.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/verify/frame_harness.dart';
+import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
+import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
 import 'package:kage_no_machi/shukuba/view/tactical_camera_rig.dart';
 import 'package:kage_no_machi/shukuba/world/world.dart';
 
 class ShukubaPage extends StatefulWidget {
-  const new({this.lookDriver, this.worldDriver, this.audioDriver, super.key});
+  const new({
+    this.lookDriver,
+    this.worldDriver,
+    this.audioDriver,
+    this.initialMode,
+    super.key,
+  });
 
   final ShukubaLookDriver? lookDriver;
   final ShukubaWorldDriver? worldDriver;
   final ShukubaAudioDriver? audioDriver;
+  final ShukubaShellMode? initialMode;
 
   @override
   State<ShukubaPage> createState() => _ShukubaPageState();
@@ -38,6 +48,13 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   Scene? _scene;
   late final ShukubaController _controller;
+  late ShukubaShellMode _shellMode;
+  BootStageId _activeBootStage = BootStageId.lookAndShaders;
+  final List<BootStageTiming> _completedBootTimings = [];
+  BootReport? _bootReport;
+  bool _showTelemetry = false;
+  final RollingFrameTimer _frameTimer = RollingFrameTimer(windowSize: 60);
+
   bool _gpuAvailable = false;
   bool _captureStarted = false;
   int _activeButtons = 0;
@@ -53,18 +70,60 @@ class _ShukubaPageState extends State<ShukubaPage> {
       world: widget.worldDriver ?? EdoWorldDriver(),
       audio: widget.audioDriver ?? EdoAudioDriver(),
     );
-    unawaited(_bootScene());
+
+    final defaultMode =
+        (kShukubaCaptureDir.isNotEmpty ||
+            widget.lookDriver != null ||
+            widget.worldDriver != null ||
+            widget.audioDriver != null)
+        ? ShukubaShellMode.inValley
+        : ShukubaShellMode.titleMenu;
+    _shellMode = widget.initialMode ?? defaultMode;
+
+    WidgetsBinding.instance.addTimingsCallback(_onFrameTimings);
+
+    unawaited(_controller.audio.prewarm());
+    if (_shellMode == ShukubaShellMode.inValley ||
+        _shellMode == ShukubaShellMode.loadingValley) {
+      unawaited(_bootSceneStaged());
+    }
   }
 
-  Future<void> _bootScene() async {
+  void _onFrameTimings(List<FrameTiming> timings) {
+    if (!mounted) return;
+    _frameTimer.ingestTimings(timings);
+  }
+
+  void _enterValley() {
+    setState(() {
+      _shellMode = ShukubaShellMode.loadingValley;
+      _completedBootTimings.clear();
+      _activeBootStage = BootStageId.lookAndShaders;
+    });
+    unawaited(_bootSceneStaged());
+  }
+
+  Future<void> _bootSceneStaged() async {
     try {
-      await Scene.initializeStaticResources();
-      if (!mounted) {
-        return;
-      }
       final scene = Scene();
       _scene = scene;
-      await _controller.initialize(scene);
+      final report = await _controller.initializeStaged(
+        scene: scene,
+        camera: _cameraRig.camera,
+        onStage: (stage, elapsedMs) {
+          if (!mounted) return;
+          setState(() {
+            _completedBootTimings.add(
+              BootStageTiming(stage: stage, durationMs: elapsedMs),
+            );
+            final nextIndex = stage.index + 1;
+            if (nextIndex < BootStageId.values.length) {
+              _activeBootStage = BootStageId.values[nextIndex];
+            }
+          });
+        },
+      );
+      _bootReport = report;
     } on Object catch (error, stack) {
       if (kShukubaAutoExit || kShukubaCaptureDir.isNotEmpty) {
         stderr.writeln('SHUKUBA_BOOT_ERROR:$error\n$stack');
@@ -72,13 +131,14 @@ class _ShukubaPageState extends State<ShukubaPage> {
       if (kShukubaAutoExit) {
         exit(4);
       }
-      return;
+      await _controller.initialize();
     }
     if (!mounted) {
       return;
     }
     setState(() {
       _gpuAvailable = true;
+      _shellMode = ShukubaShellMode.inValley;
     });
 
     if (kShukubaCaptureDir.isNotEmpty && !_captureStarted) {
@@ -137,6 +197,9 @@ class _ShukubaPageState extends State<ShukubaPage> {
       .contains(LogicalKeyboardKey.space);
 
   void _pollPanKeys(double dtSeconds) {
+    if (_shellMode != ShukubaShellMode.inValley) {
+      return;
+    }
     final pressed = HardwareKeyboard.instance.logicalKeysPressed;
     if (pressed.contains(LogicalKeyboardKey.metaLeft) ||
         pressed.contains(LogicalKeyboardKey.metaRight) ||
@@ -179,6 +242,32 @@ class _ShukubaPageState extends State<ShukubaPage> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.f3) {
+      setState(() => _showTelemetry = !_showTelemetry);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      if (_shellMode == ShukubaShellMode.pauseMenu) {
+        setState(() => _shellMode = ShukubaShellMode.inValley);
+        return KeyEventResult.handled;
+      }
+      if (_controller.strokePoints.isNotEmpty) {
+        _controller.cancelActiveStroke();
+        return KeyEventResult.handled;
+      }
+      if (_controller.activeTool is! ExploreTool) {
+        _controller.selectTool(const ExploreTool());
+        return KeyEventResult.handled;
+      }
+      if (_shellMode == ShukubaShellMode.inValley) {
+        setState(() => _shellMode = ShukubaShellMode.pauseMenu);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.handled;
+    }
+    if (_shellMode != ShukubaShellMode.inValley) {
+      return KeyEventResult.ignored;
+    }
     if (key == LogicalKeyboardKey.keyQ) {
       setState(() => _cameraRig.orbitByRadians(-0.22));
       return KeyEventResult.handled;
@@ -204,14 +293,6 @@ class _ShukubaPageState extends State<ShukubaPage> {
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       _controller.commitActiveStroke();
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.escape) {
-      if (_controller.strokePoints.isNotEmpty) {
-        _controller.cancelActiveStroke();
-      } else if (_controller.activeTool is! ExploreTool) {
-        _controller.selectTool(const ExploreTool());
-      }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.digit1) {
@@ -246,6 +327,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeTimingsCallback(_onFrameTimings);
     _focusNode.dispose();
     _controller.dispose();
     _scene?.dispose();
@@ -269,7 +351,8 @@ class _ShukubaPageState extends State<ShukubaPage> {
               children: [
                 MouseRegion(
                   onHover: (event) {
-                    if (kShukubaCaptureDir.isNotEmpty) {
+                    if (kShukubaCaptureDir.isNotEmpty ||
+                        _shellMode != ShukubaShellMode.inValley) {
                       return;
                     }
                     _controller.updateHoverPoint(
@@ -392,10 +475,42 @@ class _ShukubaPageState extends State<ShukubaPage> {
                     ),
                   ),
                 ),
-                if (kShukubaCaptureDir.isEmpty)
+                if (kShukubaCaptureDir.isEmpty &&
+                    (_shellMode == ShukubaShellMode.inValley ||
+                        _shellMode == ShukubaShellMode.pauseMenu))
                   ShukubaHud(
                     controller: _controller,
                     onSelectPreset: _selectPreset,
+                  ),
+                if (_shellMode == ShukubaShellMode.titleMenu)
+                  TitleMenuOverlay(onEnterValley: _enterValley),
+                if (_shellMode == ShukubaShellMode.loadingValley)
+                  LoadingCurtainOverlay(
+                    activeStage: _activeBootStage,
+                    completedTimings: _completedBootTimings,
+                  ),
+                if (_shellMode == ShukubaShellMode.pauseMenu)
+                  PauseMenuOverlay(
+                    onResume: () =>
+                        setState(() => _shellMode = ShukubaShellMode.inValley),
+                    onReturnToTitle: () =>
+                        setState(() => _shellMode = ShukubaShellMode.titleMenu),
+                    audioDriver: _controller.audio,
+                  ),
+                if (_showTelemetry && _shellMode != ShukubaShellMode.titleMenu)
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: TelemetryMonitorPill(
+                      snapshot: FrameTelemetrySnapshot(
+                        uiMs: _frameTimer.uiMs,
+                        rasterMs: _frameTimer.rasterMs,
+                        fps: _frameTimer.fps,
+                        structureCount: _controller.graph.structures.length,
+                        lanternSpanCount: _controller.graph.lanternSpans.length,
+                        bootReport: _bootReport ?? _controller.bootReport,
+                      ),
+                    ),
                   ),
               ],
             );

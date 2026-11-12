@@ -86,6 +86,27 @@ class _FakeWorldDriver implements ShukubaWorldDriver {
 
 class _FakeAudioDriver implements ShukubaAudioDriver {
   final List<PlacementNoteEvent> notes = [];
+  bool _isMuted = false;
+  double _masterVolume = 1;
+
+  @override
+  bool get isMuted => _isMuted;
+
+  @override
+  double get masterVolume => _masterVolume;
+
+  @override
+  void setMuted(bool muted) {
+    _isMuted = muted;
+  }
+
+  @override
+  void setMasterVolume(double volume) {
+    _masterVolume = volume.clamp(0.0, 1.0);
+  }
+
+  @override
+  Future<void> prewarm() async {}
 
   @override
   Future<void> attach(

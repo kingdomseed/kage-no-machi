@@ -242,6 +242,23 @@ void main() {
       expect(driver.isNativeAudioActive, isFalse);
     });
 
+    test('prewarm synthesizes wavBank asynchronously and deduplicates '
+        'in-flight calls', () async {
+      final driver = EdoAudioDriver();
+      expect(driver.isWavBankLoaded, isFalse);
+
+      final f1 = driver.prewarm();
+      final f2 = driver.prewarm();
+      expect(identical(f1, f2), isTrue);
+
+      await f1;
+      expect(driver.isWavBankLoaded, isTrue);
+      expect(driver.wavBank, isNotNull);
+
+      await driver.prewarm();
+      expect(driver.isWavBankLoaded, isTrue);
+    });
+
     test(
       'attaches cleanly with loop anchors and falls back without throwing',
       () async {

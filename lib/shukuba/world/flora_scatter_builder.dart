@@ -21,6 +21,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         Vec3;
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
     show EdoKitBuilder;
+import 'package:kage_no_machi/shukuba/world/scene_shadow_helper.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart'
     show TerrainBuilder, TerrainConfig;
 import 'package:vector_math/vector_math.dart'
@@ -819,7 +820,7 @@ class FloraScatterBuilder {
       root.add(cobbleNode);
     }
 
-    return root;
+    return markSubtreeShadowStatic(root);
   }
 
   static void _populateTerraceWallDrapes(

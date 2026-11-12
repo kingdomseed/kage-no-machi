@@ -53,6 +53,10 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     RoadSpline.validated(
       id: EntityId.validated('road_kaido_west'),
       controlPoints: [
+        Vec3(-76, wardY(-76, 0.12), 0.12),
+        Vec3(-66, wardY(-66, 0), 0),
+        Vec3(-51, wardY(-51, -0.45), -0.45),
+        Vec3(-38, wardY(-38, 0.35), 0.35),
         Vec3(-28, wardY(-28, -0.55), -0.55),
         Vec3(-19.5, wardY(-19.5, 0.30), 0.30),
         Vec3(-11.5, wardY(-11.5, -0.22), -0.22),
@@ -77,6 +81,10 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
         Vec3(15.3, wardY(15.3, -0.15), -0.15),
         Vec3(20.6, wardY(20.6, 0.35), 0.35),
         Vec3(27.5, wardY(27.5, -0.30), -0.30),
+        Vec3(39.5, wardY(39.5, 0.28), 0.28),
+        Vec3(53, wardY(53, -0.22), -0.22),
+        Vec3(66, wardY(66, 0), 0),
+        Vec3(76, wardY(76, 0.14), 0.14),
       ],
     ),
     RoadSpline.validated(
@@ -322,6 +330,77 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
       kind: StructureKind.bambooGrove,
       position: Vec3(26.2, wardY(26.2, -8.6), -8.6),
       yawRadians: -0.55,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('shoro_temple_bell'),
+      kind: StructureKind.shoroBell,
+      position: Vec3(23.5, wardY(23.5, 14.5), 14.5),
+      yawRadians: -math.pi / 2,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('karesansui_market_court'),
+      kind: StructureKind.karesansuiGarden,
+      position: Vec3(13.5, wardY(13.5, 19.5), 19.5),
+    ),
+    PlacedStructure(
+      id: EntityId.validated('well_east_riverside'),
+      kind: StructureKind.stoneWell,
+      position: Vec3(6, wardY(6, 20), 20),
+      yawRadians: -0.2,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minka_west_riverside'),
+      kind: StructureKind.minka,
+      position: Vec3(-19.4, wardY(-19.4, -13.2), -13.2),
+      yawRadians: 0.42,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minka_east_terrace_s'),
+      kind: StructureKind.minka,
+      position: Vec3(19.2, wardY(19.2, -18.8), -18.8),
+      yawRadians: -0.15,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minka_west_kaido_farm'),
+      kind: StructureKind.minka,
+      position: Vec3(-42.5, wardY(-42.5, -5.8), -5.8),
+      yawRadians: 0.08,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minka_east_kaido_farm'),
+      kind: StructureKind.minka,
+      position: Vec3(34.5, wardY(34.5, -6.2), -6.2),
+      yawRadians: -0.06,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_west_kaido'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-47.8, wardY(-47.8, -7.4), -7.4),
+      yawRadians: 0.65,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_west_mitsuke'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-59.5, wardY(-59.5, 6.4), 6.4),
+      yawRadians: -0.75,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_west_kaido'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(-35.2, wardY(-35.2, 7.6), 7.6),
+      yawRadians: 0.35,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('bamboo_east_tanada'),
+      kind: StructureKind.bambooGrove,
+      position: Vec3(37.8, wardY(37.8, 9.2), 9.2),
+      yawRadians: -0.40,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_east_mitsuke'),
+      kind: StructureKind.pineTree,
+      position: Vec3(59.2, wardY(59.2, -6.4), -6.4),
+      yawRadians: 1.10,
     ),
   ];
 
