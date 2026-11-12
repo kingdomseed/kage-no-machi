@@ -56,6 +56,38 @@ vertex {
 
 fragment {
   #include <noise.glsl>
+  precision highp float;
+
+  float ComputeAtmosphericGobo(vec2 worldXZ, float t) {
+    float cloudMacro = NoiseFbm2(
+      worldXZ * 0.028 + vec2(t * 0.012, -t * 0.008),
+      1103,
+      3,
+      2.0,
+      0.5
+    ) * 0.5 + 0.5;
+    float cloudClearing = smoothstep(0.28, 0.74, cloudMacro);
+    float woodlandZone = clamp(
+      smoothstep(5.5, 16.0, abs(worldXZ.y)) * 0.72 +
+          smoothstep(18.0, 38.0, length(worldXZ)) * 0.48,
+      0.18,
+      1.0
+    );
+    float canopyBough = NoiseSimplex2(
+      worldXZ * 0.24 + vec2(t * 0.032, t * 0.019),
+      1117
+    ) * 0.5 + 0.5;
+    float canopyLeafGap = NoiseSimplex2(
+      worldXZ * 0.62 - vec2(t * 0.048, -t * 0.026),
+      1129
+    ) * 0.5 + 0.5;
+    float canopyDapple = smoothstep(0.26, 0.78, canopyBough * 0.64 + canopyLeafGap * 0.36);
+    return mix(
+      cloudClearing,
+      cloudClearing * (0.56 + 0.44 * canopyDapple),
+      woodlandZone * 0.68
+    );
+  }
 
   float MapleLeaflet(vec2 p, float r, float rot) {
     float dist = length(p);
@@ -273,6 +305,7 @@ fragment {
     vec2 uv = GetUV0();
     vec4 vColor = GetVertexColor();
     vec3 worldPos = GetWorldPosition();
+    float t = material_params.time_sec > 0.0001 ? material_params.time_sec : GetTime();
 
     float seed = vColor.r * 13.7 + vColor.g * 7.3 + vColor.b * 5.1;
     float kind = material_params.foliage_kind;
@@ -313,31 +346,66 @@ fragment {
     vec3 viewDir = GetViewDirection();
     float skyFacing = leafNormal.y * 0.5 + 0.5;
     float rim = pow(clamp(1.0 - abs(dot(leafNormal, viewDir)), 0.0, 1.0), 1.8);
+    float outerReach = clamp(length(centeredUv) * 1.65, 0.0, 1.0);
 
     float rootShade;
+    float crownOcclusion;
+    float tipExposure;
     if (kind > 1.5 && kind < 2.5 && uv.y < 1.5) {
-      rootShade = mix(0.46, 1.18, clamp(uv.y, 0.0, 1.0));
+      float bladeFrac = clamp(uv.y, 0.0, 1.0);
+      rootShade = mix(0.38, 1.16, bladeFrac);
+      crownOcclusion = mix(0.26, 1.0, smoothstep(0.0, 0.80, bladeFrac));
+      tipExposure = smoothstep(0.18, 0.95, bladeFrac);
     } else if (kind > 2.5 && kind < 3.5) {
-      rootShade = mix(0.38, 1.16, skyFacing);
+      rootShade = mix(0.34, 1.14, skyFacing);
+      crownOcclusion = mix(0.28, 1.0, smoothstep(0.10, 0.90, skyFacing * 0.66 + leafTone * 0.34));
+      tipExposure = clamp(skyFacing * 0.58 + outerReach * 0.42, 0.0, 1.0);
     } else if (kind > 3.5) {
-      rootShade = (0.54 + 0.56 * skyFacing) * mix(0.88, 1.08, clamp(uv.y, 0.0, 1.0));
+      float frondTop = clamp(uv.y, 0.0, 1.0);
+      rootShade = (0.50 + 0.58 * skyFacing) * mix(0.86, 1.08, frondTop);
+      crownOcclusion = mix(0.32, 1.0, smoothstep(0.08, 0.88, skyFacing * 0.58 + (1.0 - frondTop) * 0.42));
+      tipExposure = clamp(0.35 + 0.65 * (1.0 - frondTop * 0.55), 0.0, 1.0);
     } else {
-      rootShade = 0.48 + 0.62 * skyFacing;
+      rootShade = 0.44 + 0.64 * skyFacing;
+      crownOcclusion = mix(0.30, 1.0, smoothstep(0.10, 0.90, skyFacing * 0.62 + leafTone * 0.38));
+      tipExposure = clamp(leafTone * 0.64 + outerReach * 0.36, 0.0, 1.0);
     }
     leafColor *= rootShade;
 
+    float goboLight = ComputeAtmosphericGobo(worldPos.xz, t);
+    leafColor *= mix(vec3(0.80, 0.86, 0.96), vec3(1.12, 1.06, 0.96), goboLight);
+
+    vec3 rawLightDir = frag_info.directional_light_direction.xyz;
+    float rawLightLen2 = dot(rawLightDir, rawLightDir);
+    vec3 sunTravel = (frag_info.has_directional_light > 0.5 && rawLightLen2 > 1e-6)
+        ? rawLightDir * inversesqrt(rawLightLen2)
+        : normalize(vec3(0.58, -0.46, 0.67));
+    float backFacing = clamp(dot(leafNormal, sunTravel) * 0.68 + 0.32, 0.0, 1.0);
+    float forwardScatter = pow(clamp(dot(viewDir, sunTravel), 0.0, 1.0), 2.4);
+    float backLight = clamp(
+      backFacing * (0.44 + 0.84 * forwardScatter) + rim * 0.36,
+      0.0,
+      1.35
+    ) * (0.38 + 0.62 * tipExposure);
+
+    vec3 sunWarmth = frag_info.has_directional_light > 0.5
+        ? clamp(frag_info.directional_light_color.rgb * 0.30, vec3(0.18), vec3(1.24, 1.02, 0.72))
+        : vec3(1.0, 0.86, 0.62);
     float sunGain = material_params.sun_translucency;
     vec3 backlitGlow = material_params.leaf_secondary.rgb *
-        ((rim * 0.62 + skyFacing * 0.38) * material_params.rim_warmth * sunGain);
+        sunWarmth *
+        (backLight * material_params.rim_warmth * sunGain) *
+        mix(0.68, 1.12, goboLight);
 
     material.base_color = vec4(
-      (leafColor + backlitGlow * 0.34) * vColor.rgb,
+      (leafColor + backlitGlow * 0.42) * vColor.rgb,
       coverage * material_params.leaf_primary.a * vColor.a
     );
-    material.emissive = backlitGlow * vColor.rgb * 0.11;
+    material.emissive = backlitGlow * vColor.rgb * 0.16;
     material.normal = leafNormal;
     material.metallic = 0.0;
-    material.roughness = 0.985;
+    material.roughness = 0.96;
+    material.occlusion = clamp(crownOcclusion * mix(0.84, 1.0, goboLight), 0.24, 1.0);
 
     PrepareMaterial(material);
   }
