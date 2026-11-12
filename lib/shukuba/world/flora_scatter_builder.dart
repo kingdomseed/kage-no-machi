@@ -1275,13 +1275,37 @@ class FloraScatterBuilder {
           continue;
         }
         final gy = sampleGroundY(x, z);
-        final avgNeighbor =
-            0.25 *
-            (sampleGroundY(x + 0.35, z) +
-                sampleGroundY(x - 0.35, z) +
-                sampleGroundY(x, z + 0.35) +
-                sampleGroundY(x, z - 0.35));
-        if ((avgNeighbor - gy).abs() > 0.022) {
+        const probeR = 0.48;
+        final yPx = sampleGroundY(x + probeR, z);
+        final yMx = sampleGroundY(x - probeR, z);
+        final yPz = sampleGroundY(x, z + probeR);
+        final yMz = sampleGroundY(x, z - probeR);
+        final gx = (yPx - yMx) / (2 * probeR);
+        final gz = (yPz - yMz) / (2 * probeR);
+        if (gx.abs() > 0.35 || gz.abs() > 0.35) {
+          continue;
+        }
+        var nonPlanar = false;
+        const diagR = 0.36;
+        const offsets = <(double, double)>[
+          (probeR, 0),
+          (-probeR, 0),
+          (0, probeR),
+          (0, -probeR),
+          (diagR, diagR),
+          (diagR, -diagR),
+          (-diagR, diagR),
+          (-diagR, -diagR),
+        ];
+        for (final (dx, dz) in offsets) {
+          final sampleY = sampleGroundY(x + dx, z + dz);
+          final planeY = gy + gx * dx + gz * dz;
+          if ((sampleY - planeY).abs() > 0.012) {
+            nonPlanar = true;
+            break;
+          }
+        }
+        if (nonPlanar) {
           continue;
         }
         placedGroundLeaves.add(Vector2(x, z));
@@ -1625,7 +1649,7 @@ class FloraScatterBuilder {
         ..addTriangle(v2, v5, v4);
     }
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildMeadowSwardPrototypeGeometry({
@@ -1654,7 +1678,7 @@ class FloraScatterBuilder {
         color: Vector4(shade * 0.97, shade * 1.02, shade * 0.88, 0.10),
       );
     }
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildWildflowerClumpGeometry({
@@ -1719,7 +1743,7 @@ class FloraScatterBuilder {
       }
     }
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildSusukiClumpGeometry() {
@@ -1770,7 +1794,7 @@ class FloraScatterBuilder {
         ..addTriangle(v0, v2, v3);
     }
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildReedTuftPrototypeGeometry() {
@@ -1811,7 +1835,7 @@ class FloraScatterBuilder {
         ..addTriangle(v2, v5, v4);
     }
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildWallDrapePrototypeGeometry() {
@@ -1837,7 +1861,7 @@ class FloraScatterBuilder {
       ..addTriangle(v2, v4, v3)
       ..addTriangle(v3, v4, v5);
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildShrubMoundPrototypeGeometry() {
@@ -1875,7 +1899,7 @@ class FloraScatterBuilder {
         ..addTriangle(v2, v5, v4);
     }
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 
   static MeshGeometry _buildFallenLeafPatchGeometry() {
@@ -1887,13 +1911,17 @@ class FloraScatterBuilder {
     }
 
     final v0 = emit(Vector3(-0.5, 0, -0.5), 0, 2);
-    final v1 = emit(Vector3(0.5, 0.015, -0.5), 1, 2);
-    final v2 = emit(Vector3(0.5, 0.005, 0.5), 1, 3);
-    final v3 = emit(Vector3(-0.5, 0.020, 0.5), 0, 3);
+    final v1 = emit(Vector3(0, 0.068, -0.5), 0.5, 2);
+    final v2 = emit(Vector3(0.5, 0.012, -0.5), 1, 2);
+    final v3 = emit(Vector3(-0.5, 0.016, 0.5), 0, 3);
+    final v4 = emit(Vector3(0, 0.072, 0.5), 0.5, 3);
+    final v5 = emit(Vector3(0.5, 0.006, 0.5), 1, 3);
     builder
-      ..addTriangle(v0, v2, v1)
-      ..addTriangle(v0, v3, v2);
+      ..addTriangle(v0, v4, v1)
+      ..addTriangle(v0, v3, v4)
+      ..addTriangle(v1, v5, v2)
+      ..addTriangle(v1, v4, v5);
 
-    return builder.build();
+    return builder.build(retainCpuData: false);
   }
 }

@@ -570,27 +570,42 @@ class TerrainBuilder {
         final inward = relX * c.platNormal.x + relZ * c.platNormal.z;
         const inStart = -1.72;
         const inEnd = 0.94;
-        if (inward < inStart - 0.45 || inward > inEnd + 0.45) {
+        final maxOutMargin = recessUnderStairs ? 0.52 : 0.45;
+        if (inward < inStart - maxOutMargin || inward > inEnd + maxOutMargin) {
           continue;
         }
-        final latFrac =
-            ((uAlong - (c.roadWidth * 0.5 + 0.06)) /
-                    (outerLat - (c.roadWidth * 0.5 + 0.06)))
-                .clamp(0.0, 1.0);
-        final wLat = 1.0 - _quintic(latFrac);
-        final endFade = inward < inStart
-            ? 1.0 - _quintic((inStart - inward) / 0.45)
-            : (inward > inEnd ? 1.0 - _quintic((inward - inEnd) / 0.45) : 1.0);
-        final weight = wLat * endFade;
-        if (weight <= 1e-5) {
-          continue;
+        if (inward >= inStart - 0.45 && inward <= inEnd + 0.45) {
+          final latFrac =
+              ((uAlong - (c.roadWidth * 0.5 + 0.06)) /
+                      (outerLat - (c.roadWidth * 0.5 + 0.06)))
+                  .clamp(0.0, 1.0);
+          final wLat = 1.0 - _quintic(latFrac);
+          final endFade = inward < inStart
+              ? 1.0 - _quintic((inStart - inward) / 0.45)
+              : (inward > inEnd
+                    ? 1.0 - _quintic((inward - inEnd) / 0.45)
+                    : 1.0);
+          final weight = wLat * endFade;
+          if (weight > 1e-5) {
+            final f = ((inward - inStart) / (inEnd - inStart)).clamp(0.0, 1.0);
+            final stairY = c.lowY + (c.topY - c.lowY) * (f * f * (3 - 2 * f));
+            height = height + (stairY - height) * weight;
+          }
         }
-        final f = ((inward - inStart) / (inEnd - inStart)).clamp(0.0, 1.0);
-        var stairY = c.lowY + (c.topY - c.lowY) * (f * f * (3 - 2 * f));
-        if (recessUnderStairs && uAlong <= c.halfWallGap) {
-          stairY -= 0.16 * math.sin(f * math.pi);
+        if (recessUnderStairs) {
+          final halfRoad = c.roadWidth * 0.5;
+          if (uAlong < halfRoad + 0.30 && inward > -2.20 && inward < 1.44) {
+            final inRecess = inward < -1.72
+                ? 1.0 - _quintic((-1.72 - inward) / 0.48)
+                : (inward > 0.98
+                      ? 1.0 - _quintic((inward - 0.98) / 0.46)
+                      : 1.0);
+            final latRecess = uAlong <= halfRoad + 0.02
+                ? 1.0
+                : 1.0 - _quintic((uAlong - (halfRoad + 0.02)) / 0.28);
+            height -= 0.18 * inRecess * latRecess;
+          }
         }
-        height = height + (stairY - height) * weight;
       }
     }
     return height;
@@ -2104,6 +2119,125 @@ class TerrainBuilder {
     );
   }
 
+  static void _addCrownedCurbStoneBlock(
+    GeometryBuilder builder, {
+    required GroundHeightSampler sampleGroundY,
+    required Vec3 center,
+    required Vec3 along,
+    required Vec3 normal,
+    required double halfLength,
+    required double halfWidth,
+    required double bottomY,
+    required double topProud,
+    required double crownRise,
+    Vector4? color,
+  }) {
+    final p00 = center - along * halfLength - normal * halfWidth;
+    final p10 = center + along * halfLength - normal * halfWidth;
+    final p11 = center + along * halfLength + normal * halfWidth;
+    final p01 = center - along * halfLength + normal * halfWidth;
+    final rBack = center - along * halfLength;
+    final rFront = center + along * halfLength;
+
+    final b00 = Vector3(p00.x, bottomY, p00.z);
+    final b10 = Vector3(p10.x, bottomY, p10.z);
+    final b11 = Vector3(p11.x, bottomY, p11.z);
+    final b01 = Vector3(p01.x, bottomY, p01.z);
+
+    final t00 = Vector3(p00.x, sampleGroundY(p00.x, p00.z) + topProud, p00.z);
+    final t10 = Vector3(p10.x, sampleGroundY(p10.x, p10.z) + topProud, p10.z);
+    final t11 = Vector3(p11.x, sampleGroundY(p11.x, p11.z) + topProud, p11.z);
+    final t01 = Vector3(p01.x, sampleGroundY(p01.x, p01.z) + topProud, p01.z);
+    final c0 = Vector3(
+      rBack.x,
+      sampleGroundY(rBack.x, rBack.z) + topProud + crownRise,
+      rBack.z,
+    );
+    final c1 = Vector3(
+      rFront.x,
+      sampleGroundY(rFront.x, rFront.z) + topProud + crownRise,
+      rFront.z,
+    );
+
+    final nLeft = Vector3(-normal.x, 0.08, -normal.z);
+    final nRight = Vector3(normal.x, 0.08, normal.z);
+    final nBack = Vector3(-along.x, 0.08, -along.z);
+    final nFront = Vector3(along.x, 0.08, along.z);
+    final nCrownLeft = Vector3(-normal.x * 0.20, 0.98, -normal.z * 0.20);
+    final nCrownRight = Vector3(normal.x * 0.20, 0.98, normal.z * 0.20);
+
+    EdoKitBuilder.addQuadOutward(
+      builder,
+      b00,
+      b10,
+      t10,
+      t00,
+      nLeft,
+      color: color,
+    );
+    EdoKitBuilder.addQuadOutward(
+      builder,
+      b11,
+      b01,
+      t01,
+      t11,
+      nRight,
+      color: color,
+    );
+    EdoKitBuilder.addQuadOutward(
+      builder,
+      b01,
+      b00,
+      t00,
+      t01,
+      nBack,
+      color: color,
+    );
+    EdoKitBuilder.addTriangleOutward(
+      builder,
+      t01,
+      t00,
+      c0,
+      nBack,
+      color: color,
+    );
+    EdoKitBuilder.addQuadOutward(
+      builder,
+      b10,
+      b11,
+      t11,
+      t10,
+      nFront,
+      color: color,
+    );
+    EdoKitBuilder.addTriangleOutward(
+      builder,
+      t10,
+      t11,
+      c1,
+      nFront,
+      color: color,
+    );
+    EdoKitBuilder.addQuadOutward(
+      builder,
+      t00,
+      t10,
+      c1,
+      c0,
+      nCrownLeft,
+      color: color,
+    );
+    EdoKitBuilder.addQuadOutward(
+      builder,
+      c0,
+      c1,
+      t11,
+      t01,
+      nCrownRight,
+      color: color,
+    );
+  }
+
   static void _addSteppingStoneSlab(
     GeometryBuilder builder, {
     required GroundHeightSampler sampleGroundY,
@@ -2130,11 +2264,11 @@ class TerrainBuilder {
       return Vector2(cx + lx * cy - lz * sy, cz + lx * sy + lz * cy);
     }
 
-    final topCenter = Vector3(cx, sampleGroundY(cx, cz) + topLift + 0.004, cz);
+    final topCenter = Vector3(cx, sampleGroundY(cx, cz) + topLift + 0.008, cz);
     for (var i = 0; i < sides; i++) {
       final next = (i + 1) % sides;
-      final bA2 = ringPt(i, 1.04);
-      final bB2 = ringPt(next, 1.04);
+      final bA2 = ringPt(i, 0.99);
+      final bB2 = ringPt(next, 0.99);
       final tA2 = ringPt(i, 0.96);
       final tB2 = ringPt(next, 0.96);
 
@@ -2960,7 +3094,7 @@ class TerrainBuilder {
           _smoothStep01((totalLen - arc) / featherSpan),
         );
       }
-      if (freeSmoothT < 0.08) {
+      if (freeSmoothT < 0.35) {
         continue;
       }
 
@@ -2983,7 +3117,8 @@ class TerrainBuilder {
         if (isGarden && hash < 0.06) {
           continue;
         }
-        final halfWid = isGarden ? 0.072 : 0.088;
+        final endScale = 0.72 + 0.28 * freeSmoothT;
+        final halfWid = (isGarden ? 0.072 : 0.088) * endScale;
         final curbOffset = localHalfW + halfWid + 0.032;
         final cx = base.x + norm.x * side * curbOffset;
         final cz = base.z + norm.z * side * curbOffset;
@@ -2994,18 +3129,21 @@ class TerrainBuilder {
         final rawProud = isGarden
             ? (0.064 + 0.018 * hash)
             : (0.068 + 0.022 * hash);
-        final topProud = rawProud * freeSmoothT;
-        final halfLen = isGarden ? (0.28 + 0.03 * hash) : (0.33 + 0.03 * hash);
+        final topProud = math.max(0.044, rawProud * freeSmoothT);
+        final halfLen =
+            (isGarden ? (0.28 + 0.03 * hash) : (0.33 + 0.03 * hash)) * endScale;
         final shade = 0.92 + 0.22 * hash;
-        _addOrientedStoneBlock(
+        _addCrownedCurbStoneBlock(
           stoneBuilder,
+          sampleGroundY: sampleGroundY,
           center: Vec3(cx, gy, cz),
           along: tang,
           normal: norm,
           halfLength: halfLen,
           halfWidth: halfWid,
           bottomY: gy - 0.18,
-          topY: gy + topProud,
+          topProud: topProud,
+          crownRise: 0.016,
           color: Vector4(shade * 1.12, shade * 1.00, shade * 0.84, 0.50),
         );
         stoneCount++;
@@ -3098,8 +3236,8 @@ class TerrainBuilder {
           tryAddSteppingStone(
             cx: base.x + norm.x * (halfWidth * spec.$2),
             cz: base.z + norm.z * (halfWidth * spec.$2),
-            baseLift: 0.068,
-            topLift: 0.094,
+            baseLift: 0.032,
+            topLift: 0.104,
             radiusX: spec.$3,
             radiusZ: spec.$3 * 0.84,
             yaw: m * 1.15 + 0.3,
@@ -3123,8 +3261,8 @@ class TerrainBuilder {
           tryAddSteppingStone(
             cx: base.x + norm.x * (halfWidth * spec.$2),
             cz: base.z + norm.z * (halfWidth * spec.$2),
-            baseLift: 0.068,
-            topLift: 0.094,
+            baseLift: 0.032,
+            topLift: 0.104,
             radiusX: spec.$3,
             radiusZ: spec.$3 * 0.84,
             yaw: m * 1.35 + 1.1,
@@ -3139,16 +3277,16 @@ class TerrainBuilder {
         final outTang = tangents2D.first * -1.0;
         final norm = normals2D.first;
         const tipSpecs = [
-          (0.12, -0.10, 0.19, 0.080),
-          (0.38, 0.11, 0.15, 0.072),
-          (0.62, -0.06, 0.12, 0.065),
+          (0.12, -0.10, 0.19, 0.100),
+          (0.38, 0.11, 0.15, 0.095),
+          (0.62, -0.06, 0.12, 0.090),
         ];
         for (var k = 0; k < tipSpecs.length; k++) {
           final sp = tipSpecs[k];
           tryAddSteppingStone(
             cx: tip.x + outTang.x * sp.$1 + norm.x * sp.$2,
             cz: tip.z + outTang.z * sp.$1 + norm.z * sp.$2,
-            baseLift: 0.048,
+            baseLift: 0.030,
             topLift: sp.$4,
             radiusX: sp.$3,
             radiusZ: sp.$3 * 0.85,
@@ -3163,16 +3301,16 @@ class TerrainBuilder {
         final outTang = tangents2D.last;
         final norm = normals2D.last;
         const tipSpecs = [
-          (0.12, 0.10, 0.19, 0.080),
-          (0.38, -0.11, 0.15, 0.072),
-          (0.62, 0.06, 0.12, 0.065),
+          (0.12, 0.10, 0.19, 0.100),
+          (0.38, -0.11, 0.15, 0.095),
+          (0.62, 0.06, 0.12, 0.090),
         ];
         for (var k = 0; k < tipSpecs.length; k++) {
           final sp = tipSpecs[k];
           tryAddSteppingStone(
             cx: tip.x + outTang.x * sp.$1 + norm.x * sp.$2,
             cz: tip.z + outTang.z * sp.$1 + norm.z * sp.$2,
-            baseLift: 0.048,
+            baseLift: 0.030,
             topLift: sp.$4,
             radiusX: sp.$3,
             radiusZ: sp.$3 * 0.85,
@@ -3213,8 +3351,8 @@ class TerrainBuilder {
         tryAddSteppingStone(
           cx: sx,
           cz: sz,
-          baseLift: 0.064,
-          topLift: (isAccentStone ? 0.104 : 0.092) + 0.010 * h,
+          baseLift: 0.032,
+          topLift: (isAccentStone ? 0.112 : 0.100) + 0.010 * h,
           radiusX:
               (isAccentStone ? 0.30 : (0.22 + 0.05 * h)) *
               (0.75 + 0.25 * freeSmoothT),

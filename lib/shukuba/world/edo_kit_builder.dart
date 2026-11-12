@@ -3023,7 +3023,7 @@ class EdoKitBuilder {
     for (final px in const [-2.02, -0.68, 0.68, 2.02]) {
       addBox(
         timberBuilder,
-        Vector3(px - 0.04, 0.22, -1.79),
+        Vector3(px - 0.04, 0.19, -1.79),
         Vector3(px + 0.04, 1.20, -1.67),
       );
     }
@@ -3071,7 +3071,7 @@ class EdoKitBuilder {
     for (final pz in const [-1.62, -0.98, -0.34]) {
       addBox(
         timberBuilder,
-        Vector3(-2.09, 0.22, pz - 0.04),
+        Vector3(-2.09, 0.19, pz - 0.04),
         Vector3(-1.97, 1.14, pz + 0.04),
       );
     }
@@ -5783,15 +5783,15 @@ class EdoKitBuilder {
           color: Vector4(0.92, 0.86, 0.76, 0.60),
         );
         for (final p in const [
-          (-0.76, -0.40),
-          (-0.34, 0.0),
-          (0.06, 0.40),
-          (0.46, 0.76),
+          (-0.78, -0.45),
+          (-0.36, -0.045),
+          (0.045, 0.36),
+          (0.45, 0.78),
         ]) {
           addBox(
             awningBuilder,
-            Vector3(p.$1, 1.50, 0.64),
-            Vector3(p.$2, 1.88, 0.68),
+            Vector3(p.$1, 1.50, 0.655),
+            Vector3(p.$2, 1.88, 0.672),
             color: Vector4(0.14, 0.26, 0.50, 0.5),
           );
         }
@@ -6846,7 +6846,7 @@ class EdoKitBuilder {
       ..add(
         Node(
           mesh: Mesh(
-            fernBuilder.build(),
+            fernBuilder.build(retainCpuData: false),
             resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
           ),
         ),
@@ -6854,7 +6854,7 @@ class EdoKitBuilder {
       ..add(
         Node(
           mesh: Mesh(
-            mapleBuilder.build(),
+            mapleBuilder.build(retainCpuData: false),
             resolveMaterial(ShukubaSurfaceRole.mapleCanopy),
           ),
         ),
@@ -6993,7 +6993,7 @@ class EdoKitBuilder {
       ..add(
         Node(
           mesh: Mesh(
-            foliageBuilder.build(),
+            foliageBuilder.build(retainCpuData: false),
             resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
           ),
         ),
@@ -7278,7 +7278,7 @@ class EdoKitBuilder {
       ..add(
         Node(
           mesh: Mesh(
-            fernBuilder.build(),
+            fernBuilder.build(retainCpuData: false),
             resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
           ),
         ),
@@ -7286,7 +7286,7 @@ class EdoKitBuilder {
       ..add(
         Node(
           mesh: Mesh(
-            pineBuilder.build(),
+            pineBuilder.build(retainCpuData: false),
             resolveMaterial(ShukubaSurfaceRole.pineCanopy),
           ),
         ),
@@ -7478,7 +7478,7 @@ class EdoKitBuilder {
       ..add(
         Node(
           mesh: Mesh(
-            fernBuilder.build(),
+            fernBuilder.build(retainCpuData: false),
             resolveMaterial(ShukubaSurfaceRole.bambooCanopy),
           ),
         ),

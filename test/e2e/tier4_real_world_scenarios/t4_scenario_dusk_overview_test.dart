@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kage_no_machi/shukuba/look/look.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/verify/frame_harness.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart';
+import 'package:kage_no_machi/shukuba/world/flora_scatter_builder.dart';
 import 'package:kage_no_machi/shukuba/world/starter_ward.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
 
@@ -38,24 +40,60 @@ void main() {
         expect(kinds, contains(StructureKind.mapleCluster));
       });
 
-      test(
-        '2. Golden dusk lighting rig and shadow contrast are calibrated',
-        () {
-          const preset = CameraPreset.duskOverview;
-          expect(preset.id, equals('dusk_overview'));
-          expect(preset.timeOfDay, equals(TimeOfDayRig.goldenDusk));
-          expect(preset.timeOfDay.value, closeTo(0.15, 1e-4));
-          expect(preset.timeOfDay.nightFactor, closeTo(0.06075, 1e-4));
-          expect(preset.timeOfDay.isMoonlit, isFalse);
-          expect(preset.timeOfDay.celestialRayDirection.y.isFinite, isTrue);
+      test('2. Golden dusk lighting rig, <= 12 clustered lanterns, and 4x4 '
+          'flora chunks are calibrated', () {
+        const preset = CameraPreset.duskOverview;
+        expect(preset.id, equals('dusk_overview'));
+        expect(preset.timeOfDay, equals(TimeOfDayRig.goldenDusk));
+        expect(preset.timeOfDay.value, closeTo(0.15, 1e-4));
+        expect(preset.timeOfDay.nightFactor, closeTo(0.06075, 1e-4));
+        expect(preset.timeOfDay.isMoonlit, isFalse);
+        expect(preset.timeOfDay.celestialRayDirection.y.isFinite, isTrue);
 
-          final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
-              .readAsStringSync();
-          expect(lookSrc.contains('intensity: 0.24'), isTrue);
-          expect(lookSrc.contains('ambientOcclusionRadius: 0.88'), isTrue);
-          expect(lookSrc.contains('ambientOcclusionIntensity: 1.56'), isTrue);
-        },
-      );
+        final driver = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(driver.dispose);
+        final spanMidpoints = [
+          for (final span in starterGraph.lanternSpans) span.midpoint,
+        ];
+        driver.syncFrame(
+          rig: preset.timeOfDay,
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: spanMidpoints,
+          elapsedSeconds: 0,
+        );
+        expect(driver.keyLight, isNotNull);
+        expect(driver.keyLight!.shadowSoftness, closeTo(0.28, 1e-6));
+        expect(driver.keyLight!.shadowCascadeCount, equals(4));
+        expect(
+          driver.keyLight!.shadowAmbientStrength,
+          closeTo(0.28 + 0.08 * preset.timeOfDay.nightFactor, 1e-5),
+        );
+        expect(driver.activeLanternLights.length, lessThanOrEqualTo(12));
+
+        final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
+            .readAsStringSync();
+        expect(lookSrc.contains('PhysicalSkySource('), isTrue);
+        expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
+
+        final floraSummaries = const FloraScatterBuilder()
+            .computeChunkSummaries(
+              graph: starterGraph,
+              sampleGroundY: (x, z) => terrain.sampleGroundHeight(
+                x,
+                z,
+                terraces: starterGraph.terraces,
+                roads: starterGraph.roads,
+              ),
+            );
+        expect(floraSummaries.length, equals(TerrainConfig.chunkCount));
+        for (final chunk in floraSummaries.values) {
+          expect(chunk.nodeName, startsWith('flora_tile_'));
+          expect(chunk.spanX, lessThanOrEqualTo(48.0));
+          expect(chunk.spanZ, lessThanOrEqualTo(48.0));
+        }
+      });
 
       test('3. Human-scale architecture scaling respects proportions', () {
         const machiya = StructureSpec.machiya;

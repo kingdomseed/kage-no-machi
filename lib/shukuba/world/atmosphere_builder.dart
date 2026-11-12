@@ -81,17 +81,33 @@ class AtmosphereBuilder {
       );
     }
 
-    final sunbeams = GeometryBuilder();
-    _emitKomorebiSunbeamCurtains(sunbeams, graph);
-    if (sunbeams.vertexCount > 0) {
-      mistGroup.add(
-        Node(
-            name: 'atmosphere_komorebi_sunbeams',
-            mesh: Mesh(sunbeams.build(), sunbeamMat),
-          )
-          ..shadowCastingMode = ShadowCastingMode.off
-          ..raycastable = false,
-      );
+    const sunbeamGrid = 6;
+    final sunbeamTiles = List.generate(
+      sunbeamGrid * sunbeamGrid,
+      (_) => GeometryBuilder(),
+    );
+    _emitKomorebiSunbeamCurtains(sunbeamTiles, sunbeamGrid, graph);
+    if (sunbeamTiles.any((b) => b.vertexCount > 0)) {
+      final sunbeamGroup = Node(name: 'atmosphere_komorebi_sunbeams')
+        ..shadowCastingMode = ShadowCastingMode.off
+        ..raycastable = false;
+      for (var r = 0; r < sunbeamGrid; r++) {
+        for (var c = 0; c < sunbeamGrid; c++) {
+          final tile = sunbeamTiles[r * sunbeamGrid + c];
+          if (tile.vertexCount == 0) {
+            continue;
+          }
+          sunbeamGroup.add(
+            Node(
+                name: 'atmosphere_komorebi_${r}_$c',
+                mesh: Mesh(tile.build(retainCpuData: false), sunbeamMat),
+              )
+              ..shadowCastingMode = ShadowCastingMode.off
+              ..raycastable = false,
+          );
+        }
+      }
+      mistGroup.add(sunbeamGroup);
     }
     root.add(mistGroup);
 
@@ -357,7 +373,8 @@ class AtmosphereBuilder {
   }
 
   static void _emitKomorebiSunbeamCurtains(
-    GeometryBuilder builder,
+    List<GeometryBuilder> tiles,
+    int gridDim,
     ShukubaGraph graph,
   ) {
     final ray = TimeOfDayRig.goldenDusk.celestialRayDirection
@@ -366,6 +383,8 @@ class AtmosphereBuilder {
     final side0 = Vector3(0, 1, 0).cross(ray).normalized();
     final upPerp = ray.cross(side0).normalized();
     const tStops = [0.0, 0.34, 0.70, 1.0];
+    const minCoord = TerrainConfig.minX;
+    final cellSpan = (TerrainConfig.maxX - TerrainConfig.minX) / gridDim;
 
     for (final s in graph.structures.values) {
       final double crownHeight;
@@ -411,6 +430,16 @@ class AtmosphereBuilder {
             StructureKind.weepingWillow:
           continue;
       }
+
+      final col = ((s.position.x - minCoord) / cellSpan).floor().clamp(
+        0,
+        gridDim - 1,
+      );
+      final row = ((s.position.z - minCoord) / cellSpan).floor().clamp(
+        0,
+        gridDim - 1,
+      );
+      final builder = tiles[row * gridDim + col];
 
       var hash = 0x811c9dc5;
       for (final unit in s.id.value.codeUnits) {

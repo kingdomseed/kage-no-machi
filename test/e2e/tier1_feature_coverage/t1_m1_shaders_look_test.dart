@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_scene/scene.dart' show Scene;
+import 'package:flutter_scene/scene.dart' show DirectionalShadowFilter, Scene;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/look/look.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
@@ -92,8 +92,10 @@ void main() {
       expect(fmatSource, contains('clamp(rough, 0.08, 0.94)'));
       expect(
         fmatSource,
-        contains('rough = mix(rough, min(rough, 0.20), moistureMix)'),
+        contains('rough = mix(rough, min(rough, 0.42), moistureMix)'),
       );
+      expect(fmatSource, contains('laneBlend = clamp(GetUV1(), 0.0, 1.0)'));
+      expect(fmatSource, contains('material.occlusion = finalOcclusion;'));
     });
 
     test(
@@ -109,66 +111,108 @@ void main() {
   });
 
   group('Feature 6: Deep Shadows & Tuned GTAO', () {
-    test(
-      'EdoLookDriver sets directionalLight shadowAmbientStrength to 0.15',
-      () async {
-        final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
-            .readAsStringSync();
-        expect(lookSrc.contains('shadowAmbientStrength: 0.15'), isTrue);
+    test('EdoLookDriver configures diffused PCSS keyLight with '
+        'shadowAmbientStrength in [0.28, 0.36]', () async {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
 
-        final hasGpu = checkImpellerAvailable();
-        if (hasGpu) {
-          final driver = EdoLookDriver(allowHeadlessFallback: true);
-          final scene = Scene();
-          await driver.attach(scene);
-          driver.syncFrame(
-            rig: TimeOfDayRig.goldenDusk,
-            vision: MagistrateVisionState.hidden,
-            sightcones: const [],
-            lanternOrigins: const [],
-            elapsedSeconds: 0,
-          );
-          expect(scene.directionalLight, isNotNull);
-          expect(
-            scene.directionalLight!.shadowAmbientStrength,
-            closeTo(0.15, 1e-4),
-          );
-          driver.dispose();
-        }
-      },
-    );
+      final hasGpu = checkImpellerAvailable();
+      final scene = hasGpu ? Scene() : null;
+      if (scene != null) {
+        await driver.attach(scene);
+      }
 
-    test('Fill light intensity is 0.24 with steel-blue color vector', () {
+      driver.syncFrame(
+        rig: TimeOfDayRig.goldenDusk,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: const [],
+        elapsedSeconds: 0,
+      );
+
+      final key = driver.keyLight;
+      expect(key, isNotNull);
+      expect(key!.shadowFilter, equals(DirectionalShadowFilter.pcss));
+      expect(key.shadowCascadeCount, equals(4));
+      expect(key.shadowMaxDistance, closeTo(145, 1e-4));
+      expect(key.shadowSoftness, closeTo(0.28, 1e-4));
+      expect(
+        key.shadowAmbientStrength,
+        closeTo(0.28 + 0.08 * TimeOfDayRig.goldenDusk.nightFactor, 1e-4),
+      );
+
+      if (scene != null) {
+        expect(scene.directionalLight, same(key));
+      }
+    });
+
+    test('EdoLookDriver uses PhysicalSkySource and caps clustered lanterns '
+        'at <= 12', () {
       final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
           .readAsStringSync();
-      expect(lookSrc.contains('intensity: 0.24'), isTrue);
-      expect(lookSrc.contains('Vector3(0.24, 0.38, 0.58)'), isTrue);
+      expect(lookSrc.contains('PhysicalSkySource('), isTrue);
+      expect(lookSrc.contains('edo_fill_light'), isFalse);
+
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
+      driver.syncFrame(
+        rig: TimeOfDayRig.blueHourNight,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: [
+          for (var i = 0; i < 36; i++)
+            Vec3(-30 + (i % 9) * 8.0, 2.5, -18 + (i ~/ 9) * 10.0),
+        ],
+        elapsedSeconds: 0.5,
+      );
+      expect(driver.activeLanternLights.length, lessThanOrEqualTo(12));
+      expect(driver.activeLanternLights.first.range, closeTo(8.2, 1e-6));
     });
 
     test(
-      'EnvironmentSettings ambientOcclusionRadius is configured to 0.88',
+      'EnvironmentSettings ambientOcclusionRadius is configured to 1.05',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc.contains('ambientOcclusionRadius: 0.88'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.46'), isTrue);
       },
     );
 
     test(
-      'EnvironmentSettings ambientOcclusionIntensity is configured to 1.56',
+      'EnvironmentSettings ambientOcclusionIntensity is 1.68 and river water '
+      'declares scene_color + scene_depth caustics',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc.contains('ambientOcclusionIntensity: 1.56'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
+
+        final waterSrc = File('assets/materials/river_water.fmat')
+            .readAsStringSync();
+        expect(
+          waterSrc.contains('engine_inputs: [scene_color, scene_depth]'),
+          isTrue,
+        );
+        expect(waterSrc.contains('GetSceneWorldPosition('), isTrue);
       },
     );
 
     test(
-      'ambientOcclusionBentNormals is enabled for directional shadowing',
+      'ambientOcclusionBentNormals and komorebi sunbeam material are enabled',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('ambientOcclusionBentNormals: true'), isTrue);
+
+        final driver = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(driver.dispose);
+        final sunbeam = EdoLookDriver.resolveSunbeamMaterial(
+          driver.materialFor,
+        );
+        expect(
+          sunbeam.depthLayer,
+          equals(ShukubaSurfaceRole.riverMist.depthLayer),
+        );
       },
     );
   });

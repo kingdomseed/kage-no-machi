@@ -3,9 +3,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
-import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
+import 'package:kage_no_machi/shukuba/look/look.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/verify/frame_harness.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
@@ -13,8 +13,8 @@ import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_page.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
+import 'package:kage_no_machi/shukuba/world/world.dart';
 import 'package:material_ui/material_ui.dart' hide Material;
-import 'package:vector_math/vector_math.dart' hide Colors;
 
 import '../../e2e/helpers/e2e_test_harness.dart';
 
@@ -23,77 +23,106 @@ void main() {
 
   group('Tier 5 Adversarial Audit — Look Driver Constants & Shaders', () {
     test(
-      'shadowAmbientStrength is 0.15 at dusk and bounded in [0.15, 0.20]',
+      'EdoLookDriver keyLight shadowAmbientStrength is bounded in [0.28, 0.36] '
+      'and monotonic across TimeOfDayRig',
       () {
-        var lastStrength = 0.15;
-        for (var step = 0; step <= 10000; step++) {
-          final t = step / 10000.0;
-          final strength = 0.15 + 0.05 * t;
+        final driver = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(driver.dispose);
 
+        var lastStrength = 0.28;
+        for (var step = 0; step <= 500; step++) {
+          final t = step / 500.0;
+          driver.syncFrame(
+            rig: TimeOfDayRig(t),
+            vision: MagistrateVisionState.hidden,
+            sightcones: const [],
+            lanternOrigins: const [],
+            elapsedSeconds: t,
+          );
+          final strength = driver.keyLight!.shadowAmbientStrength;
           expect(
             strength,
-            greaterThanOrEqualTo(0.15 - 1e-9),
-            reason: 'shadowAmbientStrength must not drop below 0.15',
+            greaterThanOrEqualTo(0.28 - 1e-6),
+            reason: 'shadowAmbientStrength must not drop below 0.28',
           );
           expect(
             strength,
-            lessThanOrEqualTo(0.20 + 1e-9),
-            reason: 'shadowAmbientStrength must not exceed 0.20',
+            lessThanOrEqualTo(0.36 + 1e-6),
+            reason: 'shadowAmbientStrength must not exceed 0.36',
           );
           expect(
             strength,
-            greaterThanOrEqualTo(lastStrength),
+            greaterThanOrEqualTo(lastStrength - 1e-9),
             reason:
                 'shadowAmbientStrength must be non-decreasing with nightFactor',
           );
           lastStrength = strength;
         }
-
-        expect(0.15 + 0.05 * 0, equals(0.15));
-        expect(0.15 + 0.05 * 1, equals(0.20));
       },
     );
 
-    test('Directional fill light is 0.24 steel-blue pinned', () {
-      final fill = DirectionalLight(
-        intensity: 0.24,
-        color: Vector3(0.24, 0.38, 0.58),
-      );
-      expect(fill.intensity, equals(0.24));
-      expect(fill.color.x, closeTo(0.24, 1e-6));
-      expect(fill.color.y, closeTo(0.38, 1e-6));
-      expect(fill.color.z, closeTo(0.58, 1e-6));
+    test('EdoLookDriver clusters dense lanterns to <= 12 PointLights with 8.2m '
+        'range and PhysicalSkySource illumination', () {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
 
-      final aim = Vector3(0.3, -1, 0.4).normalized();
-      expect(aim.length, closeTo(1.0, 1e-6));
-      expect(aim.y, lessThan(0.0), reason: 'Fill light points downward');
-      expect(aim.x, greaterThan(0.0));
-      expect(aim.z, greaterThan(0.0));
+      final denseOrigins = <Vec3>[
+        for (var i = 0; i < 40; i++)
+          Vec3(-30 + (i % 8) * 8.0, 2.6, -20 + (i ~/ 8) * 10.0),
+      ];
+
+      driver.syncFrame(
+        rig: TimeOfDayRig.blueHourNight,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: denseOrigins,
+        elapsedSeconds: 1,
+      );
+
+      expect(driver.activeLanternLights.length, equals(12));
+      expect(driver.activeLanternLights.length, lessThanOrEqualTo(12));
+      for (final light in driver.activeLanternLights) {
+        expect(light.range, closeTo(8.2, 1e-6));
+        expect(light.falloffExponent, closeTo(2.0, 1e-6));
+        expect(light.intensity, greaterThan(0));
+      }
+
+      final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
+          .readAsStringSync();
+      expect(lookSrc, contains('PhysicalSkySource('));
+      expect(lookSrc, isNot(contains('edo_fill_light')));
     });
 
-    test('GTAO EnvironmentSettings radius is 0.88 and intensity is 1.56', () {
-      final settings = EnvironmentSettings(
-        ambientOcclusionEnabled: true,
-        ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-        ambientOcclusionIntensity: 1.56,
-        ambientOcclusionRadius: 0.88,
-        ambientOcclusionBentNormals: true,
-        ambientOcclusionSpecularMode: SpecularAmbientOcclusionMode.bentCone,
-      );
+    test(
+      'Wide GTAO EnvironmentSettings and 4x4 flora_tile_* chunking invariants',
+      () {
+        final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
+            .readAsStringSync();
+        expect(lookSrc, contains('ambientOcclusionIntensity: 1.68'));
+        expect(lookSrc, contains('ambientOcclusionRadius: 1.05'));
+        expect(lookSrc, contains('ambientOcclusionMultiBounce: 0.46'));
+        expect(lookSrc, contains('ambientOcclusionBentNormals: true'));
+        expect(lookSrc, contains('SpecularAmbientOcclusionMode.bentCone'));
 
-      expect(settings.ambientOcclusionEnabled, isTrue);
-      expect(
-        settings.ambientOcclusionMethod,
-        equals(AmbientOcclusionMethod.groundTruth),
-      );
-      expect(settings.ambientOcclusionIntensity, closeTo(1.56, 1e-6));
-      expect(settings.ambientOcclusionRadius, closeTo(0.88, 1e-6));
-      expect(settings.ambientOcclusionBentNormals, isTrue);
-      expect(
-        settings.ambientOcclusionSpecularMode,
-        equals(SpecularAmbientOcclusionMode.bentCone),
-      );
-    });
+        final terrain = TerrainBuilder();
+        final graph = buildStarterShukubaGraph(terrain.sampleGroundHeight);
+        final summaries = const FloraScatterBuilder().computeChunkSummaries(
+          graph: graph,
+          sampleGroundY: (x, z) => terrain.sampleGroundHeight(
+            x,
+            z,
+            terraces: graph.terraces,
+            roads: graph.roads,
+          ),
+        );
+        expect(summaries.length, equals(16));
+        for (final chunk in summaries.values) {
+          expect(chunk.nodeName, startsWith('flora_tile_'));
+          expect(chunk.spanX, lessThanOrEqualTo(48.0));
+          expect(chunk.spanZ, lessThanOrEqualTo(48.0));
+        }
+      },
+    );
 
     test('Sumi ink crease smoothstep(0.18, 0.68) mathematical bounds', () {
       double smoothstep(double edge0, double edge1, double x) {
@@ -136,7 +165,8 @@ void main() {
       );
     });
 
-    test('GouacheLit shader rock and soil relief & fissure constants', () {
+    test('GouacheLit parallax/occlusion/UV1 road blending and RiverWater '
+        'scene_color + scene_depth caustics', () {
       final fmat = File('assets/materials/gouache_lit.fmat').readAsStringSync();
 
       expect(fmat, contains('totalCrevice * 0.68'));
@@ -148,29 +178,29 @@ void main() {
         ),
       );
       expect(fmat, contains('perturbedN = normalize(N + normalDelta * 1.45)'));
-      expect(fmat, contains('shelfRiser = smoothstep(0.76, 0.98, shelfFract)'));
       expect(
         fmat,
         contains('vec3 deepIndigoUmber = vec3(0.038, 0.032, 0.048)'),
       );
+      expect(fmat, contains('fwidth(P0)'));
+      expect(fmat, contains('SampleReliefHeight('));
+      expect(fmat, contains('laneBlend = clamp(GetUV1(), 0.0, 1.0)'));
+      expect(fmat, contains('EvaluateNaturalGround('));
+      expect(fmat, contains('EvaluateGardenPath('));
+      expect(fmat, contains('EvaluateKaidoRoad('));
+      expect(
+        fmat,
+        contains('mix(mix(0.88, 0.68, rutGouge * 0.55), 0.24, rutPuddleMask)'),
+      );
+      expect(fmat, contains('spec = mix(0.42, 0.58, rutPuddleMask)'));
+      expect(fmat, contains('material.occlusion = finalOcclusion;'));
 
-      expect(fmat, contains('edgeDist - 0.42'));
-      expect(
-        fmat,
-        contains('perturbedN = normalize(N + soilNormalDelta * 1.55)'),
-      );
-      expect(
-        fmat,
-        contains('mix(mix(0.88, 0.68, rutGouge * 0.55), 0.08, rutPuddleMask)'),
-      );
-      expect(fmat, contains('spec = mix(0.42, 0.85, rutPuddleMask)'));
-      expect(
-        fmat,
-        contains(
-          'perturbedN = mix(perturbedN, vec3(0.0, 1.0, 0.0), '
-          'rutPuddleMask * 0.92)',
-        ),
-      );
+      final waterFmat = File('assets/materials/river_water.fmat')
+          .readAsStringSync();
+      expect(waterFmat, contains('engine_inputs: [scene_color, scene_depth]'));
+      expect(waterFmat, contains('GetSceneDepth('));
+      expect(waterFmat, contains('GetSceneWorldPosition('));
+      expect(waterFmat, contains('GetSceneColor('));
     });
   });
 

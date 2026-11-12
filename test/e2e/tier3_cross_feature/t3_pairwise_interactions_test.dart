@@ -227,22 +227,69 @@ void main() {
       expect(TerrainConfig.maxX, greaterThan(0));
     });
 
-    test('9. F5 x F6: Deep velvety shadows pool inside wheel ruts and clay '
-        'clod shoulders', () {
+    test('9. F5 x F6: Diffused PCSS shadows, cavity occlusion, and UV1 road '
+        'blending ground ruts and paths', () {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
+
+      driver.syncFrame(
+        rig: TimeOfDayRig.goldenDusk,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: const [],
+        elapsedSeconds: 0,
+      );
+
+      expect(driver.keyLight, isNotNull);
+      expect(driver.keyLight!.shadowSoftness, closeTo(0.28, 1e-6));
+      expect(driver.keyLight!.shadowCascadeCount, equals(4));
+      expect(
+        driver.keyLight!.shadowAmbientStrength,
+        inInclusiveRange(0.28, 0.36),
+      );
+
       final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
           .readAsStringSync();
-      expect(lookSrc.contains('shadowAmbientStrength: 0.15'), isTrue);
-      expect(lookSrc.contains('intensity: 0.24'), isTrue);
-      expect(lookSrc.contains('Vector3(0.24, 0.38, 0.58)'), isTrue);
+      expect(lookSrc.contains('PhysicalSkySource('), isTrue);
+
+      final fmatSrc = File('assets/materials/gouache_lit.fmat')
+          .readAsStringSync();
+      expect(fmatSrc.contains('laneBlend = clamp(GetUV1(), 0.0, 1.0)'), isTrue);
+      expect(fmatSrc.contains('material.occlusion = finalOcclusion;'), isTrue);
     });
 
-    test('10. F6 x F10: Tuned GTAO (radius: 0.88, intensity: 1.56) creates '
-        'contact shadows under roof eaves', () {
+    test('10. F6 x F10: Wide GTAO (radius: 1.05, intensity: 1.68), <= 12 '
+        'lanterns, 4x4 flora_tile_* chunks, and river caustics', () {
       final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
           .readAsStringSync();
-      expect(lookSrc.contains('ambientOcclusionRadius: 0.88'), isTrue);
-      expect(lookSrc.contains('ambientOcclusionIntensity: 1.56'), isTrue);
+      expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
+      expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
       expect(lookSrc.contains('ambientOcclusionBentNormals: true'), isTrue);
+
+      final world = EdoWorldDriver()..initSimulation();
+      final clusters = EdoLookDriver.clusterLanternOrigins(
+        world.activeLanternOrigins,
+      );
+      expect(clusters.length, lessThanOrEqualTo(12));
+
+      final summaries = const FloraScatterBuilder().computeChunkSummaries(
+        graph: world.graph,
+        sampleGroundY: world.sampleGroundHeight,
+      );
+      expect(summaries.length, equals(TerrainConfig.chunkCount));
+      for (final chunk in summaries.values) {
+        expect(chunk.nodeName, startsWith('flora_tile_'));
+        expect(chunk.spanX, lessThanOrEqualTo(48.0));
+        expect(chunk.spanZ, lessThanOrEqualTo(48.0));
+      }
+
+      final waterSrc = File('assets/materials/river_water.fmat')
+          .readAsStringSync();
+      expect(
+        waterSrc.contains('engine_inputs: [scene_color, scene_depth]'),
+        isTrue,
+      );
+      expect(waterSrc.contains('GetSceneWorldPosition('), isTrue);
     });
 
     test('11. F7 x F9: Sumi ink pass renders clean outline creases on hashira '

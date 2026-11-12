@@ -2,67 +2,90 @@ import 'dart:io';
 
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kage_no_machi/shukuba/look/look.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
-import 'package:vector_math/vector_math.dart';
+import 'package:kage_no_machi/shukuba/world/world.dart';
+
+bool _gpuAvailable() {
+  try {
+    Scene();
+    return true;
+  } on Object catch (_) {
+    return false;
+  }
+}
 
 void main() {
-  group('Challenger Stress Test: Feature 6 Look Driver & Lighting Rig', () {
+  group('Challenger Stress Test: Slice-8 Look Driver & Lighting Rig', () {
     test(
-      'shadowAmbientStrength at dusk (nightFactor = 0.0) is exactly 0.15',
+      'EdoLookDriver keyLight shadowAmbientStrength is 0.28 at t=0.0 and 0.36 '
+      'at t=1.0',
       () {
-        const nightFactor = 0.0;
-        const shadowAmbientStrength = 0.15 + 0.05 * nightFactor;
-        expect(shadowAmbientStrength, equals(0.15));
+        final driver = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(driver.dispose);
+
+        driver.syncFrame(
+          rig: const TimeOfDayRig(0),
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [],
+          elapsedSeconds: 0,
+        );
+        expect(driver.keyLight, isNotNull);
+        expect(driver.keyLight!.shadowAmbientStrength, closeTo(0.28, 1e-6));
+
+        driver.syncFrame(
+          rig: const TimeOfDayRig(1),
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [],
+          elapsedSeconds: 1,
+        );
+        expect(driver.keyLight!.shadowAmbientStrength, closeTo(0.36, 1e-6));
       },
     );
 
-    test(
-      'shadowAmbientStrength at midnight (nightFactor = 1.0) is exactly 0.20',
-      () {
-        const nightFactor = 1.0;
-        const shadowAmbientStrength = 0.15 + 0.05 * nightFactor;
-        expect(shadowAmbientStrength, equals(0.20));
-      },
-    );
+    test('EdoLookDriver keyLight shadowAmbientStrength across 1000 rigs in '
+        '[0.0, 1.0] stays in [0.28, 0.36] and is monotonic', () {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
 
-    test(
-      'shadowAmbientStrength across all nightFactor in [0.0, 1.0] is strictly '
-      'within [0.15, 0.20] and monotonic',
-      () {
-        const steps = 10000;
-        var previousStrength = -1.0;
+      const steps = 1000;
+      var previousStrength = -1.0;
 
-        for (var i = 0; i <= steps; i++) {
-          final t = i / steps;
-          final nightFactor = t * t * (3 - 2 * t);
-          final shadowAmbientStrength = 0.15 + 0.05 * nightFactor;
-
+      for (var i = 0; i <= steps; i++) {
+        final t = i / steps;
+        driver.syncFrame(
+          rig: TimeOfDayRig(t),
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [],
+          elapsedSeconds: t,
+        );
+        final strength = driver.keyLight!.shadowAmbientStrength;
+        expect(
+          strength,
+          greaterThanOrEqualTo(0.28 - 1e-6),
+          reason: 'At t=$t, shadowAmbientStrength must be >= 0.28',
+        );
+        expect(
+          strength,
+          lessThanOrEqualTo(0.36 + 1e-6),
+          reason: 'At t=$t, shadowAmbientStrength must be <= 0.36',
+        );
+        if (previousStrength >= 0) {
           expect(
-            shadowAmbientStrength,
-            greaterThanOrEqualTo(0.15),
-            reason: 'At t=$t, shadowAmbientStrength must be >= 0.15',
+            strength,
+            greaterThanOrEqualTo(previousStrength - 1e-9),
+            reason:
+                'shadowAmbientStrength must be monotonically non-decreasing',
           );
-          expect(
-            shadowAmbientStrength,
-            lessThanOrEqualTo(0.20),
-            reason: 'At t=$t, shadowAmbientStrength must be <= 0.20',
-          );
-
-          if (previousStrength >= 0) {
-            expect(
-              shadowAmbientStrength,
-              greaterThanOrEqualTo(previousStrength),
-              reason:
-                  'shadowAmbientStrength must be monotonically '
-                  'non-decreasing',
-            );
-          }
-          previousStrength = shadowAmbientStrength;
         }
-      },
-    );
+        previousStrength = strength;
+      }
+    });
 
-    test('TimeOfDayRig nightFactor bounds and transitions', () {
+    test('TimeOfDayRig nightFactor bounds and clamping', () {
       const dusk = TimeOfDayRig.goldenDusk;
       expect(dusk.value, equals(0.15));
       expect(dusk.nightFactor, inInclusiveRange(0.0, 0.10));
@@ -80,336 +103,178 @@ void main() {
       expect(overflowRig.nightFactor, equals(1.0));
     });
 
-    test('Fill light intensity is pinned at 0.24 and color is pinned at '
-        '(0.24, 0.38, 0.58)', () {
-      final fillLight = DirectionalLight(
-        intensity: 0.24,
-        color: Vector3(0.24, 0.38, 0.58),
-      );
+    test(
+      'Starter ward lantern origins cluster to <= 12 active PointLights with '
+      '8.2m range and zero secondary fill light',
+      () async {
+        final world = EdoWorldDriver()..initSimulation();
+        final origins = world.activeLanternOrigins;
+        expect(origins.length, greaterThan(16));
 
-      expect(fillLight.intensity, equals(0.24));
-      expect(fillLight.color.x, closeTo(0.24, 1e-6));
-      expect(fillLight.color.y, closeTo(0.38, 1e-6));
-      expect(fillLight.color.z, closeTo(0.58, 1e-6));
-
-      final aimVec = Vector3(0.3, -1, 0.4).normalized();
-      expect(aimVec.length, closeTo(1.0, 1e-6));
-      expect(
-        aimVec.y,
-        lessThan(0.0),
-        reason: 'Fill light aims downward into street',
-      );
-    });
-
-    test('Key directional light specifications for deep PCSS shadows', () {
-      final keyLight = DirectionalLight(
-        castsShadow: true,
-        priority: 10,
-        shadowCascadeCount: 3,
-        shadowMaxDistance: 95,
-        shadowMapResolution: 2048,
-        shadowFilter: DirectionalShadowFilter.pcss,
-        shadowAmbientStrength: 0.15,
-        contactShadows: true,
-      );
-
-      expect(keyLight.castsShadow, isTrue);
-      expect(keyLight.priority, 10);
-      expect(keyLight.shadowCascadeCount, 3);
-      expect(keyLight.shadowMaxDistance, 95);
-      expect(keyLight.shadowMapResolution, 2048);
-      expect(keyLight.shadowFilter, DirectionalShadowFilter.pcss);
-      expect(keyLight.shadowAmbientStrength, 0.15);
-      expect(keyLight.contactShadows, isTrue);
-    });
-  });
-
-  group(
-    'Challenger Stress Test: EnvironmentSettings GTAO & Lerp Integrity',
-    () {
-      late EnvironmentSettings duskSettings;
-      late EnvironmentSettings nightSettings;
-
-      setUp(() {
-        duskSettings = EnvironmentSettings(
-          toneMapping: ToneMappingMode.aces,
-          exposure: 1.02,
-          colorGradingEnabled: true,
-          saturation: 1.22,
-          contrast: 1.10,
-          temperature: 0.05,
-          bloomEnabled: true,
-          bloomThreshold: 0.95,
-          bloomIntensity: 0.26,
-          bloomScatter: 0.74,
-          ambientOcclusionEnabled: true,
-          ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-          ambientOcclusionIntensity: 1.56,
-          ambientOcclusionPower: 1.75,
-          ambientOcclusionRadius: 0.88,
-          ambientOcclusionBentNormals: true,
-          ambientOcclusionSpecularMode: SpecularAmbientOcclusionMode.bentCone,
-          fogEnabled: true,
-          fogColor: Vector3(0.18, 0.30, 0.38),
-          fogDensity: 0.0086,
-          fogHeight: 1.35,
-          fogHeightFalloff: 0.34,
-          godRaysEnabled: true,
-          godRaysIntensity: 0.42,
-          godRaysDensity: 0.66,
-          godRaysColor: Vector3(1, 0.80, 0.48),
-          vignetteEnabled: true,
-          vignetteIntensity: 0.24,
-        );
-
-        nightSettings = EnvironmentSettings(
-          toneMapping: ToneMappingMode.aces,
-          exposure: 0.98,
-          colorGradingEnabled: true,
-          saturation: 1.18,
-          contrast: 1.14,
-          temperature: -0.05,
-          bloomEnabled: true,
-          bloomThreshold: 0.72,
-          bloomIntensity: 0.42,
-          bloomScatter: 0.82,
-          ambientOcclusionEnabled: true,
-          ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
-          ambientOcclusionIntensity: 1.56,
-          ambientOcclusionPower: 1.85,
-          ambientOcclusionRadius: 0.88,
-          ambientOcclusionBentNormals: true,
-          ambientOcclusionSpecularMode: SpecularAmbientOcclusionMode.bentCone,
-          fogEnabled: true,
-          fogColor: Vector3(0.036, 0.088, 0.175),
-          fogDensity: 0.0112,
-          fogHeight: 1.75,
-          fogHeightFalloff: 0.30,
-          godRaysEnabled: true,
-          godRaysIntensity: 0.15,
-          godRaysDensity: 0.52,
-          godRaysColor: Vector3(0.42, 0.62, 0.94),
-          vignetteEnabled: true,
-          vignetteIntensity: 0.36,
-        );
-      });
-
-      test('Dusk EnvironmentSettings matches exact GTAO parameters', () {
-        expect(duskSettings.ambientOcclusionEnabled, isTrue);
-        expect(
-          duskSettings.ambientOcclusionMethod,
-          AmbientOcclusionMethod.groundTruth,
-        );
-        expect(duskSettings.ambientOcclusionIntensity, closeTo(1.56, 1e-6));
-        expect(duskSettings.ambientOcclusionRadius, closeTo(0.88, 1e-6));
-        expect(duskSettings.ambientOcclusionBentNormals, isTrue);
-        expect(
-          duskSettings.ambientOcclusionSpecularMode,
-          SpecularAmbientOcclusionMode.bentCone,
-        );
-      });
-
-      test('Night EnvironmentSettings matches exact GTAO parameters', () {
-        expect(nightSettings.ambientOcclusionEnabled, isTrue);
-        expect(
-          nightSettings.ambientOcclusionMethod,
-          AmbientOcclusionMethod.groundTruth,
-        );
-        expect(nightSettings.ambientOcclusionIntensity, closeTo(1.56, 1e-6));
-        expect(nightSettings.ambientOcclusionRadius, closeTo(0.88, 1e-6));
-        expect(nightSettings.ambientOcclusionBentNormals, isTrue);
-        expect(
-          nightSettings.ambientOcclusionSpecularMode,
-          SpecularAmbientOcclusionMode.bentCone,
-        );
-      });
-
-      test(
-        'EnvironmentSettings.lerp preserves GTAO parameters and specular mode '
-        'at all intermediate values',
-        () {
-          const testFactors = [
-            0.0,
-            0.001,
-            0.1,
-            0.25,
-            0.4999,
-            0.50,
-            0.5001,
-            0.75,
-            0.9,
-            0.999,
-            1.0,
-          ];
-
-          for (final t in testFactors) {
-            final lerped = EnvironmentSettings.lerp(
-              duskSettings,
-              nightSettings,
-              t,
-            );
-
-            expect(
-              lerped.ambientOcclusionEnabled,
-              isTrue,
-              reason: 'AO must remain enabled at t=$t',
-            );
-            expect(
-              lerped.ambientOcclusionMethod,
-              AmbientOcclusionMethod.groundTruth,
-              reason: 'AO method must remain groundTruth at t=$t',
-            );
-            expect(
-              lerped.ambientOcclusionIntensity,
-              closeTo(1.56, 1e-6),
-              reason:
-                  'ambientOcclusionIntensity must remain 1.56 across lerp '
-                  'at t=$t',
-            );
-            expect(
-              lerped.ambientOcclusionRadius,
-              closeTo(0.88, 1e-6),
-              reason:
-                  'ambientOcclusionRadius must remain 0.88 across lerp '
-                  'at t=$t',
-            );
-            expect(
-              lerped.ambientOcclusionBentNormals,
-              isTrue,
-              reason: 'ambientOcclusionBentNormals must remain true at t=$t',
-            );
-            expect(
-              lerped.ambientOcclusionSpecularMode,
-              SpecularAmbientOcclusionMode.bentCone,
-              reason: 'specular mode must remain bentCone across lerp at t=$t',
-            );
-
-            expect(
-              lerped.ambientOcclusionPower,
-              inInclusiveRange(1.75 - 1e-6, 1.85 + 1e-6),
-              reason:
-                  'ambientOcclusionPower interpolates smoothly between '
-                  '1.75 and 1.85',
-            );
-            expect(
-              lerped.exposure,
-              inInclusiveRange(0.98 - 1e-6, 1.02 + 1e-6),
-              reason: 'exposure interpolates smoothly between 0.98 and 1.02',
-            );
-            expect(
-              lerped.vignetteIntensity,
-              inInclusiveRange(0.24 - 1e-6, 0.36 + 1e-6),
-              reason:
-                  'vignetteIntensity interpolates smoothly between '
-                  '0.24 and 0.36',
-            );
-          }
-        },
-      );
-
-      test('High-resolution sweep: 1000 lerp steps show zero NaN, zero drops, '
-          'zero corruption', () {
-        const steps = 1000;
-        for (var i = 0; i <= steps; i++) {
-          final t = i / steps;
-          final lerped = EnvironmentSettings.lerp(
-            duskSettings,
-            nightSettings,
-            t,
-          );
-
-          expect(lerped.ambientOcclusionIntensity.isFinite, isTrue);
-          expect(lerped.ambientOcclusionRadius.isFinite, isTrue);
-          expect(lerped.ambientOcclusionPower.isFinite, isTrue);
-          expect(lerped.exposure.isFinite, isTrue);
-          expect(lerped.fogDensity.isFinite, isTrue);
-          expect(lerped.fogHeight.isFinite, isTrue);
-
-          expect(lerped.ambientOcclusionIntensity, closeTo(1.56, 1e-5));
-          expect(lerped.ambientOcclusionRadius, closeTo(0.88, 1e-5));
-          expect(lerped.ambientOcclusionBentNormals, isTrue);
+        final clusters = EdoLookDriver.clusterLanternOrigins(origins);
+        expect(clusters.length, lessThanOrEqualTo(12));
+        expect(clusters.length, EdoLookDriver.maxLanternPointLights);
+        for (var i = 1; i < clusters.length; i++) {
           expect(
-            lerped.ambientOcclusionSpecularMode,
-            SpecularAmbientOcclusionMode.bentCone,
+            clusters[i - 1].weight,
+            greaterThanOrEqualTo(clusters[i].weight),
           );
         }
-      });
-    },
-  );
 
-  group('Challenger Static Audit: edo_look_driver.dart Source Conformance', () {
-    late final String source;
+        final driver = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(driver.dispose);
+        final scene = _gpuAvailable() ? Scene() : null;
+        if (scene != null) {
+          await driver.attach(scene);
+        }
 
-    setUpAll(() {
-      final file = File('lib/shukuba/look/edo_look_driver.dart');
-      expect(file.existsSync(), isTrue);
-      source = file.readAsStringSync();
-    });
-
-    test('Verifies exact directional key light shadowAmbientStrength equation '
-        'in syncFrame', () {
-      expect(
-        source,
-        contains('shadowAmbientStrength = 0.15 + 0.05 * rig.nightFactor'),
-      );
-      expect(source, contains('shadowAmbientStrength: 0.15'));
-    });
-
-    test('Verifies fill light intensity and color pinned in both setup and '
-        'syncFrame', () {
-      expect(source, contains('intensity: 0.24'));
-      expect(source, contains('color: Vector3(0.24, 0.38, 0.58)'));
-      expect(source, contains('..intensity = 0.24'));
-      expect(source, contains('..color = Vector3(0.24, 0.38, 0.58)'));
-    });
-
-    test(
-      'Verifies dusk and night EnvironmentSettings configuration in source',
-      () {
-        expect(source, contains('ambientOcclusionIntensity: 1.56'));
-        expect(source, contains('ambientOcclusionRadius: 0.88'));
-        expect(source, contains('ambientOcclusionBentNormals: true'));
-        expect(
-          source,
-          contains(
-            'ambientOcclusionSpecularMode: '
-            'SpecularAmbientOcclusionMode.bentCone',
-          ),
+        driver.syncFrame(
+          rig: TimeOfDayRig.blueHourNight,
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: origins,
+          elapsedSeconds: 0.5,
         );
 
-        final matchesIntensity = RegExp(r'ambientOcclusionIntensity:\s*1\.56')
-            .allMatches(source);
-        expect(matchesIntensity.length, greaterThanOrEqualTo(2));
+        expect(driver.activeLanternLights.length, lessThanOrEqualTo(12));
+        for (final light in driver.activeLanternLights) {
+          expect(light.range, closeTo(8.2, 1e-6));
+          expect(light.falloffExponent, closeTo(2.0, 1e-6));
+          expect(light.intensity, greaterThan(0));
+        }
 
-        final matchesRadius = RegExp(r'ambientOcclusionRadius:\s*0\.88')
-            .allMatches(source);
-        expect(matchesRadius.length, greaterThanOrEqualTo(2));
-
-        final matchesBentNormals = RegExp(
-          r'ambientOcclusionBentNormals:\s*true',
-        ).allMatches(source);
-        expect(matchesBentNormals.length, greaterThanOrEqualTo(2));
-
-        final matchesSpecular = RegExp(
-          r'ambientOcclusionSpecularMode:\s*'
-          r'SpecularAmbientOcclusionMode\.bentCone',
-        ).allMatches(source);
-        expect(matchesSpecular.length, greaterThanOrEqualTo(2));
+        if (scene != null) {
+          expect(
+            scene.root.children.where((n) => n.name == 'edo_fill_light'),
+            isEmpty,
+          );
+        }
       },
     );
 
-    test('Verifies syncFrame calls EnvironmentSettings.lerp with dusk, night, '
-        'and rig.nightFactor', () {
+    test('EdoLookDriver keyLight configures soft 4-cascade PCSS shadows over '
+        '145m', () {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
+
+      driver.syncFrame(
+        rig: TimeOfDayRig.goldenDusk,
+        vision: MagistrateVisionState.hidden,
+        sightcones: const [],
+        lanternOrigins: const [],
+        elapsedSeconds: 0,
+      );
+
+      final keyLight = driver.keyLight!;
+      expect(keyLight.castsShadow, isTrue);
+      expect(keyLight.priority, 10);
+      expect(keyLight.angularRadius, closeTo(0.052, 1e-6));
+      expect(keyLight.shadowSoftness, closeTo(0.28, 1e-6));
+      expect(keyLight.shadowCascadeCount, 4);
+      expect(keyLight.shadowMaxDistance, closeTo(145, 1e-6));
+      expect(keyLight.shadowCascadeSplitLambda, closeTo(0.65, 1e-6));
+      expect(keyLight.shadowMapResolution, 2048);
+      expect(keyLight.shadowFilter, DirectionalShadowFilter.pcss);
+      expect(keyLight.contactShadows, isTrue);
+      expect(keyLight.contactShadowDistance, closeTo(0.45, 1e-6));
+    });
+  });
+
+  group('Challenger Stress Test: PhysicalSky, GTAO & Shader Invariants', () {
+    test('EdoLookDriver scene environment interpolates wide GTAO, exponential '
+        'fog, and god rays across [0.0, 1.0]', () async {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      addTearDown(driver.dispose);
+
+      if (_gpuAvailable()) {
+        final scene = Scene();
+        await driver.attach(scene);
+
+        for (var i = 0; i <= 50; i++) {
+          final t = i / 50.0;
+          driver.syncFrame(
+            rig: TimeOfDayRig(t),
+            vision: MagistrateVisionState.hidden,
+            sightcones: const [],
+            lanternOrigins: const [],
+            elapsedSeconds: t,
+          );
+          final env = scene.environmentSettings;
+          expect(env.toneMapping, ToneMappingMode.aces);
+          expect(env.ambientOcclusionEnabled, isTrue);
+          expect(
+            env.ambientOcclusionMethod,
+            AmbientOcclusionMethod.groundTruth,
+          );
+          expect(env.ambientOcclusionBentNormals, isTrue);
+          expect(
+            env.ambientOcclusionSpecularMode,
+            SpecularAmbientOcclusionMode.bentCone,
+          );
+          expect(env.ambientOcclusionIntensity, closeTo(1.68, 1e-5));
+          expect(env.ambientOcclusionRadius, closeTo(1.05, 1e-5));
+          expect(env.ambientOcclusionPower, closeTo(1.85, 1e-5));
+          expect(env.ambientOcclusionMultiBounce, closeTo(0.46, 1e-5));
+          expect(env.ambientOcclusionDirectLightAffect, closeTo(0.30, 1e-5));
+          expect(env.exposure, inInclusiveRange(0.92 - 1e-5, 0.96 + 1e-5));
+          expect(env.fogEnabled, isTrue);
+          expect(env.fogMode, FogMode.exponential);
+          expect(env.fogHeight, closeTo(1.8, 1e-5));
+          expect(env.fogHeightFalloff, closeTo(0.28, 1e-5));
+          expect(env.godRaysEnabled, isTrue);
+          expect(env.godRaysStepCount, 36);
+        }
+      }
+
+      final sunbeamMat = EdoLookDriver.resolveSunbeamMaterial(
+        driver.materialFor,
+      );
+      expect(
+        sunbeamMat.depthLayer,
+        equals(ShukubaSurfaceRole.riverMist.depthLayer),
+      );
+    });
+
+    test('EdoLookDriver wires PhysicalSkySource, SkyEnvironment, and zero '
+        'secondary directional fill lights', () {
+      final source = File('lib/shukuba/look/edo_look_driver.dart')
+          .readAsStringSync();
+
+      expect(source, contains('PhysicalSkySource('));
+      expect(source, contains('SkyEnvironment('));
+      expect(source, isNot(contains('GradientSkySource')));
+      expect(source, isNot(contains('edo_fill_light')));
+      expect(source, contains('maxLanternPointLights = 12'));
+      expect(source, contains('lanternPointLightRangeMeters = 8.2'));
       expect(
         source,
-        contains(
-          'EnvironmentSettings.lerp(\n'
-          '        dusk,\n'
-          '        night,\n'
-          '        rig.nightFactor,\n'
-          '      )',
-        ),
+        contains('shadowAmbientStrength = 0.28 + 0.08 * rig.nightFactor'),
       );
+      expect(source, contains('ambientOcclusionIntensity: 1.68'));
+      expect(source, contains('ambientOcclusionRadius: 1.05'));
+      expect(source, contains('ambientOcclusionMultiBounce: 0.46'));
+      expect(source, contains('EnvironmentSettings.lerp('));
+    });
+
+    test('GouacheLit and RiverWater shaders enforce parallax, occlusion, UV1 '
+        'blending, and scene_color/scene_depth caustics', () {
+      final gouache = File('assets/materials/gouache_lit.fmat')
+          .readAsStringSync();
+      expect(gouache, contains('fwidth(P0)'));
+      expect(gouache, contains('SampleReliefHeight('));
+      expect(gouache, contains('laneBlend = clamp(GetUV1(), 0.0, 1.0)'));
+      expect(gouache, contains('EvaluateGardenPath('));
+      expect(gouache, contains('EvaluateKaidoRoad('));
+      expect(gouache, contains('EvaluateNaturalGround('));
+      expect(gouache, contains('material.occlusion = finalOcclusion;'));
+
+      final water = File('assets/materials/river_water.fmat')
+          .readAsStringSync();
+      expect(water, contains('engine_inputs: [scene_color, scene_depth]'));
+      expect(water, contains('GetSceneDepth('));
+      expect(water, contains('GetSceneWorldPosition('));
+      expect(water, contains('GetSceneColor('));
+      expect(water, contains('exp(-vec3(2.6, 0.95, 0.78) * thickness)'));
     });
   });
 }

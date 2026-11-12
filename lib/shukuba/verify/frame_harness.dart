@@ -740,7 +740,10 @@ class ShukubaFrameHarness {
       }
     }
 
+    final savedDebugCoplanar = scene.debugCheckCoplanarOverlaps;
+    scene.debugCheckCoplanarOverlaps = false;
     try {
+      List<CoplanarOverlap>? staticValleyOverlaps;
       for (var i = 0; i < valleyPresets.length; i++) {
         final preset = valleyPresets[i];
         final frames = math.min(settleFrames, i == 0 ? 24 : 8);
@@ -749,7 +752,9 @@ class ShukubaFrameHarness {
           outputPath: '${directory.path}/${preset.id}.png',
           framesToSettle: frames,
           startElapsedSeconds: elapsedSeconds,
+          cachedOverlaps: staticValleyOverlaps,
         );
+        staticValleyOverlaps ??= shot.overlaps;
         elapsedSeconds += frames / 60;
         await recordShot(shot);
       }
@@ -762,7 +767,9 @@ class ShukubaFrameHarness {
           framesToSettle: 4,
           startElapsedSeconds: elapsedSeconds,
           pumpCount: i == 0 ? 2 : 1,
+          cachedOverlaps: staticValleyOverlaps,
         );
+        staticValleyOverlaps ??= shot.overlaps;
         elapsedSeconds += 4 / 60;
         await recordShot(shot);
       }
@@ -912,6 +919,7 @@ class ShukubaFrameHarness {
 
       await flushPendingWrites();
     } finally {
+      scene.debugCheckCoplanarOverlaps = savedDebugCoplanar;
       if (pendingPngWrites.isNotEmpty) {
         try {
           await flushPendingWrites();

@@ -188,16 +188,49 @@ void main() {
         expect(look.syncCount, equals(1));
         expect(look.lastRig, equals(TimeOfDayRig.blueHourNight));
         expect(look.lastVision, equals(MagistrateVisionState.fullOverlay));
+
+        final realLook = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(realLook.dispose);
+
+        realLook.syncFrame(
+          rig: const TimeOfDayRig(0),
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [],
+          elapsedSeconds: 0,
+        );
+        expect(realLook.keyLight!.shadowAmbientStrength, closeTo(0.28, 1e-6));
+
+        realLook.syncFrame(
+          rig: const TimeOfDayRig(1),
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [],
+          elapsedSeconds: 1,
+        );
+        expect(realLook.keyLight!.shadowAmbientStrength, closeTo(0.36, 1e-6));
       },
     );
 
-    test('EnvironmentSettings ambient occlusion intensity and radius in '
-        'EdoLookDriver', () {
-      final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
-          .readAsStringSync();
-      expect(lookSrc.contains('ambientOcclusionRadius: 0.88'), isTrue);
-      expect(lookSrc.contains('ambientOcclusionIntensity: 1.56'), isTrue);
-    });
+    test(
+      'EnvironmentSettings wide GTAO and GouacheLit parallax/occlusion bounds',
+      () {
+        final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
+            .readAsStringSync();
+        expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.46'), isTrue);
+
+        final fmatSrc = File('assets/materials/gouache_lit.fmat')
+            .readAsStringSync();
+        expect(fmatSrc.contains('fwidth(P0)'), isTrue);
+        expect(fmatSrc.contains('SampleReliefHeight('), isTrue);
+        expect(
+          fmatSrc.contains('material.occlusion = finalOcclusion;'),
+          isTrue,
+        );
+      },
+    );
 
     test('TimeOfDayRig ambient loop gains remain bounded in [0.0, 1.0] across '
         'rigs', () {
@@ -213,18 +246,63 @@ void main() {
       expect(night.nightCricketGain, inInclusiveRange(0.0, 1.0));
     });
 
-    test('Fog density and height falloff configured in EdoLookDriver', () {
-      final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
-          .readAsStringSync();
-      expect(lookSrc.contains('fogDensity: 0.0086'), isTrue);
-      expect(lookSrc.contains('fogHeightFalloff: 0.34'), isTrue);
-    });
+    test(
+      'Exponential height fog and sun in-scatter configured in EdoLookDriver',
+      () {
+        final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
+            .readAsStringSync();
+        expect(lookSrc.contains('FogMode.exponential'), isTrue);
+        expect(lookSrc.contains('fogDensity: 0.0092'), isTrue);
+        expect(lookSrc.contains('fogDensity: 0.0114'), isTrue);
+        expect(lookSrc.contains('fogHeight: 1.8'), isTrue);
+        expect(lookSrc.contains('fogHeightFalloff: 0.28'), isTrue);
+        expect(lookSrc.contains('fogSkyColorInfluence: 0.36'), isTrue);
+      },
+    );
 
-    test('PointLight range configured in EdoLookDriver for lanterns', () {
-      final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
-          .readAsStringSync();
-      expect(lookSrc.contains('range: 10.5'), isTrue);
-    });
+    test(
+      'PointLight lantern cluster budget <= 12 and 8.2m range in EdoLookDriver',
+      () {
+        final driver = EdoLookDriver(allowHeadlessFallback: true);
+        addTearDown(driver.dispose);
+
+        driver.syncFrame(
+          rig: TimeOfDayRig.blueHourNight,
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [],
+          elapsedSeconds: 0,
+        );
+        expect(driver.activeLanternLights, isEmpty);
+
+        driver.syncFrame(
+          rig: TimeOfDayRig.blueHourNight,
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: const [Vec3(0, 2.5, 0)],
+          elapsedSeconds: 0.5,
+        );
+        expect(driver.activeLanternLights.length, equals(1));
+        expect(driver.activeLanternLights.first.range, closeTo(8.2, 1e-6));
+        expect(
+          driver.activeLanternLights.first.falloffExponent,
+          closeTo(2.0, 1e-6),
+        );
+
+        driver.syncFrame(
+          rig: TimeOfDayRig.blueHourNight,
+          vision: MagistrateVisionState.hidden,
+          sightcones: const [],
+          lanternOrigins: [
+            for (var i = 0; i < 50; i++)
+              Vec3(-40 + (i % 10) * 9.0, 2.6, -24 + (i ~/ 10) * 12.0),
+          ],
+          elapsedSeconds: 1,
+        );
+        expect(driver.activeLanternLights.length, equals(12));
+        expect(driver.activeLanternLights.length, lessThanOrEqualTo(12));
+      },
+    );
   });
 
   group('Feature 7 Edge: Sumi Ink Pass & std140 Layout', () {
