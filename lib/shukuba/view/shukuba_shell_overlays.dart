@@ -1,9 +1,8 @@
-import 'dart:async' show unawaited;
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/material.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 const Color _urushiBlack = Color(0xFF0E1015);
 const Color _urushiDark = Color(0xFF161A23);
@@ -91,108 +90,83 @@ class HankoSealWidget extends StatelessWidget {
 class TitleMenuOverlay extends StatelessWidget {
   const new({
     required this.onEnterValley,
+    this.audioDriver,
     this.onFieldNotes,
     this.onSettings,
     super.key,
   });
 
   final VoidCallback onEnterValley;
+  final ShukubaAudioDriver? audioDriver;
   final VoidCallback? onFieldNotes;
   final VoidCallback? onSettings;
 
   void _showFieldNotesDialog(BuildContext context) {
-    unawaited(
-      showDialog<void>(
-        context: context,
-        builder: (dialogCtx) => AlertDialog(
-          backgroundColor: _urushiDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: _borderStroke),
-          ),
-          title: const Row(
-            children: [
-              HankoSealWidget(text: '記', size: 30),
-              SizedBox(width: 10),
-              Text(
-                'Field Notes (野帳)',
-                style: TextStyle(color: _washiInk, fontSize: 18),
-              ),
-            ],
-          ),
-          content: const SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Welcome to Kage no Machi (影の町) — a tactile Edo diorama'
-                  ' builder.',
-                  style: TextStyle(color: _washiInk, fontSize: 13),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  '• Camera Controls: WASD or arrow keys to pan, right-click'
-                  ' drag or Q/E to orbit, mouse wheel to zoom.\n'
-                  '• Diorama Presets: Keys 1 to 5 switch camera angles and'
-                  ' lighting moods.\n'
-                  '• Placement Tools: Select buildings, roads, terraces,'
-                  ' walls, and nature stamps from the builder dock.\n'
-                  '• Stamp Rotation: Press R to rotate active stamps by'
-                  ' 45 degrees.\n'
-                  '• Esc Key: Cancels stroke, reverts tool to explore, or'
-                  ' opens pause menu.\n'
-                  '• F3 Key: Toggles live performance telemetry monitor pill.',
-                  style: TextStyle(
-                    color: _mutedSand,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text(
-                'Close (閉じる)',
-                style: TextStyle(color: _goldAccent),
-              ),
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: _urushiDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: _borderStroke),
+        ),
+        title: const Row(
+          children: [
+            HankoSealWidget(text: '記', size: 30),
+            SizedBox(width: 10),
+            Text(
+              'Field Notes (野帳)',
+              style: TextStyle(color: _washiInk, fontSize: 18),
             ),
           ],
         ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Welcome to Kage no Machi (影の町), an Edo post-town diorama'
+                ' builder.',
+                style: TextStyle(color: _washiInk, fontSize: 13),
+              ),
+              SizedBox(height: 12),
+              Text(
+                '• Camera Controls: WASD or arrow keys to pan, right-click'
+                ' drag or Q and E to orbit, scroll wheel to zoom.\n'
+                '• Views Menu: Open Views in the top-left bar or press 1 to 5'
+                ' to jump between valley camera presets.\n'
+                '• Builder Dock: Click a category tab at the bottom to open'
+                ' its drawer of houses, roads, trees, or shrine courts.\n'
+                '• Building Variations: Press V (or click Style) to cycle'
+                ' farmhouse, townhouse, teahouse, storehouse, and stall'
+                ' silhouettes. Each placement advances automatically.\n'
+                '• Stamp Rotation: Press R to rotate active stamps by'
+                ' 45 degrees.\n'
+                '• Esc & F3: Esc cancels strokes, closes the active tool, or'
+                ' opens the pause menu. F3 toggles live frame telemetry.',
+                style: TextStyle(color: _mutedSand, fontSize: 12, height: 1.5),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text(
+              'Close (閉じる)',
+              style: TextStyle(color: _goldAccent),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _showSettingsDialog(BuildContext context) {
-    unawaited(
-      showDialog<void>(
-        context: context,
-        builder: (dialogCtx) => AlertDialog(
-          backgroundColor: _urushiDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: _borderStroke),
-          ),
-          title: const Text(
-            'Settings (設定)',
-            style: TextStyle(color: _washiInk, fontSize: 18),
-          ),
-          content: const Text(
-            'Audio settings and keybindings are also accessible via Escape'
-            ' in-game.',
-            style: TextStyle(color: _mutedSand, fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text('OK', style: TextStyle(color: _goldAccent)),
-            ),
-          ],
-        ),
-      ),
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => _TitleSettingsDialog(audioDriver: audioDriver),
     );
   }
 
@@ -245,20 +219,20 @@ class TitleMenuOverlay extends StatelessWidget {
                       const SizedBox(height: 8),
 
                       const Text(
-                        'SHADOW TACTICS: RETURN OF THE SHOGUN',
+                        'KAGE NO MACHI',
                         style: TextStyle(
                           color: _goldAccent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 3.5,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 4.2,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Tactile Edo Diorama Builder',
+                        'Edo Post-Town Diorama Builder',
                         style: TextStyle(
-                          color: _mutedSand.withValues(alpha: 0.7),
-                          fontSize: 11,
+                          color: _mutedSand.withValues(alpha: 0.78),
+                          fontSize: 11.5,
                           letterSpacing: 1.2,
                         ),
                       ),
@@ -718,6 +692,11 @@ class _PauseMenuOverlayState extends State<PauseMenuOverlay> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       _KeyRow(
+                                        keys: 'V',
+                                        action: 'Building Style',
+                                      ),
+                                      SizedBox(height: 4),
+                                      _KeyRow(
                                         keys: 'R',
                                         action: 'Rotate Stamp',
                                       ),
@@ -791,6 +770,133 @@ class _PauseMenuOverlayState extends State<PauseMenuOverlay> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TitleSettingsDialog extends StatefulWidget {
+  const new({required this.audioDriver});
+
+  final ShukubaAudioDriver? audioDriver;
+
+  @override
+  State<_TitleSettingsDialog> createState() => _TitleSettingsDialogState();
+}
+
+class _TitleSettingsDialogState extends State<_TitleSettingsDialog> {
+  late double _volume = widget.audioDriver?.masterVolume ?? 1.0;
+  late bool _muted = widget.audioDriver?.isMuted ?? false;
+
+  @override
+  Widget build(BuildContext context) {
+    final driver = widget.audioDriver;
+    return AlertDialog(
+      backgroundColor: _urushiDark,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: _borderStroke),
+      ),
+      title: const Row(
+        children: [
+          HankoSealWidget(text: '設', size: 28),
+          SizedBox(width: 10),
+          Text(
+            'Settings (設定)',
+            style: TextStyle(color: _washiInk, fontSize: 18),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (driver != null) ...[
+                const Text(
+                  'Audio & Ambience (音量設定)',
+                  style: TextStyle(
+                    color: _goldAccent,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _muted ? Icons.volume_off : Icons.volume_up,
+                        color: _muted ? _cinnabarRed : _goldAccent,
+                      ),
+                      tooltip: _muted ? 'Unmute' : 'Mute',
+                      onPressed: () {
+                        setState(() {
+                          _muted = !_muted;
+                          driver.setMuted(_muted);
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: Slider(
+                        value: _volume,
+                        activeColor: _goldAccent,
+                        inactiveColor: const Color(0x33DECBAE),
+                        onChanged: (val) {
+                          setState(() {
+                            _volume = val;
+                            driver.setMasterVolume(val);
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: 44,
+                      child: Text(
+                        '${(_volume * 100).round()}%',
+                        style: const TextStyle(
+                          color: _washiInk,
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              const Text(
+                'Shortcuts (操作手引き)',
+                style: TextStyle(
+                  color: _goldAccent,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const _KeyRow(keys: 'W A S D / Drag', action: 'Pan Valley'),
+              const SizedBox(height: 4),
+              const _KeyRow(keys: 'Right-Drag / Q E', action: 'Orbit View'),
+              const SizedBox(height: 4),
+              const _KeyRow(keys: '1 – 5', action: 'Camera Views'),
+              const SizedBox(height: 4),
+              const _KeyRow(keys: 'V / R', action: 'Style / Rotate Stamp'),
+              const SizedBox(height: 4),
+              const _KeyRow(keys: 'Esc / F3', action: 'Pause / Telemetry'),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('OK', style: TextStyle(color: _goldAccent)),
+        ),
+      ],
     );
   }
 }

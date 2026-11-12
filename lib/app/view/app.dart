@@ -8,6 +8,7 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Kage no Machi',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true),
       localizationsDelegates: AppLocalizations.localizationsDelegates,

@@ -231,6 +231,10 @@ class _FloraExclusionIndex {
       return false;
     }
 
+    if (TerrainBuilder.isInsideTanadaFloodedBasin(x, z)) {
+      return false;
+    }
+
     if (x >= TerrainConfig.bridgeMinX - 0.85 &&
         x <= TerrainConfig.bridgeMaxX + 0.85 &&
         z >= TerrainConfig.bridgeMinZ - 0.72 &&
@@ -358,16 +362,15 @@ class _FloraExclusionIndex {
         0.28 * math.sin(wx * 0.23 + wz * 0.17) +
         0.22 * math.cos(wz * 0.31 - wx * 0.19);
     final radialOut = math.sqrt(x * x + z * z);
-    final countryMargin = ((radialOut - 18.0) / 13.0).clamp(0.0, 1.0);
-    final outerClump = organicDrift > 0.68
-        ? ((organicDrift - 0.68) / 0.32) * 0.66 * countryMargin
-        : 0.0;
+    final countryMargin = ((radialOut - 15.0) / 13.0).clamp(0.0, 1.0);
+    final outerClump = (0.28 + 0.66 * organicDrift) * countryMargin;
+    final tanadaPocket = TerrainBuilder.sampleTanadaMossAffinity(x, z) * 0.88;
 
     final primary = math.max(
-      math.max(wallPocket, bankPocket),
-      math.max(anchorPocket * 0.95, outerClump),
+      math.max(wallPocket, math.max(bankPocket, tanadaPocket)),
+      math.max(anchorPocket * 0.96, outerClump),
     );
-    return (primary * (0.76 + 0.34 * organicDrift)).clamp(0.0, 1.0);
+    return (primary * (0.80 + 0.32 * organicDrift)).clamp(0.0, 1.0);
   }
 }
 
@@ -479,27 +482,34 @@ class FloraScatterBuilder {
       return true;
     }
 
-    const span = 73.0;
-    const swardCandidates = 2350;
+    const span = 170.0;
+    const swardCandidates = 24000;
     for (var i = 0; i < swardCandidates; i++) {
       final ux = ((i + 1) * 0.7548776662466927) % 1.0;
       final uz = ((i + 1) * 0.5698402909980532) % 1.0;
       final h = (math.sin(i * 12.9898 + 4.1) * 43758.5453).abs() % 1.0;
       final jx = (math.sin(i * 7.13 + 1.7) * 1973.3).abs() % 1.0 - 0.5;
       final jz = (math.sin(i * 11.41 + 3.2) * 2411.9).abs() % 1.0 - 0.5;
-      final x = -36.5 + ux * span + jx * 0.65;
-      final z = -36.5 + uz * span + jz * 0.65;
+      final x = -85.0 + ux * span + jx * 0.65;
+      final z = -85.0 + uz * span + jz * 0.65;
 
       final habitat = index.sampleHabitatAffinity(x, z);
-      if (habitat < 0.44 || h > habitat * 1.12) {
+      final countryBoost = ((math.sqrt(x * x + z * z) - 16.0) / 14.0).clamp(
+        0.0,
+        1.0,
+      );
+      if (habitat < (0.40 - 0.12 * countryBoost) || h > habitat * 1.22) {
         continue;
       }
       if (!index.isClear(x, z, roadMargin: 0.44)) {
         continue;
       }
 
-      final radiusScale = 0.84 + 0.42 * h;
-      final heightScale = (0.36 + 0.42 * habitat) * (0.82 + 0.34 * h);
+      final radiusScale = (0.88 + 0.46 * h) * (1.0 + 0.28 * countryBoost);
+      final heightScale =
+          (0.40 + 0.46 * habitat) *
+          (0.84 + 0.34 * h) *
+          (1.0 + 0.24 * countryBoost);
       final tint = 0.88 + 0.22 * h;
       final dryStrawBias = (1.0 - habitat).clamp(0.0, 1.0);
       addAlignedInstance(
@@ -520,16 +530,16 @@ class FloraScatterBuilder {
       );
     }
 
-    const nogikuCandidates = 340;
+    const nogikuCandidates = 2800;
     for (var i = 0; i < nogikuCandidates; i++) {
       final ux = ((i + 37) * 0.7548776662466927) % 1.0;
       final uz = ((i + 37) * 0.5698402909980532) % 1.0;
-      final x = -35.0 + ux * 70.0;
-      final z = -35.0 + uz * 70.0;
+      final x = -84.0 + ux * 168.0;
+      final z = -84.0 + uz * 168.0;
 
       final habitat = index.sampleHabitatAffinity(x, z);
       final h = (math.sin(i * 19.17 + 2.3) * 31741.7).abs() % 1.0;
-      if (habitat < 0.54 || h > habitat * 0.92) {
+      if (habitat < 0.48 || h > habitat * 0.96) {
         continue;
       }
       if (!index.isClear(x, z, roadMargin: 0.54, footprintMargin: 0.44)) {
@@ -552,20 +562,20 @@ class FloraScatterBuilder {
       );
     }
 
-    const susukiCandidates = 280;
+    const susukiCandidates = 2700;
     for (var i = 0; i < susukiCandidates; i++) {
       final ux = ((i + 91) * 0.7548776662466927) % 1.0;
       final uz = ((i + 91) * 0.5698402909980532) % 1.0;
-      final x = -36.0 + ux * 72.0;
-      final z = -36.0 + uz * 72.0;
+      final x = -84.5 + ux * 169.0;
+      final z = -84.5 + uz * 169.0;
 
       final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
       final bankRibbon = math.exp(-math.pow((rivDist - 3.9) / 1.9, 2));
       final habitat = index.sampleHabitatAffinity(x, z);
-      final outerBluff = math.sqrt(x * x + z * z) > 22.0 ? habitat * 0.72 : 0.0;
+      final outerBluff = math.sqrt(x * x + z * z) > 18.0 ? habitat * 0.84 : 0.0;
       final h = (math.sin(i * 31.7 + 0.9) * 18913.3).abs() % 1.0;
       final affinity = math.max(bankRibbon, outerBluff);
-      if (affinity < 0.52 || h > affinity * 0.95) {
+      if (affinity < 0.44 || h > affinity * 0.98) {
         continue;
       }
       if (!index.isClear(x, z, roadMargin: 0.68, footprintMargin: 0.60)) {
@@ -588,18 +598,19 @@ class FloraScatterBuilder {
       );
     }
 
-    const higanbanaCandidates = 180;
+    const higanbanaCandidates = 1150;
     for (var i = 0; i < higanbanaCandidates; i++) {
       final ux = ((i + 151) * 0.7548776662466927) % 1.0;
       final uz = ((i + 151) * 0.5698402909980532) % 1.0;
-      final x = -34.0 + ux * 68.0;
-      final z = -34.0 + uz * 68.0;
+      final x = -83.0 + ux * 166.0;
+      final z = -83.0 + uz * 166.0;
 
       final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
       final wallDist = index.minWallOrTerraceDistance(x, z);
       final nearBank = rivDist >= 2.55 && rivDist <= 4.8;
       final nearStone = wallDist >= 0.86 && wallDist <= 2.25;
-      if (!nearBank && !nearStone) {
+      final nearTanada = TerrainBuilder.sampleTanadaMossAffinity(x, z) > 0.42;
+      if (!nearBank && !nearStone && !nearTanada) {
         continue;
       }
       final h = (math.sin(i * 23.1 + 5.1) * 15731.9).abs() % 1.0;
@@ -626,11 +637,11 @@ class FloraScatterBuilder {
       );
     }
 
-    const reedCandidates = 520;
+    const reedCandidates = 1320;
     for (var i = 0; i < reedCandidates; i++) {
       final side = i.isEven ? -1.0 : 1.0;
       final u = ((i + 1) * 0.6180339887498949) % 1.0;
-      final z = -35.8 + (i / reedCandidates) * 71.6 + (u - 0.5) * 0.64;
+      final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.64;
       final standMask =
           0.5 +
           0.32 * math.sin(z * 0.31 + side * 1.4) +
@@ -657,7 +668,7 @@ class FloraScatterBuilder {
         reedInstanced,
         x: x,
         z: z,
-        yaw: hSeed * math.pi * 2,
+        yaw: (i * 2.39996323) % (math.pi * 2),
         sx: width,
         sy: height,
         sz: width,
@@ -667,15 +678,15 @@ class FloraScatterBuilder {
       );
     }
 
-    const shrubCandidates = 280;
+    const shrubCandidates = 3200;
     for (var i = 0; i < shrubCandidates; i++) {
       final ux = ((i + 17) * 0.7548776662466927) % 1.0;
       final uz = ((i + 17) * 0.5698402909980532) % 1.0;
-      final x = -34.8 + ux * 69.6;
-      final z = -34.8 + uz * 69.6;
+      final x = -84.0 + ux * 168.0;
+      final z = -84.0 + uz * 168.0;
       final habitat = index.sampleHabitatAffinity(x, z);
       final sHash = (math.sin(i * 17.3 + 2.7) * 613.9).abs() % 1.0;
-      if (habitat < 0.56 || sHash > habitat * 0.90) {
+      if (habitat < 0.46 || sHash > habitat * 0.96) {
         continue;
       }
       if (!index.isClear(x, z, roadMargin: 0.72, footprintMargin: 0.54)) {
@@ -685,14 +696,14 @@ class FloraScatterBuilder {
       final shColor = russet
           ? Vector4(1.95, 0.88 + 0.32 * sHash, 0.48, 1)
           : Vector4(0.76 + 0.24 * sHash, 0.92 + 0.18 * sHash, 0.66, 1);
-      final rad = 0.50 + 0.34 * sHash;
+      final rad = 0.52 + 0.36 * sHash;
       addAlignedInstance(
         shrubInstanced,
         x: x,
         z: z,
         yaw: sHash * math.pi * 2,
         sx: rad,
-        sy: 0.32 + 0.22 * sHash,
+        sy: 0.34 + 0.24 * sHash,
         sz: rad,
         color: shColor,
         yLift: 0.02,
@@ -715,7 +726,18 @@ class FloraScatterBuilder {
         final radius = 0.48 + (3.15 + downwindBias * 2.0) * math.sqrt(frac);
         final x = s.position.x + math.cos(ang) * radius;
         final z = s.position.z + math.sin(ang) * radius;
-        if (!index.isClear(x, z, roadMargin: -0.22, footprintMargin: 0.20)) {
+        if (((x.abs() - 66.0).abs() < 6.4 && z.abs() < 9.5) ||
+            !index.isClear(x, z, roadMargin: -0.22, footprintMargin: 0.20)) {
+          continue;
+        }
+        final gy = sampleGroundY(x, z);
+        final avgNeighbor =
+            0.25 *
+            (sampleGroundY(x + 0.35, z) +
+                sampleGroundY(x - 0.35, z) +
+                sampleGroundY(x, z + 0.35) +
+                sampleGroundY(x, z - 0.35));
+        if ((avgNeighbor - gy).abs() > 0.022) {
           continue;
         }
         final warmGold = (k * 0.37 + mapleIndex * 0.29) % 1.0;
@@ -732,15 +754,15 @@ class FloraScatterBuilder {
           sy: patchSize,
           sz: patchSize,
           color: Vector4(r, g, b, 1),
-          yLift: 0.032,
-          slopeFollow: 0.85,
+          yLift: 0.056,
+          slopeFollow: 1,
         );
       }
     }
 
-    const riverLeafCount = 34;
+    const riverLeafCount = 84;
     for (var i = 0; i < riverLeafCount; i++) {
-      final z = -31.0 + (i / riverLeafCount) * 62.0;
+      final z = -80.0 + (i / riverLeafCount) * 160.0;
       if (z >= TerrainConfig.bridgeMinZ - 0.8 &&
           z <= TerrainConfig.bridgeMaxZ + 0.8) {
         continue;

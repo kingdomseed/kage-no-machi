@@ -213,7 +213,7 @@ void main() {
 
       final lookDriver = FakeLookDriver();
       final earthMat = lookDriver.materialFor(ShukubaSurfaceRole.packedEarth);
-      expect(earthMat.depthLayer, equals(-1));
+      expect(earthMat.depthLayer, equals(0));
     });
 
     test('Pair 4 countryside audit confirms terrain bounds and verification '

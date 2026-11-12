@@ -385,6 +385,7 @@ class EdoLookDriver implements ShukubaLookDriver {
     const gouacheRoles = [
       ShukubaSurfaceRole.packedEarth,
       ShukubaSurfaceRole.ishigakiStone,
+      ShukubaSurfaceRole.steppingStone,
       ShukubaSurfaceRole.laneOverlay,
       ShukubaSurfaceRole.plasterWall,
       ShukubaSurfaceRole.kuraPlaster,
@@ -522,6 +523,7 @@ class EdoLookDriver implements ShukubaLookDriver {
   static String _fmatPathForRole(ShukubaSurfaceRole role) => switch (role) {
     ShukubaSurfaceRole.packedEarth ||
     ShukubaSurfaceRole.ishigakiStone ||
+    ShukubaSurfaceRole.steppingStone ||
     ShukubaSurfaceRole.laneOverlay ||
     ShukubaSurfaceRole.plasterWall ||
     ShukubaSurfaceRole.kuraPlaster ||
@@ -558,6 +560,7 @@ class EdoLookDriver implements ShukubaLookDriver {
           ..setFloat('weathering', 0.20)
           ..setFloat('style_id', 5);
       case ShukubaSurfaceRole.ishigakiStone:
+      case ShukubaSurfaceRole.steppingStone:
         mat.parameters
           ..setVec4('base_tint', Vector4(0.13, 0.138, 0.152, 1))
           ..setVec4('warm_tint', Vector4(0.21, 0.19, 0.165, 1))

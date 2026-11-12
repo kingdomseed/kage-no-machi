@@ -285,7 +285,8 @@ class TerrainBuilder {
               along: along,
               platNormal: platN,
               roadWidth: road.widthMeters,
-              isBridgeApproach: road.isBridgeApproach,
+              isBridgeApproach:
+                  road.isBridgeApproach && pt.x.abs() < 9.5 && pt.z.abs() < 3.5,
               lowY: lowY,
               topY: terrace.topElevation,
             ),
@@ -296,6 +297,170 @@ class TerrainBuilder {
     return results;
   }
 
+  static const List<double> tanadaTierElevations = [
+    3.36,
+    3.80,
+    4.28,
+    4.78,
+    5.30,
+    5.84,
+  ];
+  static const double tanadaTierWidth = 5;
+
+  static double tanadaBaseCurveX(double z) {
+    final isSouth = z < 0;
+    final dz = z - (isSouth ? -36.0 : 36.0);
+    final bowl = 0.011 * dz * dz;
+    final wave =
+        1.45 * math.sin(z * 0.12 + (isSouth ? -0.7 : 0.4)) +
+        0.65 * math.cos(z * 0.23);
+    return 39.2 + bowl + wave;
+  }
+
+  static double tanadaTierHalfZ(int tier) => 18.2 - tier * 1.15;
+
+  static bool isInsideTanadaFloodedBasin(double x, double z) {
+    if (x < 38.0 || x > 73.0) {
+      return false;
+    }
+    final absZ = z.abs();
+    if (absZ < 17.5 || absZ > 54.5) {
+      return false;
+    }
+    final dz = (z - (z < 0 ? -36.0 : 36.0)).abs();
+    final u = x - tanadaBaseCurveX(z);
+    if (u < 0.95 || u >= tanadaTierElevations.length * tanadaTierWidth - 0.15) {
+      return false;
+    }
+    final tier = (u / tanadaTierWidth).floor().clamp(
+      0,
+      tanadaTierElevations.length - 1,
+    );
+    final localU = u - tier * tanadaTierWidth;
+    final halfZ = tanadaTierHalfZ(tier);
+    return dz <= halfZ - 2.4 &&
+        localU >= 1.24 &&
+        localU <= tanadaTierWidth - 0.16;
+  }
+
+  static double sampleTanadaMossAffinity(double x, double z) {
+    if (x < 36.5 || x > 74.5) {
+      return 0;
+    }
+    final absZ = z.abs();
+    if (absZ < 15.0 || absZ > 57.0) {
+      return 0;
+    }
+    final dz = (z - (z < 0 ? -36.0 : 36.0)).abs();
+    final u = x - tanadaBaseCurveX(z);
+    const totalDepth = 6 * tanadaTierWidth;
+    if (u < -1.8 || u > totalDepth + 2.2) {
+      return 0;
+    }
+    final clampedTier = (u / tanadaTierWidth).floor().clamp(
+      0,
+      tanadaTierElevations.length - 1,
+    );
+    final halfZ = tanadaTierHalfZ(clampedTier);
+    if (dz > halfZ + 1.2) {
+      return 0;
+    }
+    final zFade = dz > halfZ - 2.0
+        ? 1.0 - _quintic((dz - (halfZ - 2.0)) / 3.2)
+        : 1.0;
+    if (u >= 0 && u <= totalDepth) {
+      final localU = u - clampedTier * tanadaTierWidth;
+      final bundProx = 1.0 - ((localU - 0.58).abs() / 0.72).clamp(0.0, 1.0);
+      return bundProx * zFade;
+    }
+    final rimProx = u < 0
+        ? 1.0 - ((-u) / 1.8).clamp(0.0, 1.0)
+        : 1.0 - ((u - totalDepth) / 2.2).clamp(0.0, 1.0);
+    return rimProx * 0.55 * zFade;
+  }
+
+  static double sampleTanadaGradedElevation(
+    double x,
+    double z,
+    double rawHeight,
+  ) {
+    if (x < 36.5 || x > 74.5) {
+      return rawHeight;
+    }
+    final absZ = z.abs();
+    if (absZ < 14.5 || absZ > 57.5) {
+      return rawHeight;
+    }
+    final dz = (z - (z < 0 ? -36.0 : 36.0)).abs();
+    final u = x - tanadaBaseCurveX(z);
+    const tierCount = 6;
+    const totalDepth = tierCount * tanadaTierWidth;
+    if (u <= -2.4 || u >= totalDepth + 3.2) {
+      return rawHeight;
+    }
+
+    final clampedTier = (u / tanadaTierWidth).floor().clamp(0, tierCount - 1);
+    final halfZ = tanadaTierHalfZ(clampedTier);
+    if (dz >= halfZ) {
+      return rawHeight;
+    }
+
+    final wZ = dz > halfZ - 1.8
+        ? 1.0 - _quintic((dz - (halfZ - 1.8)) / 1.8)
+        : 1.0;
+    final double wX;
+    if (u < 0) {
+      wX = 1.0 - _quintic((-u) / 2.4);
+    } else if (u > totalDepth) {
+      wX = 1.0 - _quintic((u - totalDepth) / 3.2);
+    } else {
+      wX = 1.0;
+    }
+    final weight = wX * wZ;
+    if (weight <= 1e-5) {
+      return rawHeight;
+    }
+
+    final double shelfY;
+    if (u <= 0) {
+      shelfY = tanadaTierElevations.first - 0.34;
+    } else if (u >= totalDepth) {
+      shelfY = tanadaTierElevations.last + 0.24;
+    } else {
+      final tier = clampedTier;
+      final localU = u - tier * tanadaTierWidth;
+      final basinY = tanadaTierElevations[tier];
+      final bundCrownY = basinY + 0.115;
+      final prevFloorY = tier == 0
+          ? math.min(rawHeight, basinY - 0.38)
+          : tanadaTierElevations[tier - 1];
+      if (localU < 0.84) {
+        final t = _quintic(localU / 0.84);
+        shelfY = prevFloorY + (bundCrownY - prevFloorY) * t;
+      } else if (localU < 1.04) {
+        shelfY = bundCrownY;
+      } else {
+        final double basinFloor;
+        if (localU < 1.24) {
+          final t = _quintic((localU - 1.04) / 0.20);
+          basinFloor = bundCrownY + (basinY - bundCrownY) * t;
+        } else {
+          basinFloor =
+              basinY +
+              0.008 *
+                  math.sin(x * 1.35 + z * 0.85) *
+                  math.cos(z * 1.25 - x * 0.65);
+        }
+        final endBund = _quintic(
+          ((dz - (halfZ - 2.48)) / 0.46).clamp(0.0, 1.0),
+        );
+        shelfY = basinFloor + (bundCrownY - basinFloor) * endBund;
+      }
+    }
+
+    return rawHeight + (shelfY - rawHeight) * weight;
+  }
+
   double _evaluateGradedPoint(
     double x,
     double z, {
@@ -303,7 +468,7 @@ class TerrainBuilder {
     required Map<TerraceCourse, List<_RoadTerraceCrossing>> crossingsByTerrace,
     required bool recessUnderStairs,
   }) {
-    var height = sampleRawTerrain(x, z);
+    var height = sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z));
     for (var i = 0; i < sortedTerraces.length; i++) {
       final terrace = sortedTerraces[i];
       height = terrace.sampleGradedElevation(x, z, height);
@@ -365,7 +530,7 @@ class TerrainBuilder {
 
     final terraceList = terraces.toList();
     if (terraceList.isEmpty) {
-      return sampleRawTerrain(x, z);
+      return sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z));
     }
     terraceList.sort((a, b) => a.topElevation.compareTo(b.topElevation));
     final roadList = roads.toList();
@@ -679,6 +844,12 @@ class TerrainBuilder {
           }
         }
 
+        final tanadaMoss = sampleTanadaMossAffinity(x, z);
+        if (tanadaMoss > habitatMoss) {
+          habitatMoss = tanadaMoss;
+        }
+        final inTanadaBasin = isInsideTanadaFloodedBasin(x, z);
+
         final bankWet = 1.0 - ((rivDist - 2.2) / 2.8).clamp(0.0, 1.0);
         final wx = x + 2.2 * math.sin(z * 0.14 + 0.5);
         final wz = z + 2.2 * math.cos(x * 0.15 - 0.3);
@@ -688,6 +859,12 @@ class TerrainBuilder {
         var rCol = 0.88 + 0.18 * warmWash;
         var gCol = 0.86 + 0.14 * warmWash;
         var bCol = 0.78 + 0.12 * warmWash;
+
+        if (inTanadaBasin) {
+          rCol = 0.56;
+          gCol = 0.53;
+          bCol = 0.40;
+        }
 
         if (x < -35.0) {
           final loamT = (((-x) - 35.0) / 20.0).clamp(0.0, 1.0);
@@ -829,187 +1006,137 @@ class TerrainBuilder {
 
   Node buildTanadaPaddiesNode(ShukubaMaterialResolver resolveMaterial) {
     final root = Node(name: 'terrain_tile_tanada_paddies');
-    final earthMat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
     final waterMat = resolveMaterial(ShukubaSurfaceRole.riverWater);
     final stoneMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
-    final plantMat = resolveMaterial(ShukubaSurfaceRole.livingMeadow);
+    final timberMat = resolveMaterial(ShukubaSurfaceRole.charredTimber);
+    final shootMat = resolveMaterial(ShukubaSurfaceRole.bambooCanopy);
 
-    final bundBuilder = GeometryBuilder();
     final waterBuilder = GeometryBuilder();
     final stoneBuilder = GeometryBuilder();
-    final plantBuilder = GeometryBuilder();
+    final timberBuilder = GeometryBuilder();
+    final shootBuilder = GeometryBuilder();
 
-    const waterClearance = 0.085;
-    const bundProud = 0.22;
-    const bundCrownW = 0.46;
-    const bundBatter = 0.34;
-    const waterInset = 0.16;
-    const segsZ = 14;
-
-    double contourX(double z, int tier, {required bool isSouth}) {
-      final phase = isSouth ? -0.85 : 0.45;
-      final waveA = 2.15 * math.sin(z * 0.115 + tier * 0.52 + phase);
-      final waveB = 0.95 * math.cos(z * 0.215 - tier * 0.34 - phase);
-      return 40.2 + tier * 6.35 + waveA + waveB;
-    }
+    const waterClearance = 0.088;
+    const segsZ = 32;
 
     for (final isSouth in const [false, true]) {
-      var prevBasinY = 3.20;
-      for (var tier = 0; tier < 5; tier++) {
-        final zMin = isSouth ? (-54.5 + tier * 1.35) : (17.5 + tier * 1.35);
-        final zMax = isSouth ? (-17.5 - tier * 1.35) : (54.5 - tier * 1.35);
-        const tierDepthX = 5.85;
-
-        var maxRawY = -double.infinity;
-        for (var s = 0; s <= segsZ; s++) {
-          final z = zMin + (zMax - zMin) * (s / segsZ);
-          final xf = contourX(z, tier, isSouth: isSouth);
-          for (var dx = -0.4; dx <= tierDepthX + 0.4; dx += 0.95) {
-            final ry = sampleRawTerrain(xf + dx, z);
-            if (ry > maxRawY) maxRawY = ry;
-          }
-        }
-
-        final basinY = math.max(prevBasinY + 0.72, maxRawY + 0.30);
-        final lowerY = tier == 0
-            ? (sampleRawTerrain(
-                    contourX(0.5 * (zMin + zMax), 0, isSouth: isSouth) - 0.8,
-                    0.5 * (zMin + zMax),
-                  ) -
-                  0.45)
-            : (prevBasinY - 0.18);
-        prevBasinY = basinY;
-
+      final centerZ = isSouth ? -36.0 : 36.0;
+      for (var tier = 0; tier < tanadaTierElevations.length; tier++) {
+        final basinY = tanadaTierElevations[tier];
         final waterY = basinY + waterClearance;
-        final bundY = basinY + bundProud;
-        final mudColor = Vector4(0.62, 0.56, 0.42, 1);
-        final crownMossColor = Vector4(0.68, 0.80, 0.48, 1);
-        final riserLoamColor = Vector4(0.64, 0.58, 0.42, 1);
+        final prevY = tier == 0
+            ? basinY - 0.42
+            : tanadaTierElevations[tier - 1];
+        final halfZ = tanadaTierHalfZ(tier) - 2.52;
+        final zMin = centerZ - halfZ;
+        final zMax = centerZ + halfZ;
+        final uWater0 = tier * tanadaTierWidth + 1.28;
+        final uWater1 = (tier + 1) * tanadaTierWidth - 0.28;
 
         for (var s = 0; s < segsZ; s++) {
           final z0 = zMin + (zMax - zMin) * (s / segsZ);
           final z1 = zMin + (zMax - zMin) * ((s + 1) / segsZ);
-          final xf0 = contourX(z0, tier, isSouth: isSouth);
-          final xf1 = contourX(z1, tier, isSouth: isSouth);
-          final xb0 = xf0 + tierDepthX;
-          final xb1 = xf1 + tierDepthX;
+          final base0 = tanadaBaseCurveX(z0);
+          final base1 = tanadaBaseCurveX(z1);
 
-          EdoKitBuilder.addQuadOutward(
-            bundBuilder,
-            Vector3(xf0 + bundCrownW, basinY, z0),
-            Vector3(xb0 - bundCrownW, basinY, z0),
-            Vector3(xb1 - bundCrownW, basinY, z1),
-            Vector3(xf1 + bundCrownW, basinY, z1),
-            Vector3(0, 1, 0),
-            color: mudColor,
-          );
-
-          final isFirstSeg = s == 0;
-          final isLastSeg = s == segsZ - 1;
-          final wz0 = isFirstSeg ? (z0 + bundCrownW + waterInset) : z0;
-          final wz1 = isLastSeg ? (z1 - bundCrownW - waterInset) : z1;
-          if (wz1 > wz0 + 0.05) {
-            final wxf0 =
-                contourX(wz0, tier, isSouth: isSouth) + bundCrownW + waterInset;
-            final wxf1 =
-                contourX(wz1, tier, isSouth: isSouth) + bundCrownW + waterInset;
-            final wxb0 = wxf0 + tierDepthX - 2 * (bundCrownW + waterInset);
-            final wxb1 = wxf1 + tierDepthX - 2 * (bundCrownW + waterInset);
-            EdoKitBuilder.addQuadOutward(
-              waterBuilder,
-              Vector3(wxf0, waterY, wz0),
-              Vector3(wxb0, waterY, wz0),
-              Vector3(wxb1, waterY, wz1),
-              Vector3(wxf1, waterY, wz1),
-              Vector3(0, 1, 0),
-            );
+          final tipFrac0 = ((2 * s / segsZ) - 1.0).abs();
+          final tipFrac1 = ((2 * (s + 1) / segsZ) - 1.0).abs();
+          final midU = 0.5 * (uWater0 + uWater1);
+          final baseHalfU = 0.5 * (uWater1 - uWater0);
+          double taperedHalfU(double tf) {
+            if (tf <= 0.66) {
+              return baseHalfU;
+            }
+            final u = ((tf - 0.66) / 0.34).clamp(0.0, 1.0);
+            return baseHalfU * math.sqrt(math.max(0.06, 1.0 - u * u * 0.94));
           }
 
+          final halfU0 = taperedHalfU(tipFrac0);
+          final halfU1 = taperedHalfU(tipFrac1);
+          final wx0A = base0 + midU - halfU0;
+          final wx0B = base0 + midU + halfU0;
+          final wx1A = base1 + midU - halfU1;
+          final wx1B = base1 + midU + halfU1;
+
           EdoKitBuilder.addQuadOutward(
-            bundBuilder,
-            Vector3(xf0, bundY, z0),
-            Vector3(xf0 + bundCrownW, bundY, z0),
-            Vector3(xf1 + bundCrownW, bundY, z1),
-            Vector3(xf1, bundY, z1),
+            waterBuilder,
+            Vector3(wx0A, waterY, z0),
+            Vector3(wx0B, waterY, z0),
+            Vector3(wx1B, waterY, z1),
+            Vector3(wx1A, waterY, z1),
             Vector3(0, 1, 0),
-            color: crownMossColor,
-          );
-          EdoKitBuilder.addQuadOutward(
-            bundBuilder,
-            Vector3(xf0 - bundBatter, lowerY, z0),
-            Vector3(xf0, bundY, z0),
-            Vector3(xf1, bundY, z1),
-            Vector3(xf1 - bundBatter, lowerY, z1),
-            Vector3(-1, 0.45, 0),
-            color: riserLoamColor,
-          );
-          EdoKitBuilder.addQuadOutward(
-            bundBuilder,
-            Vector3(xf0 + bundCrownW, bundY, z0),
-            Vector3(xf0 + bundCrownW + 0.12, basinY - 0.04, z0),
-            Vector3(xf1 + bundCrownW + 0.12, basinY - 0.04, z1),
-            Vector3(xf1 + bundCrownW, bundY, z1),
-            Vector3(1, 0.35, 0),
-            color: riserLoamColor,
           );
 
-          if ((s + tier) % 3 == 0) {
-            final mx = 0.5 * (xf0 + xf1) - 0.14;
+          if ((s * 3 + tier * 2) % 6 == 1) {
             final mz = 0.5 * (z0 + z1);
+            final mBase = tanadaBaseCurveX(mz);
+            final stoneX = mBase + tier * tanadaTierWidth + 0.30;
+            final stoneY = 0.5 * (prevY + basinY) + 0.07;
+            final h =
+                (math.sin((tier * 23 + s * 11 + (isSouth ? 97 : 13)) * 1.7) *
+                        913.7)
+                    .abs() %
+                1.0;
             EdoKitBuilder.addRockBoulder(
               stoneBuilder,
-              Vector3(mx, 0.5 * (lowerY + bundY), mz),
-              Vector3(0.28, 0.24, 0.34),
-              yaw: (s * 0.65) + tier * 0.4,
+              Vector3(stoneX, stoneY, mz),
+              Vector3(0.24 + 0.08 * h, 0.17 + 0.05 * h, 0.30 + 0.10 * (1 - h)),
+              yaw: s * 0.72 + tier * 0.45,
               seed: tier * 31 + s * 7 + (isSouth ? 101 : 17),
             );
           }
         }
 
-        for (final isEndMax in const [false, true]) {
-          final ze = isEndMax ? zMax : zMin;
-          final xf = contourX(ze, tier, isSouth: isSouth);
-          final xb = xf + tierDepthX;
-          final zA = isEndMax ? (ze - bundCrownW) : ze;
-          final zB = isEndMax ? ze : (ze + bundCrownW);
-          final zOut = isEndMax ? (ze + 0.28) : (ze - 0.28);
-          final endMinZ = math.min(zA, zOut);
-          final endMaxZ = math.max(zB, zOut);
-          EdoKitBuilder.addBox(
-            bundBuilder,
-            Vector3(xf, lowerY, endMinZ),
-            Vector3(xb, bundY - 0.015, endMaxZ),
-            color: crownMossColor,
-          );
-        }
+        final spillwayZ =
+            centerZ + ((tier.isEven ? 1.0 : -1.0) * (3.2 + tier * 1.15));
+        final spillX = tanadaBaseCurveX(spillwayZ) + tier * tanadaTierWidth;
+        final troughTopY = basinY + 0.13;
+        EdoKitBuilder.addBox(
+          timberBuilder,
+          Vector3(spillX + 0.06, troughTopY - 0.06, spillwayZ - 0.14),
+          Vector3(spillX + 1.04, troughTopY, spillwayZ + 0.14),
+          color: Vector4(0.84, 0.78, 0.68, 1),
+        );
 
-        for (
-          var pz = zMin + bundCrownW + waterInset + 0.65;
-          pz < zMax - bundCrownW - waterInset - 0.55;
-          pz += 1.08
-        ) {
-          final rowXf =
-              contourX(pz, tier, isSouth: isSouth) + bundCrownW + waterInset;
-          final rowXb = rowXf + tierDepthX - 2 * (bundCrownW + waterInset);
-          for (var px = rowXf + 0.58; px < rowXb - 0.48; px += 0.92) {
-            const tuftH = 0.22;
+        for (var pz = zMin + 0.85; pz < zMax - 0.75; pz += 1.05) {
+          final rowBase = tanadaBaseCurveX(pz);
+          final rowX0 = rowBase + uWater0 + 0.46;
+          final rowX1 = rowBase + uWater1 - 0.42;
+          for (var px = rowX0; px < rowX1; px += 0.92) {
+            final jitterX = 0.05 * math.cos(px * 1.7 - pz * 1.4);
             final jitterZ = 0.06 * math.sin(px * 1.9 + pz * 1.3);
-            EdoKitBuilder.addBox(
-              plantBuilder,
-              Vector3(px - 0.04, basinY + 0.01, pz + jitterZ - 0.04),
-              Vector3(px + 0.04, waterY + tuftH, pz + jitterZ + 0.04),
-              color: Vector4(0.76, 1.02, 0.52, 1),
+            final sx = px + jitterX;
+            final sz = pz + jitterZ;
+            final seed = (math.sin(sx * 12.7 + sz * 7.3) * 419.3).abs() % 1.0;
+            final shootColor = Vector4(
+              0.72 + 0.14 * seed,
+              0.98 + 0.10 * (1 - seed),
+              0.44 + 0.08 * seed,
+              1,
             );
+            for (var b = 0; b < 3; b++) {
+              final bladeYaw = seed * math.pi * 2 + b * (math.pi * 2 / 3);
+              EdoKitBuilder.addArchedFoliageCard(
+                shootBuilder,
+                Vector3(sx, waterY - 0.02, sz),
+                yaw: bladeYaw,
+                pitchUp: 0.92 + 0.12 * b,
+                length: 0.25 + 0.05 * seed,
+                width: 0.14,
+                droop: 0.06,
+                color: shootColor,
+              );
+            }
           }
         }
       }
     }
 
     root
-      ..add(Node(mesh: Mesh(bundBuilder.build(), earthMat)))
       ..add(Node(mesh: Mesh(waterBuilder.build(), waterMat)))
       ..add(Node(mesh: Mesh(stoneBuilder.build(), stoneMat)))
-      ..add(Node(mesh: Mesh(plantBuilder.build(), plantMat)));
+      ..add(Node(mesh: Mesh(timberBuilder.build(), timberMat)))
+      ..add(Node(mesh: Mesh(shootBuilder.build(), shootMat)));
 
     return markSubtreeShadowStatic(root);
   }
@@ -1045,13 +1172,23 @@ class TerrainBuilder {
         Vector3(cx + 3.4, rampartTopY, -2.05),
         color: Vector4(0.92, 0.91, 0.88, 1),
       );
+      for (final signZ in const [-1.0, 1.0]) {
+        final curbZ0 = signZ > 0 ? 1.74 : -2.04;
+        final curbZ1 = signZ > 0 ? 2.04 : -1.74;
+        EdoKitBuilder.addBox(
+          stoneBuilder,
+          Vector3(cx - 3.25, bottomY + 0.04, curbZ0),
+          Vector3(cx + 3.25, gy + 0.14, curbZ1),
+          color: Vector4(0.94, 0.93, 0.90, 1),
+        );
+      }
 
-      final wingMinX = cx < 0 ? (cx - 3.4) : (cx + 2.52);
-      final wingMaxX = cx < 0 ? (cx - 2.52) : (cx + 3.4);
+      final wingMinX = cx < 0 ? (cx - 3.38) : (cx + 2.88);
+      final wingMaxX = cx < 0 ? (cx - 2.88) : (cx + 3.38);
       EdoKitBuilder.addBox(
         stoneBuilder,
-        Vector3(wingMinX, bottomY, 5.28),
-        Vector3(wingMaxX, rampartTopY - 0.18, 6.92),
+        Vector3(wingMinX, bottomY + 0.01, 5.28),
+        Vector3(wingMaxX, rampartTopY - 0.04, 6.72),
         color: Vector4(0.90, 0.89, 0.86, 1),
       );
 
@@ -1107,14 +1244,17 @@ class TerrainBuilder {
       }
 
       const steps = 6;
-      final stairStartX = cx < 0 ? (cx + 1.85) : (cx - 3.15);
+      final dirX = cx < 0 ? -1.0 : 1.0;
       for (var s = 0; s < steps; s++) {
-        final sy1 = bottomY + 0.35 + (s + 1) * 0.34;
-        final sx0 = stairStartX + s * 0.22;
-        final sx1 = sx0 + 0.216;
+        final d0 = 1.58 + s * 0.212;
+        final d1 = d0 + 0.198;
+        final sx0 = dirX < 0 ? (cx - d1) : (cx + d0);
+        final sx1 = dirX < 0 ? (cx - d0) : (cx + d1);
+        final sy0 = bottomY + 0.02 + s * 0.003;
+        final sy1 = gy + 0.34 + s * 0.39;
         EdoKitBuilder.addBox(
           stoneBuilder,
-          Vector3(sx0, bottomY, 5.29),
+          Vector3(sx0, sy0, 5.30),
           Vector3(sx1, sy1, 6.26),
           color: Vector4(0.94, 0.93, 0.90, 1),
         );
@@ -1367,6 +1507,14 @@ class TerrainBuilder {
         Vector3(abutmentX - 0.26, yEnd - 1.35, -1.96),
         Vector3(abutmentX + 0.26, yEnd - 0.12, 1.96),
       );
+      final sillX0 = abutmentX < 0 ? -5.64 : 5.21;
+      final sillX1 = abutmentX < 0 ? -5.21 : 5.64;
+      EdoKitBuilder.addBox(
+        footingBuilder,
+        Vector3(sillX0, yEnd - 0.10, -1.66),
+        Vector3(sillX1, yEnd + 0.015, 1.66),
+        color: Vector4(0.93, 0.92, 0.89, 1),
+      );
     }
 
     root
@@ -1553,7 +1701,7 @@ class TerrainBuilder {
       }
     }
 
-    final horizonBuilder = GeometryBuilder();
+    final horizonBuilders = List.generate(4, (_) => GeometryBuilder());
     const apronRings = [88.04, 96.0, 110.0, 128.0, 152.0, 184.0];
     const segsPerSide = 64;
     const totalPerim = segsPerSide * 4;
@@ -1596,13 +1744,14 @@ class TerrainBuilder {
     }
 
     for (var p = 0; p < totalPerim; p++) {
+      final sideBuilder = horizonBuilders[p ~/ segsPerSide];
       final (x0, z0) = apronRingXZ(apronRings[0], p);
       final (x1, z1) = apronRingXZ(apronRings[0], p + 1);
       final y0 = apronHeight(x0, z0, 0);
       final y1 = apronHeight(x1, z1, 0);
       final c0 = apronColor(x0, z0, 0);
       EdoKitBuilder.addQuadOutward(
-        horizonBuilder,
+        sideBuilder,
         Vector3(x0, -3.2, z0),
         Vector3(x1, -3.2, z1),
         Vector3(x1, y1, z1),
@@ -1616,6 +1765,7 @@ class TerrainBuilder {
       final rInner = apronRings[ri];
       final rOuter = apronRings[ri + 1];
       for (var p = 0; p < totalPerim; p++) {
+        final sideBuilder = horizonBuilders[p ~/ segsPerSide];
         final (ix0, iz0) = apronRingXZ(rInner, p);
         final (ix1, iz1) = apronRingXZ(rInner, p + 1);
         final (ox1, oz1) = apronRingXZ(rOuter, p + 1);
@@ -1625,7 +1775,7 @@ class TerrainBuilder {
         final oy1 = apronHeight(ox1, oz1, ri + 1);
         final oy0 = apronHeight(ox0, oz0, ri + 1);
         EdoKitBuilder.addQuadOutward(
-          horizonBuilder,
+          sideBuilder,
           Vector3(ix0, iy0, iz0),
           Vector3(ix1, iy1, iz1),
           Vector3(ox1, oy1, oz1),
@@ -1636,15 +1786,11 @@ class TerrainBuilder {
       }
     }
 
+    final earthMat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
+    for (final hb in horizonBuilders) {
+      root.add(Node(mesh: Mesh(hb.build(), earthMat)));
+    }
     root
-      ..add(
-        Node(
-          mesh: Mesh(
-            horizonBuilder.build(),
-            resolveMaterial(ShukubaSurfaceRole.packedEarth),
-          ),
-        ),
-      )
       ..add(
         Node(
           mesh: Mesh(
@@ -1753,10 +1899,11 @@ class TerrainBuilder {
 
   static void _addSteppingStoneSlab(
     GeometryBuilder builder, {
+    required GroundHeightSampler sampleGroundY,
     required double cx,
     required double cz,
-    required double bottomY,
-    required double topY,
+    required double baseLift,
+    required double topLift,
     required double radiusX,
     required double radiusZ,
     required double yaw,
@@ -1776,7 +1923,7 @@ class TerrainBuilder {
       return Vector2(cx + lx * cy - lz * sy, cz + lx * sy + lz * cy);
     }
 
-    final topCenter = Vector3(cx, topY + 0.004, cz);
+    final topCenter = Vector3(cx, sampleGroundY(cx, cz) + topLift + 0.004, cz);
     for (var i = 0; i < sides; i++) {
       final next = (i + 1) % sides;
       final bA2 = ringPt(i, 1.04);
@@ -1784,10 +1931,10 @@ class TerrainBuilder {
       final tA2 = ringPt(i, 0.96);
       final tB2 = ringPt(next, 0.96);
 
-      final bA = Vector3(bA2.x, bottomY, bA2.y);
-      final bB = Vector3(bB2.x, bottomY, bB2.y);
-      final tA = Vector3(tA2.x, topY, tA2.y);
-      final tB = Vector3(tB2.x, topY, tB2.y);
+      final bA = Vector3(bA2.x, sampleGroundY(bA2.x, bA2.y) + baseLift, bA2.y);
+      final bB = Vector3(bB2.x, sampleGroundY(bB2.x, bB2.y) + baseLift, bB2.y);
+      final tA = Vector3(tA2.x, sampleGroundY(tA2.x, tA2.y) + topLift, tA2.y);
+      final tB = Vector3(tB2.x, sampleGroundY(tB2.x, tB2.y) + topLift, tB2.y);
       final outN = Vector3(
         (tA.x + tB.x) * 0.5 - cx,
         0.25,
@@ -1823,10 +1970,11 @@ class TerrainBuilder {
     final root = Node(name: 'road_${road.id.value}');
     final ribbonBuilder = GeometryBuilder();
     final stoneBuilder = GeometryBuilder();
+    final steppingStoneBuilder = GeometryBuilder();
     final halfWidth = road.widthMeters * 0.5;
     final isGarden = road.style == RoadStyle.gardenPath;
 
-    final samples = road.smoothCenterline(stepMeters: 0.55);
+    final samples = road.smoothCenterline(stepMeters: 0.24);
     if (samples.length < 2) {
       return root;
     }
@@ -1861,20 +2009,66 @@ class TerrainBuilder {
         final rz = z - c.point.z;
         final uAlong = (rx * c.along.x + rz * c.along.z).abs();
         final inward = rx * c.platNormal.x + rz * c.platNormal.z;
-        if (uAlong <= c.halfWallGap + 0.12 &&
+        if (uAlong <= c.halfWallGap + 0.14 &&
             inward >= -1.78 &&
-            inward <= 0.98) {
+            inward <= 1.04) {
           return true;
         }
       }
       return false;
     }
 
+    bool isNearStairThreshold(double x, double z) {
+      for (var i = 0; i < stairCrossings.length; i++) {
+        final c = stairCrossings[i];
+        final rx = x - c.point.x;
+        final rz = z - c.point.z;
+        final uAlong = (rx * c.along.x + rz * c.along.z).abs();
+        final inward = rx * c.platNormal.x + rz * c.platNormal.z;
+        if (uAlong <= c.halfWallGap + 0.38 &&
+            inward >= -2.42 &&
+            inward <= 1.72) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    (Vec3, Vec3, Vec3, Vec3) roadEndHalfPlanes(RoadSpline r) {
+      final pts = r.smoothCenterline();
+      final startTang = (pts[1] - pts.first).normalizedHorizontal();
+      final endTang = (pts.last - pts[pts.length - 2]).normalizedHorizontal();
+      return (pts.first, startTang, pts.last, endTang);
+    }
+
+    final earlierBounds = [
+      for (final er in earlierRoads) roadEndHalfPlanes(er),
+    ];
+    final otherBounds = [for (final or in otherRoads) roadEndHalfPlanes(or)];
+
+    bool isStrictlyWithinRoadSpan(
+      double x,
+      double z,
+      (Vec3, Vec3, Vec3, Vec3) bounds,
+    ) {
+      final (startPt, startTang, endPt, endTang) = bounds;
+      final dStart =
+          (x - startPt.x) * startTang.x + (z - startPt.z) * startTang.z;
+      if (dStart < -0.04) {
+        return false;
+      }
+      final dEnd = (x - endPt.x) * endTang.x + (z - endPt.z) * endTang.z;
+      if (dEnd > 0.04) {
+        return false;
+      }
+      return true;
+    }
+
     const crossFracs = [-1.0, -0.58, 0.0, 0.58, 1.0];
     const crossU = [0.0, 0.21, 0.50, 0.79, 1.0];
     final camberLifts = isGarden
-        ? const [0.016, 0.030, 0.036, 0.030, 0.016]
-        : const [0.018, 0.042, 0.052, 0.042, 0.018];
+        ? const [0.046, 0.062, 0.070, 0.062, 0.046]
+        : const [0.048, 0.068, 0.080, 0.068, 0.048];
     final styleAlpha = isGarden ? 0.35 : 1.0;
 
     final normals2D = <Vec3>[];
@@ -1918,14 +2112,21 @@ class TerrainBuilder {
 
     var emittedQuads = 0;
     for (var i = 0; i < samples.length - 1; i++) {
-      final mid = Vec3.lerp(samples[i], samples[i + 1], 0.5);
+      final p0 = samples[i];
+      final p1 = samples[i + 1];
+      final mid = Vec3.lerp(p0, p1, 0.5);
       if (TerrainConfig.isInsideBridgeFootprint(mid.x, mid.z) ||
+          isInsideStairFlight(p0.x, p0.z) ||
+          isInsideStairFlight(p1.x, p1.z) ||
           isInsideStairFlight(mid.x, mid.z)) {
         continue;
       }
       var overlapsEarlier = false;
       for (var e = 0; e < earlierRoads.length; e++) {
         final er = earlierRoads[e];
+        if (!isStrictlyWithinRoadSpan(mid.x, mid.z, earlierBounds[e])) {
+          continue;
+        }
         if (er.nearestSample(mid).horizontalDistance < er.widthMeters * 0.44) {
           overlapsEarlier = true;
           break;
@@ -1963,11 +2164,16 @@ class TerrainBuilder {
 
     bool isNearOtherRoadOrTerrace(double x, double z) {
       if (TerrainConfig.isInsideBridgeFootprint(x, z) ||
-          isInsideStairFlight(x, z)) {
+          (x.abs() < 6.6 && z.abs() < 3.0) ||
+          isNearStairThreshold(x, z) ||
+          ((x.abs() - 66.0).abs() < 3.6 && z.abs() < 5.4)) {
         return true;
       }
       for (var o = 0; o < otherRoads.length; o++) {
         final or = otherRoads[o];
+        if (!isStrictlyWithinRoadSpan(x, z, otherBounds[o])) {
+          continue;
+        }
         if (or.nearestSample(Vec3(x, 0, z)).horizontalDistance <
             or.widthMeters * 0.5 + 0.36) {
           return true;
@@ -2029,7 +2235,8 @@ class TerrainBuilder {
         if (isGarden && hash < 0.06) {
           continue;
         }
-        final curbOffset = halfWidth - (isGarden ? 0.02 : 0.03);
+        final halfWid = isGarden ? 0.072 : 0.088;
+        final curbOffset = halfWidth + halfWid + 0.032;
         final cx = base.x + norm.x * side * curbOffset;
         final cz = base.z + norm.z * side * curbOffset;
         if (isNearOtherRoadOrTerrace(cx, cz)) {
@@ -2037,10 +2244,9 @@ class TerrainBuilder {
         }
         final gy = sampleGroundY(cx, cz);
         final topProud = isGarden
-            ? (0.048 + 0.018 * hash)
-            : (0.052 + 0.022 * hash);
+            ? (0.064 + 0.018 * hash)
+            : (0.068 + 0.022 * hash);
         final halfLen = isGarden ? (0.28 + 0.03 * hash) : (0.33 + 0.03 * hash);
-        final halfWid = isGarden ? 0.072 : 0.088;
         final shade = 0.92 + 0.22 * hash;
         _addOrientedStoneBlock(
           stoneBuilder,
@@ -2057,6 +2263,7 @@ class TerrainBuilder {
       }
     }
 
+    var steppingStoneCount = 0;
     if (isGarden) {
       const stepSpacing = 0.68;
       final stepSlots = (totalLen / stepSpacing).floor();
@@ -2072,20 +2279,20 @@ class TerrainBuilder {
         if (isNearOtherRoadOrTerrace(sx, sz)) {
           continue;
         }
-        final gy = sampleGroundY(sx, sz);
         final isAccentStone = s % 5 == 2;
         _addSteppingStoneSlab(
-          stoneBuilder,
+          steppingStoneBuilder,
+          sampleGroundY: sampleGroundY,
           cx: sx,
           cz: sz,
-          bottomY: gy - 0.08,
-          topY: gy + (isAccentStone ? 0.078 : 0.066) + 0.010 * h,
+          baseLift: 0.072,
+          topLift: (isAccentStone ? 0.106 : 0.094) + 0.010 * h,
           radiusX: isAccentStone ? 0.31 : (0.23 + 0.05 * h),
           radiusZ: isAccentStone ? 0.26 : (0.19 + 0.04 * (1 - h)),
           yaw: h * math.pi * 2,
           seed: s * 1.3 + 0.4,
         );
-        stoneCount++;
+        steppingStoneCount++;
       }
     }
 
@@ -2096,6 +2303,17 @@ class TerrainBuilder {
           mesh: Mesh(
             stoneBuilder.build(),
             resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
+          ),
+        ),
+      );
+    }
+    if (steppingStoneCount > 0) {
+      root.add(
+        Node(
+          name: 'road_stepping_stones_${road.id.value}',
+          mesh: Mesh(
+            steppingStoneBuilder.build(),
+            resolveMaterial(ShukubaSurfaceRole.steppingStone),
           ),
         ),
       );
@@ -2369,10 +2587,107 @@ class TerrainBuilder {
       final stepRise = rise / stepCount;
       final treadHalfW = c.roadWidth * 0.5 + 0.04;
 
+      void emitShikishiApron({
+        required double inMin,
+        required double inMax,
+        required double minBaseY,
+        required Vector4 color,
+      }) {
+        final apronHalfW = treadHalfW - 0.02;
+        final p00 = c.point + c.platNormal * inMin - c.along * apronHalfW;
+        final p10 = c.point + c.platNormal * inMin + c.along * apronHalfW;
+        final p11 = c.point + c.platNormal * inMax + c.along * apronHalfW;
+        final p01 = c.point + c.platNormal * inMax - c.along * apronHalfW;
+        double apronTopAt(Vec3 p) =>
+            sampleGroundHeight(
+              p.x,
+              p.z,
+              terraces: terraceList,
+              roads: roadList,
+            ) +
+            0.028;
+        final y00 = apronTopAt(p00);
+        final y10 = apronTopAt(p10);
+        final y11 = apronTopAt(p11);
+        final y01 = apronTopAt(p01);
+        final yBot =
+            math.min(
+              minBaseY,
+              math.min(math.min(y00, y10), math.min(y11, y01)),
+            ) -
+            0.36;
+        final t00 = Vector3(p00.x, y00, p00.z);
+        final t10 = Vector3(p10.x, y10, p10.z);
+        final t11 = Vector3(p11.x, y11, p11.z);
+        final t01 = Vector3(p01.x, y01, p01.z);
+        final b00 = Vector3(p00.x, yBot, p00.z);
+        final b10 = Vector3(p10.x, yBot, p10.z);
+        final b11 = Vector3(p11.x, yBot, p11.z);
+        final b01 = Vector3(p01.x, yBot, p01.z);
+        EdoKitBuilder.addQuadOutward(
+          stairStoneBuilder,
+          t00,
+          t10,
+          t11,
+          t01,
+          Vector3(0, 1, 0),
+          color: color,
+        );
+        EdoKitBuilder.addQuadOutward(
+          stairStoneBuilder,
+          b00,
+          b10,
+          t10,
+          t00,
+          Vector3(-c.platNormal.x, 0, -c.platNormal.z),
+          color: color,
+        );
+        EdoKitBuilder.addQuadOutward(
+          stairStoneBuilder,
+          b10,
+          b11,
+          t11,
+          t10,
+          Vector3(c.along.x, 0, c.along.z),
+          color: color,
+        );
+        EdoKitBuilder.addQuadOutward(
+          stairStoneBuilder,
+          b11,
+          b01,
+          t01,
+          t11,
+          Vector3(c.platNormal.x, 0, c.platNormal.z),
+          color: color,
+        );
+        EdoKitBuilder.addQuadOutward(
+          stairStoneBuilder,
+          b01,
+          b00,
+          t00,
+          t01,
+          Vector3(-c.along.x, 0, -c.along.z),
+          color: color,
+        );
+      }
+
+      emitShikishiApron(
+        inMin: inStart - 0.62,
+        inMax: inStart + 0.04,
+        minBaseY: c.lowY,
+        color: Vector4(0.93, 0.92, 0.89, 1),
+      );
+      emitShikishiApron(
+        inMin: inEnd - 0.02,
+        inMax: inEnd + 0.66,
+        minBaseY: c.topY,
+        color: Vector4(0.94, 0.93, 0.90, 1),
+      );
+      hasStairStone = true;
+
       for (var s = 0; s < stepCount; s++) {
         final inA = inStart + s * stepRun;
-        final inB =
-            inStart + (s + 1) * stepRun + (s == stepCount - 1 ? 0.18 : 0.04);
+        final inB = inStart + (s + 1) * stepRun + 0.04;
         final midIn = (inA + 0.05 + inB) * 0.5;
         final halfDepth = (inB - (inA + 0.05)) * 0.5;
         final yTop = c.lowY + (s + 1) * stepRise;
@@ -2592,7 +2907,7 @@ class TerrainBuilder {
       final spanA = rawA + along * postClear;
       final spanB = rawB - along * postClear;
       final clearLen = rawLen - postClear * 2;
-      final chunks = math.max(1, (clearLen / 3.2).ceil());
+      final chunks = math.max(1, (clearLen / 2.2).ceil());
 
       for (var k = 0; k < chunks; k++) {
         final cA = Vec3.lerp(spanA, spanB, k / chunks);

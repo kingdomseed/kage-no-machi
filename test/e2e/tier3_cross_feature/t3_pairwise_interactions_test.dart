@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:flutter/material.dart' hide Material, Matrix4;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
 import 'package:kage_no_machi/shukuba/look/look.dart';
@@ -12,6 +11,7 @@ import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/world/world.dart';
+import 'package:material_ui/material_ui.dart' hide Material, Matrix4;
 import 'package:vector_math/vector_math.dart' show Vector3, Vector4;
 
 import '../helpers/e2e_test_harness.dart';
@@ -390,6 +390,9 @@ void main() {
           ),
         );
 
+        expect(find.text('Market Stall'), findsNothing);
+        await tester.tap(find.text('Dwellings & Shops'));
+        await tester.pump();
         expect(find.text('Market Stall'), findsOneWidget);
         await tester.tap(find.text('Market Stall'));
         await tester.pump();

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart' hide Material;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
@@ -8,6 +7,7 @@ import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_page.dart';
 import 'package:kage_no_machi/shukuba/world/world.dart';
+import 'package:material_ui/material_ui.dart' hide Material;
 
 import '../helpers/e2e_test_harness.dart';
 
@@ -450,7 +450,9 @@ void main() {
       );
     });
 
-    testWidgets('ShukubaHud renders builder dock tool cards', (tester) async {
+    testWidgets('ShukubaHud renders calm categories and opens tool drawers', (
+      tester,
+    ) async {
       final controller = ShukubaController(
         look: FakeLookDriver(),
         world: FakeWorldDriver(),
@@ -465,10 +467,17 @@ void main() {
         ),
       );
 
+      expect(find.text('Demolish'), findsOneWidget);
+      expect(find.text('Townhouse'), findsNothing);
+
+      await tester.tap(find.text('Dwellings & Shops'));
+      await tester.pump();
       expect(find.text('Townhouse'), findsOneWidget);
+
+      await tester.tap(find.text('Roads & Walls'));
+      await tester.pump();
       expect(find.text('Road'), findsOneWidget);
       expect(find.text('Stone Terrace'), findsOneWidget);
-      expect(find.text('Demolish'), findsOneWidget);
 
       controller.dispose();
     });
@@ -506,6 +515,8 @@ void main() {
         ),
       );
 
+      await tester.tap(find.text('Dwellings & Shops'));
+      await tester.pump();
       await tester.tap(find.text('Townhouse'));
       await tester.pump();
 

@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:io' show exit, stderr;
-import 'dart:ui' show FrameTiming;
+import 'dart:io' show Directory, File, exit, stderr;
+import 'dart:ui' as ui show FrameTiming, ImageByteFormat;
 
 import 'package:flutter/gestures.dart'
     show
@@ -8,7 +8,7 @@ import 'package:flutter/gestures.dart'
         kMiddleMouseButton,
         kPrimaryMouseButton,
         kSecondaryMouseButton;
-import 'package:flutter/material.dart' hide Matrix4;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart'
     show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:flutter_scene/scene.dart' show Camera, Scene, SceneView;
@@ -22,6 +22,7 @@ import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
 import 'package:kage_no_machi/shukuba/view/tactical_camera_rig.dart';
 import 'package:kage_no_machi/shukuba/world/world.dart';
+import 'package:material_ui/material_ui.dart' hide Matrix4;
 
 class ShukubaPage extends StatefulWidget {
   const new({
@@ -43,6 +44,7 @@ class ShukubaPage extends StatefulWidget {
 
 class _ShukubaPageState extends State<ShukubaPage> {
   final GlobalKey _repaintBoundaryKey = GlobalKey();
+  final GlobalKey _uiRepaintBoundaryKey = GlobalKey();
   final FocusNode _focusNode = FocusNode();
   final TacticalCameraRig _cameraRig = TacticalCameraRig();
 
@@ -53,6 +55,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
   final List<BootStageTiming> _completedBootTimings = [];
   BootReport? _bootReport;
   bool _showTelemetry = false;
+  bool _forceRenderHudInCapture = false;
   final RollingFrameTimer _frameTimer = RollingFrameTimer(windowSize: 60);
 
   bool _gpuAvailable = false;
@@ -89,7 +92,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
     }
   }
 
-  void _onFrameTimings(List<FrameTiming> timings) {
+  void _onFrameTimings(List<ui.FrameTiming> timings) {
     if (!mounted) return;
     _frameTimer.ingestTimings(timings);
   }
@@ -154,10 +157,72 @@ class _ShukubaPageState extends State<ShukubaPage> {
           audio: _controller.audio,
           repaintBoundaryKey: _repaintBoundaryKey,
           applyPreset: _applyPresetForCapture,
+          captureUiAtlas: _captureUiAtlas,
         );
         unawaited(_executeCaptureSuite(harness));
       });
     }
+  }
+
+  Future<void> _saveUiPng(String filePath) async {
+    for (var i = 0; i < 3; i++) {
+      await ShukubaFrameHarness.pumpFrame();
+    }
+    final boundary = _uiRepaintBoundaryKey.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary) {
+      return;
+    }
+    final image = await boundary.toImage();
+    try {
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (bytes != null) {
+        await File(filePath).writeAsBytes(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+          flush: true,
+        );
+      }
+    } finally {
+      image.dispose();
+    }
+  }
+
+  Future<List<String>> _captureUiAtlas(Directory uiDir) async {
+    final saved = <String>[];
+    _applyPresetForCapture(CameraPreset.duskOverview);
+    setState(() {
+      _forceRenderHudInCapture = true;
+      _shellMode = ShukubaShellMode.titleMenu;
+    });
+    final titlePath = '${uiDir.path}/ui_title_menu.png';
+    await _saveUiPng(titlePath);
+    saved.add(titlePath);
+
+    _controller.selectTool(const ExploreTool());
+    setState(() => _shellMode = ShukubaShellMode.inValley);
+    final calmPath = '${uiDir.path}/ui_hud_calm_default.png';
+    await _saveUiPng(calmPath);
+    saved.add(calmPath);
+
+    _controller.selectTool(
+      const StampStructureTool(kind: StructureKind.minka, variant: 1),
+    );
+    setState(() {});
+    final drawerPath = '${uiDir.path}/ui_hud_dwellings_drawer.png';
+    await _saveUiPng(drawerPath);
+    saved.add(drawerPath);
+
+    _controller.selectTool(const ExploreTool());
+    setState(() => _shellMode = ShukubaShellMode.pauseMenu);
+    final pausePath = '${uiDir.path}/ui_pause_menu.png';
+    await _saveUiPng(pausePath);
+    saved.add(pausePath);
+
+    setState(() {
+      _forceRenderHudInCapture = false;
+      _shellMode = ShukubaShellMode.inValley;
+    });
+    await ShukubaFrameHarness.pumpFrame();
+    return saved;
   }
 
   Future<void> _executeCaptureSuite(ShukubaFrameHarness harness) async {
@@ -280,6 +345,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
       _controller.rotateStampYaw();
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.keyV) {
+      _controller.cycleStampVariant();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.keyZ) {
       _controller.undo();
       return KeyEventResult.handled;
@@ -312,7 +381,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.digit5) {
-      _selectPreset(CameraPreset.motionOffset);
+      _selectPreset(CameraPreset.countrysideVista);
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -336,6 +405,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   @override
   Widget build(BuildContext context) {
+    final showHud =
+        (kShukubaCaptureDir.isEmpty || _forceRenderHudInCapture) &&
+        (_shellMode == ShukubaShellMode.inValley ||
+            _shellMode == ShukubaShellMode.pauseMenu);
     return Scaffold(
       backgroundColor: const Color(0xFF0E131B),
       body: Focus(
@@ -346,173 +419,189 @@ class _ShukubaPageState extends State<ShukubaPage> {
           builder: (context, constraints) {
             final viewSize = Size(constraints.maxWidth, constraints.maxHeight);
             final scene = _scene;
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                MouseRegion(
-                  onHover: (event) {
-                    if (kShukubaCaptureDir.isNotEmpty ||
-                        _shellMode != ShukubaShellMode.inValley) {
-                      return;
-                    }
-                    _controller.updateHoverPoint(
-                      _raycast(event.localPosition, viewSize),
-                    );
-                  },
-                  onExit: (_) => _controller.updateHoverPoint(null),
-                  child: Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: (event) {
-                      _focusNode.requestFocus();
-                      _activeButtons = event.buttons;
-                      final isPrimary =
-                          (event.buttons & kPrimaryMouseButton) != 0;
-                      if (isPrimary && !_isSpacePressed) {
-                        _primaryDownPos = event.localPosition;
-                        _draggedDuringPrimary = false;
-                        if (_controller.activeTool.isStrokeTool &&
-                            _controller.strokePoints.isEmpty) {
-                          final hit = _raycast(event.localPosition, viewSize);
-                          if (hit != null) {
-                            _strokeDragActive = true;
-                            _controller.beginStrokeAt(hit);
+            return RepaintBoundary(
+              key: _uiRepaintBoundaryKey,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  MouseRegion(
+                    onHover: (event) {
+                      if (kShukubaCaptureDir.isNotEmpty ||
+                          _shellMode != ShukubaShellMode.inValley) {
+                        return;
+                      }
+                      _controller.updateHoverPoint(
+                        _raycast(event.localPosition, viewSize),
+                      );
+                    },
+                    onExit: (_) => _controller.updateHoverPoint(null),
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: (event) {
+                        _focusNode.requestFocus();
+                        _activeButtons = event.buttons;
+                        final isPrimary =
+                            (event.buttons & kPrimaryMouseButton) != 0;
+                        if (isPrimary && !_isSpacePressed) {
+                          _primaryDownPos = event.localPosition;
+                          _draggedDuringPrimary = false;
+                          if (_controller.activeTool.isStrokeTool &&
+                              _controller.strokePoints.isEmpty) {
+                            final hit = _raycast(event.localPosition, viewSize);
+                            if (hit != null) {
+                              _strokeDragActive = true;
+                              _controller.beginStrokeAt(hit);
+                            }
+                          } else {
+                            _strokeDragActive = false;
                           }
                         } else {
+                          _primaryDownPos = null;
                           _strokeDragActive = false;
                         }
-                      } else {
+                      },
+                      onPointerMove: (event) {
+                        final down = _primaryDownPos;
+                        if (down != null &&
+                            (event.localPosition - down).distance > 8) {
+                          _draggedDuringPrimary = true;
+                        }
+
+                        if ((_activeButtons & kSecondaryMouseButton) != 0) {
+                          setState(() {
+                            _cameraRig.orbitByScreenDelta(
+                              event.delta,
+                              viewSize,
+                            );
+                          });
+                          return;
+                        }
+
+                        final isPanGesture =
+                            (_activeButtons & kMiddleMouseButton) != 0 ||
+                            ((_activeButtons & kPrimaryMouseButton) != 0 &&
+                                _isSpacePressed);
+
+                        if (isPanGesture) {
+                          setState(() {
+                            _cameraRig.panByScreenDelta(
+                              event.delta,
+                              viewSize,
+                              sampleGroundY:
+                                  _controller.world.sampleGroundHeight,
+                            );
+                          });
+                          return;
+                        }
+
+                        if (_strokeDragActive && _draggedDuringPrimary) {
+                          final hit = _raycast(event.localPosition, viewSize);
+                          if (hit != null) {
+                            _controller.extendStrokeTo(hit);
+                          }
+                          return;
+                        }
+
+                        if (_draggedDuringPrimary &&
+                            !_controller.activeTool.isStrokeTool) {
+                          setState(() {
+                            _cameraRig.panByScreenDelta(
+                              event.delta,
+                              viewSize,
+                              sampleGroundY:
+                                  _controller.world.sampleGroundHeight,
+                            );
+                          });
+                        }
+                      },
+                      onPointerUp: (event) {
+                        if (_strokeDragActive) {
+                          if (_draggedDuringPrimary) {
+                            _controller.finishDragStroke();
+                          }
+                        } else if (_primaryDownPos != null &&
+                            !_draggedDuringPrimary) {
+                          final hit = _raycast(event.localPosition, viewSize);
+                          if (hit != null) {
+                            _controller.handlePrimaryPlotTap(hit);
+                          }
+                        } else {
+                          _controller.updateHoverPoint(
+                            _raycast(event.localPosition, viewSize),
+                          );
+                        }
                         _primaryDownPos = null;
+                        _draggedDuringPrimary = false;
                         _strokeDragActive = false;
-                      }
-                    },
-                    onPointerMove: (event) {
-                      final down = _primaryDownPos;
-                      if (down != null &&
-                          (event.localPosition - down).distance > 8) {
-                        _draggedDuringPrimary = true;
-                      }
-
-                      if ((_activeButtons & kSecondaryMouseButton) != 0) {
-                        setState(() {
-                          _cameraRig.orbitByScreenDelta(event.delta, viewSize);
-                        });
-                        return;
-                      }
-
-                      final isPanGesture =
-                          (_activeButtons & kMiddleMouseButton) != 0 ||
-                          ((_activeButtons & kPrimaryMouseButton) != 0 &&
-                              _isSpacePressed);
-
-                      if (isPanGesture) {
-                        setState(() {
-                          _cameraRig.panByScreenDelta(
-                            event.delta,
-                            viewSize,
-                            sampleGroundY: _controller.world.sampleGroundHeight,
-                          );
-                        });
-                        return;
-                      }
-
-                      if (_strokeDragActive && _draggedDuringPrimary) {
-                        final hit = _raycast(event.localPosition, viewSize);
-                        if (hit != null) {
-                          _controller.extendStrokeTo(hit);
+                        _activeButtons = 0;
+                      },
+                      onPointerSignal: (signal) {
+                        if (signal is PointerScrollEvent) {
+                          setState(() {
+                            _cameraRig.zoomByScrollDelta(signal.scrollDelta.dy);
+                          });
                         }
-                        return;
-                      }
-
-                      if (_draggedDuringPrimary &&
-                          !_controller.activeTool.isStrokeTool) {
-                        setState(() {
-                          _cameraRig.panByScreenDelta(
-                            event.delta,
-                            viewSize,
-                            sampleGroundY: _controller.world.sampleGroundHeight,
-                          );
-                        });
-                      }
-                    },
-                    onPointerUp: (event) {
-                      if (_strokeDragActive) {
-                        if (_draggedDuringPrimary) {
-                          _controller.finishDragStroke();
-                        }
-                      } else if (_primaryDownPos != null &&
-                          !_draggedDuringPrimary) {
-                        final hit = _raycast(event.localPosition, viewSize);
-                        if (hit != null) {
-                          _controller.handlePrimaryPlotTap(hit);
-                        }
-                      } else {
-                        _controller.updateHoverPoint(
-                          _raycast(event.localPosition, viewSize),
-                        );
-                      }
-                      _primaryDownPos = null;
-                      _draggedDuringPrimary = false;
-                      _strokeDragActive = false;
-                      _activeButtons = 0;
-                    },
-                    onPointerSignal: (signal) {
-                      if (signal is PointerScrollEvent) {
-                        setState(() {
-                          _cameraRig.zoomByScrollDelta(signal.scrollDelta.dy);
-                        });
-                      }
-                    },
-                    child: RepaintBoundary(
-                      key: _repaintBoundaryKey,
-                      child: _gpuAvailable && scene != null
-                          ? SceneView(
-                              scene,
-                              camera: _cameraRig.camera,
-                              autoTick: kShukubaCaptureDir.isEmpty,
-                              onTick: _onSceneTick,
-                            )
-                          : const ColoredBox(color: Color(0xFF0E131B)),
-                    ),
-                  ),
-                ),
-                if (kShukubaCaptureDir.isEmpty &&
-                    (_shellMode == ShukubaShellMode.inValley ||
-                        _shellMode == ShukubaShellMode.pauseMenu))
-                  ShukubaHud(
-                    controller: _controller,
-                    onSelectPreset: _selectPreset,
-                  ),
-                if (_shellMode == ShukubaShellMode.titleMenu)
-                  TitleMenuOverlay(onEnterValley: _enterValley),
-                if (_shellMode == ShukubaShellMode.loadingValley)
-                  LoadingCurtainOverlay(
-                    activeStage: _activeBootStage,
-                    completedTimings: _completedBootTimings,
-                  ),
-                if (_shellMode == ShukubaShellMode.pauseMenu)
-                  PauseMenuOverlay(
-                    onResume: () =>
-                        setState(() => _shellMode = ShukubaShellMode.inValley),
-                    onReturnToTitle: () =>
-                        setState(() => _shellMode = ShukubaShellMode.titleMenu),
-                    audioDriver: _controller.audio,
-                  ),
-                if (_showTelemetry && _shellMode != ShukubaShellMode.titleMenu)
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: TelemetryMonitorPill(
-                      snapshot: FrameTelemetrySnapshot(
-                        uiMs: _frameTimer.uiMs,
-                        rasterMs: _frameTimer.rasterMs,
-                        fps: _frameTimer.fps,
-                        structureCount: _controller.graph.structures.length,
-                        lanternSpanCount: _controller.graph.lanternSpans.length,
-                        bootReport: _bootReport ?? _controller.bootReport,
+                      },
+                      child: RepaintBoundary(
+                        key: _repaintBoundaryKey,
+                        child: _gpuAvailable && scene != null
+                            ? SceneView(
+                                scene,
+                                camera: _cameraRig.camera,
+                                autoTick: kShukubaCaptureDir.isEmpty,
+                                onTick: _onSceneTick,
+                              )
+                            : const ColoredBox(color: Color(0xFF0E131B)),
                       ),
                     ),
                   ),
-              ],
+                  if (showHud)
+                    ShukubaHud(
+                      controller: _controller,
+                      onSelectPreset: _selectPreset,
+                      onOpenMenu: () => setState(
+                        () => _shellMode = ShukubaShellMode.pauseMenu,
+                      ),
+                    ),
+                  if (_shellMode == ShukubaShellMode.titleMenu)
+                    TitleMenuOverlay(
+                      onEnterValley: _enterValley,
+                      audioDriver: _controller.audio,
+                    ),
+                  if (_shellMode == ShukubaShellMode.loadingValley)
+                    LoadingCurtainOverlay(
+                      activeStage: _activeBootStage,
+                      completedTimings: _completedBootTimings,
+                    ),
+                  if (_shellMode == ShukubaShellMode.pauseMenu)
+                    PauseMenuOverlay(
+                      onResume: () => setState(
+                        () => _shellMode = ShukubaShellMode.inValley,
+                      ),
+                      onReturnToTitle: () => setState(
+                        () => _shellMode = ShukubaShellMode.titleMenu,
+                      ),
+                      audioDriver: _controller.audio,
+                    ),
+                  if (_showTelemetry &&
+                      _shellMode != ShukubaShellMode.titleMenu)
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: TelemetryMonitorPill(
+                        snapshot: FrameTelemetrySnapshot(
+                          uiMs: _frameTimer.uiMs,
+                          rasterMs: _frameTimer.rasterMs,
+                          fps: _frameTimer.fps,
+                          structureCount: _controller.graph.structures.length,
+                          lanternSpanCount:
+                              _controller.graph.lanternSpans.length,
+                          bootReport: _bootReport ?? _controller.bootReport,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             );
           },
         ),

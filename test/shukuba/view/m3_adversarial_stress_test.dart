@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart' hide Material;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
@@ -10,6 +9,7 @@ import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_page.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
+import 'package:material_ui/material_ui.dart' hide Material;
 
 import '../../e2e/helpers/e2e_test_harness.dart';
 
@@ -437,6 +437,8 @@ void main() {
         );
         await tester.pump();
 
+        await tester.tap(find.text('Roads & Walls'));
+        await tester.pump();
         await tester.tap(find.text('Road'));
         await tester.pump();
 
@@ -493,6 +495,8 @@ void main() {
           );
           await tester.pump();
 
+          await tester.tap(find.text('Shrines & Courtyards'));
+          await tester.pump();
           await tester.tap(find.text('Bell Pavilion'));
           await tester.pump();
 
@@ -679,7 +683,7 @@ void main() {
       });
 
       testWidgets(
-        'All 16 category collapse/expand permutations render cleanly',
+        'Single-drawer accordion switches cleanly across all 4 categories',
         (tester) async {
           tester.view.physicalSize = const Size(1280, 800);
           tester.view.devicePixelRatio = 1.0;
@@ -698,47 +702,39 @@ void main() {
           );
 
           final categories = [
-            HudToolCategory.dwellingsAndShops,
-            HudToolCategory.roadsAndWalls,
-            HudToolCategory.treesAndRocks,
-            HudToolCategory.shrinesAndCourtyards,
+            (HudToolCategory.dwellingsAndShops, 'Townhouse'),
+            (HudToolCategory.roadsAndWalls, 'Road'),
+            (HudToolCategory.treesAndRocks, 'Bamboo Grove'),
+            (HudToolCategory.shrinesAndCourtyards, 'Bell Pavilion'),
           ];
 
-          for (var mask = 0; mask < 16; mask++) {
-            for (var bit = 0; bit < 4; bit++) {
-              final shouldExpand = ((mask >> bit) & 1) == 1;
-              final cat = categories[bit];
-              final btnFinder = find.text(cat.label);
-              expect(btnFinder, findsOneWidget);
-
-              final repTool = switch (cat) {
-                HudToolCategory.dwellingsAndShops => 'Townhouse',
-                HudToolCategory.roadsAndWalls => 'Road',
-                HudToolCategory.treesAndRocks => 'Bamboo Grove',
-                HudToolCategory.shrinesAndCourtyards => 'Bell Pavilion',
-              };
-
-              final isCurrentlyExpanded = find
-                  .text(repTool)
-                  .evaluate()
-                  .isNotEmpty;
-              if (isCurrentlyExpanded != shouldExpand) {
-                await tester.tap(btnFinder);
-                await tester.pump();
-              }
-            }
-
-            expect(
-              tester.takeException(),
-              isNull,
-              reason: 'Failed on permutation mask $mask',
-            );
+          for (final (_, repTool) in categories) {
+            expect(find.text(repTool), findsNothing);
           }
+
+          for (var round = 0; round < 3; round++) {
+            for (final (cat, repTool) in categories) {
+              await tester.tap(find.text(cat.label));
+              await tester.pump();
+
+              expect(find.text(repTool), findsOneWidget);
+              for (final (otherCat, otherTool) in categories) {
+                if (otherCat != cat) {
+                  expect(find.text(otherTool), findsNothing);
+                }
+              }
+              expect(tester.takeException(), isNull);
+            }
+          }
+
+          await tester.tap(find.text('Shrines & Courtyards'));
+          await tester.pump();
+          expect(find.text('Bell Pavilion'), findsNothing);
         },
       );
 
       testWidgets(
-        'Selecting tool in collapsed category automatically re-expands it',
+        'Selecting tool in collapsed category automatically opens its drawer',
         (tester) async {
           tester.view.physicalSize = const Size(1280, 800);
           tester.view.devicePixelRatio = 1.0;
@@ -755,9 +751,6 @@ void main() {
               ),
             ),
           );
-
-          await tester.tap(find.text('Shrines & Courtyards'));
-          await tester.pump();
 
           expect(find.text('Bell Pavilion'), findsNothing);
 
@@ -787,10 +780,16 @@ void main() {
           ),
         );
         await tester.pump();
+        expect(tester.takeException(), isNull);
 
+        await tester.tap(find.text('Dwellings & Shops'));
+        await tester.pump();
         expect(find.text('Townhouse'), findsOneWidget);
-        expect(find.text('Bell Pavilion'), findsOneWidget);
+        expect(tester.takeException(), isNull);
 
+        await tester.tap(find.text('Shrines & Courtyards'));
+        await tester.pump();
+        expect(find.text('Bell Pavilion'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
 

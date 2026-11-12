@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart' hide Material, Matrix4;
 import 'package:flutter_scene/scene.dart' show Material, Scene;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/tactical_camera_rig.dart';
+import 'package:material_ui/material_ui.dart' hide Material, Matrix4;
 
 class _FakeLookDriver implements ShukubaLookDriver {
   MagistrateVisionState lastVision = MagistrateVisionState.hidden;
@@ -231,26 +231,34 @@ void main() {
         ),
       );
 
-      expect(find.text('Townhouse'), findsOneWidget);
-      expect(find.text('Teahouse'), findsOneWidget);
-      expect(find.text('Storehouse'), findsOneWidget);
-      expect(find.text('Market Stall'), findsOneWidget);
-      expect(find.text('Lantern Gate'), findsOneWidget);
-      expect(find.text('Road'), findsOneWidget);
-      expect(find.text('Garden Path'), findsOneWidget);
-      expect(find.text('Stone Terrace'), findsOneWidget);
-      expect(find.text('Courtyard Wall'), findsOneWidget);
-      expect(find.text('Rock Outcrop'), findsOneWidget);
-      expect(find.text('Black Pine'), findsOneWidget);
-      expect(find.text('Weeping Willow'), findsOneWidget);
-      expect(find.text('4 Gorge & Garden'), findsOneWidget);
+      expect(find.text('Dwellings & Shops'), findsOneWidget);
+      expect(find.text('Roads & Walls'), findsOneWidget);
+      expect(find.text('Trees & Rocks'), findsOneWidget);
+      expect(find.text('Shrines & Courtyards'), findsOneWidget);
+      expect(find.text('Views'), findsOneWidget);
       expect(find.text('Demolish'), findsOneWidget);
       expect(find.text('Undo [Z]'), findsOneWidget);
 
+      expect(find.text('Townhouse'), findsNothing);
+      expect(find.text('Road'), findsNothing);
       expect(find.textContaining('Magistrate'), findsNothing);
       expect(find.text('Yagura'), findsNothing);
       expect(find.text('Watch'), findsNothing);
       expect(find.text('Done [Esc]'), findsNothing);
+
+      await tester.tap(find.text('Views'));
+      await tester.pump();
+      expect(find.text('4 Gorge & Garden'), findsOneWidget);
+      expect(find.text('5 Valley Vista'), findsOneWidget);
+      await tester.tap(find.text('Views'));
+      await tester.pump();
+
+      await tester.tap(find.text('Roads & Walls'));
+      await tester.pump();
+      expect(find.text('Road'), findsOneWidget);
+      expect(find.text('Garden Path'), findsOneWidget);
+      expect(find.text('Stone Terrace'), findsOneWidget);
+      expect(find.text('Courtyard Wall'), findsOneWidget);
 
       await tester.tap(find.text('Road'));
       await tester.pump();
@@ -262,6 +270,14 @@ void main() {
         controller.activeTool,
         const DrawLaneTool(style: RoadStyle.gardenPath, widthMeters: 1.75),
       );
+
+      await tester.tap(find.text('Dwellings & Shops'));
+      await tester.pump();
+      expect(find.text('Townhouse'), findsOneWidget);
+      expect(find.text('Teahouse'), findsOneWidget);
+      expect(find.text('Storehouse'), findsOneWidget);
+      expect(find.text('Farmhouse'), findsOneWidget);
+      expect(find.text('Market Stall'), findsOneWidget);
 
       await tester.tap(find.text('Townhouse'));
       await tester.pump();
@@ -275,6 +291,7 @@ void main() {
       await tester.pump();
       expect(controller.activeTool, isA<ExploreTool>());
       expect(find.text('Done [Esc]'), findsNothing);
+      expect(find.text('Townhouse'), findsNothing);
     });
 
     test('TacticalCameraRig raycasts center and orbits smoothly by delta', () {

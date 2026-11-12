@@ -227,7 +227,7 @@ void main() {
       () {
         expect(
           defaultShukubaMaterial(ShukubaSurfaceRole.packedEarth).depthLayer,
-          -1,
+          0,
         );
         expect(
           defaultShukubaMaterial(ShukubaSurfaceRole.kuraPlaster).depthLayer,
@@ -236,6 +236,10 @@ void main() {
         expect(
           defaultShukubaMaterial(ShukubaSurfaceRole.laneOverlay).depthLayer,
           1,
+        );
+        expect(
+          defaultShukubaMaterial(ShukubaSurfaceRole.steppingStone).depthLayer,
+          2,
         );
         expect(
           defaultShukubaMaterial(ShukubaSurfaceRole.ghostPreview).depthLayer,

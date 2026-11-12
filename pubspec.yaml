@@ -1,11 +1,11 @@
 name: kage_no_machi
-description: An atmospheric open-world stealth exploration game set in Kyoto, 1615.
+description: An atmospheric isometric Edo post-town diorama builder.
 version: 1.0.0+1
 publish_to: none
 
 environment:
-  sdk: ^3.13.0
-  flutter: ^3.47.0
+  sdk: ^3.14.0
+  flutter: ^3.50.0
 
 dependencies:
   bloc: ^9.2.1

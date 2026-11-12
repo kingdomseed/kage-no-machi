@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart' hide Material;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
@@ -6,6 +5,7 @@ import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
+import 'package:material_ui/material_ui.dart' hide Material;
 
 import '../helpers/e2e_test_harness.dart';
 
@@ -391,7 +391,16 @@ void main() {
         ),
       );
 
+      expect(find.text('Dwellings & Shops'), findsOneWidget);
+      expect(find.text('Roads & Walls'), findsOneWidget);
+      expect(find.text('Townhouse'), findsNothing);
+
+      await tester.tap(find.text('Dwellings & Shops'));
+      await tester.pump();
       expect(find.text('Townhouse'), findsOneWidget);
+
+      await tester.tap(find.text('Roads & Walls'));
+      await tester.pump();
       expect(find.text('Road'), findsOneWidget);
 
       controller.dispose();

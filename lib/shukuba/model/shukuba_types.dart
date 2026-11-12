@@ -311,6 +311,7 @@ class StructureSpec {
     required this.eaveAnchors,
     required this.instrument,
     this.roofCraft = RoofCraft.irimoyaKawara,
+    this.variantLabels = const [],
     this.sightconeRange = 0,
     this.sightconeHalfAngleRad = 0,
     this.snapsToRoadTangent = true,
@@ -342,6 +343,12 @@ class StructureSpec {
     ],
     instrument: EdoInstrument.koto,
     hasShojiWindows: true,
+    variantLabels: [
+      'Kawara Merchant',
+      'Hoshidai Loft',
+      'Udatsu Dyer Shop',
+      'Nurigome Apothecary',
+    ],
   );
 
   static const StructureSpec minka = StructureSpec(
@@ -365,6 +372,12 @@ class StructureSpec {
     instrument: EdoInstrument.koto,
     hasShojiWindows: true,
     roofCraft: RoofCraft.kayabukiThatch,
+    variantLabels: [
+      'Kayabuki Thatch',
+      'Magariya L-Farm',
+      'Stone-Shingle Cottage',
+      'Hisashi Homestead',
+    ],
   );
 
   static const StructureSpec chaya = StructureSpec(
@@ -391,6 +404,11 @@ class StructureSpec {
     ],
     instrument: EdoInstrument.koto,
     hasShojiWindows: true,
+    variantLabels: [
+      'Garden Teahouse',
+      'Highway Kakejaya',
+      'Riverside Lantern Inn',
+    ],
   );
 
   static const StructureSpec kura = StructureSpec(
@@ -409,6 +427,11 @@ class StructureSpec {
     ],
     instrument: EdoInstrument.bonsho,
     roofCraft: RoofCraft.ishiOkiYane,
+    variantLabels: [
+      'Namako White Vault',
+      'Kuro-Shikkui Vault',
+      'Cedar Ita-Gura',
+    ],
   );
 
   static const StructureSpec marketStall = StructureSpec(
@@ -438,6 +461,12 @@ class StructureSpec {
       ),
     ],
     instrument: EdoInstrument.hyoshigi,
+    variantLabels: [
+      'Striped Produce Booth',
+      'Wheeled Noodle Yatai',
+      'Wagasa Rice Stand',
+      'Sakaya Cask Stall',
+    ],
   );
 
   static const StructureSpec toriiGate = StructureSpec(
@@ -625,11 +654,24 @@ class StructureSpec {
   final List<EaveAnchor> eaveAnchors;
   final EdoInstrument instrument;
   final RoofCraft roofCraft;
+  final List<String> variantLabels;
   final double sightconeRange;
   final double sightconeHalfAngleRad;
   final bool snapsToRoadTangent;
   final bool straddlesRoad;
   final bool hasShojiWindows;
+
+  int get variantCount => variantLabels.isEmpty ? 1 : variantLabels.length;
+
+  String variantLabelAt(int variant) {
+    if (variantLabels.isEmpty) {
+      return edoSubtitle;
+    }
+    final idx =
+        ((variant % variantLabels.length) + variantLabels.length) %
+        variantLabels.length;
+    return variantLabels[idx];
+  }
 
   bool get castsSightcone => sightconeRange > 0 && sightconeHalfAngleRad > 0;
 }
@@ -779,20 +821,27 @@ final class BuildWallTool extends PlacementTool {
 }
 
 final class StampStructureTool extends PlacementTool {
-  const new({required this.kind, this.yawOffsetRadians = 0});
+  const new({required this.kind, this.yawOffsetRadians = 0, this.variant = 0});
 
   final StructureKind kind;
   final double yawOffsetRadians;
+  final int variant;
+
+  int get resolvedVariant {
+    final count = kind.spec.variantCount;
+    return count <= 1 ? 0 : ((variant % count) + count) % count;
+  }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is StampStructureTool &&
           other.kind == kind &&
-          other.yawOffsetRadians == yawOffsetRadians;
+          other.yawOffsetRadians == yawOffsetRadians &&
+          other.variant == variant;
 
   @override
-  int get hashCode => Object.hash(kind, yawOffsetRadians);
+  int get hashCode => Object.hash(kind, yawOffsetRadians, variant);
 }
 
 final class DemolishTool extends PlacementTool {
@@ -1488,14 +1537,21 @@ class PlacedStructure {
     required this.kind,
     required this.position,
     this.yawRadians = 0,
+    this.variant = 0,
   });
 
   final EntityId id;
   final StructureKind kind;
   final Vec3 position;
   final double yawRadians;
+  final int variant;
 
   StructureSpec get spec => kind.spec;
+
+  int get resolvedVariant {
+    final count = spec.variantCount;
+    return count <= 1 ? 0 : ((variant % count) + count) % count;
+  }
 
   Vec3 get forward => Vec3(math.sin(yawRadians), 0, math.cos(yawRadians));
 
@@ -1536,10 +1592,11 @@ class PlacedStructure {
           other.id == id &&
           other.kind == kind &&
           other.position == position &&
-          other.yawRadians == yawRadians;
+          other.yawRadians == yawRadians &&
+          other.variant == variant;
 
   @override
-  int get hashCode => Object.hash(id, kind, position, yawRadians);
+  int get hashCode => Object.hash(id, kind, position, yawRadians, variant);
 }
 
 @immutable
@@ -1767,12 +1824,14 @@ final class StampGhostPreview extends BuildPreview {
     required this.kind,
     required this.position,
     required this.yawRadians,
+    this.variant = 0,
     this.lanternSpans = const [],
   });
 
   final StructureKind kind;
   final Vec3 position;
   final double yawRadians;
+  final int variant;
   final List<LanternSpan> lanternSpans;
 }
 
@@ -2377,12 +2436,17 @@ class CameraPreset {
 
 enum ShukubaSurfaceRole {
   packedEarth(
-    depthLayer: -1,
+    depthLayer: 0,
     defaultRoughness: 0.94,
     previewColor: Color(0xFF5C4E3E),
   ),
   ishigakiStone(
     depthLayer: 0,
+    defaultRoughness: 0.88,
+    previewColor: Color(0xFF6B6E72),
+  ),
+  steppingStone(
+    depthLayer: 2,
     defaultRoughness: 0.88,
     previewColor: Color(0xFF6B6E72),
   ),
@@ -2467,7 +2531,7 @@ enum ShukubaSurfaceRole {
     previewColor: Color(0xFF5A8038),
   ),
   riverWater(
-    depthLayer: 0,
+    depthLayer: 1,
     defaultRoughness: 0.14,
     previewColor: Color(0xFF285864),
   ),
@@ -2626,8 +2690,6 @@ abstract interface class ShukubaAudioDriver {
 
   Future<void> prewarm();
 
-  // Single-argument setter takes a positional boolean.
-  // ignore: avoid_positional_boolean_parameters
   void setMuted(bool muted);
 
   void setMasterVolume(double volume);

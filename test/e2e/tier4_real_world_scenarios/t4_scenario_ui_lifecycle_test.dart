@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart' hide Material, Matrix4;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
+import 'package:material_ui/material_ui.dart' hide Material, Matrix4;
 
 import '../helpers/e2e_test_harness.dart';
 
@@ -126,6 +126,11 @@ void main() {
         );
 
         expect(find.byType(ShukubaHud), findsOneWidget);
+        expect(find.text('Views'), findsOneWidget);
+        expect(find.text('1 Golden Dusk'), findsNothing);
+
+        await tester.tap(find.text('Views'));
+        await tester.pump();
         expect(find.text('1 Golden Dusk'), findsOneWidget);
         expect(find.text('2 Night Market'), findsOneWidget);
 
@@ -133,6 +138,8 @@ void main() {
         await tester.pump();
         expect(selectedPreset, equals(CameraPreset.duskOverview));
 
+        await tester.tap(find.text('Views'));
+        await tester.pump();
         await tester.tap(find.text('2 Night Market'));
         await tester.pump();
         expect(selectedPreset, equals(CameraPreset.nightMarket));
@@ -164,8 +171,11 @@ void main() {
         );
 
         expect(controller.activeTool, isA<ExploreTool>());
+        expect(find.text('Townhouse'), findsNothing);
+
+        await tester.tap(find.text('Dwellings & Shops'));
+        await tester.pump();
         expect(find.text('Townhouse'), findsOneWidget);
-        expect(find.text('Road'), findsOneWidget);
 
         await tester.tap(find.text('Townhouse'));
         await tester.pump();
@@ -177,6 +187,7 @@ void main() {
         await tester.tap(find.text('Townhouse'));
         await tester.pump();
         expect(controller.activeTool, isA<ExploreTool>());
+        expect(find.text('Townhouse'), findsNothing);
 
         controller.dispose();
       },

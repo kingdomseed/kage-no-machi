@@ -60,19 +60,22 @@ class AtmosphereBuilder {
     final eastMist = GeometryBuilder();
     _emitCourtyardAlleyHaze(westMist, eastMist, graph, sampleGroundY);
     _emitStructureSteamWisps(westMist, eastMist, graph);
-    mistGroup
-      ..add(
+    if (westMist.vertexCount > 0) {
+      mistGroup.add(
         Node(
           name: 'atmosphere_mist_west_ward',
           mesh: Mesh(westMist.build(), mistMat),
         )..shadowCastingMode = ShadowCastingMode.off,
-      )
-      ..add(
+      );
+    }
+    if (eastMist.vertexCount > 0) {
+      mistGroup.add(
         Node(
           name: 'atmosphere_mist_east_ward',
           mesh: Mesh(eastMist.build(), mistMat),
         )..shadowCastingMode = ShadowCastingMode.off,
       );
+    }
     root.add(mistGroup);
 
     final quadGeo = EdoKitBuilder.buildUnitBillboardQuad();

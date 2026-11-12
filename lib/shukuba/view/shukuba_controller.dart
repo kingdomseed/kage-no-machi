@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show Rect;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:flutter_scene/scene.dart' show Camera, RenderView, Scene;
@@ -27,6 +26,7 @@ class ShukubaController extends ChangeNotifier {
   MagistrateVisionState _explicitVision = MagistrateVisionState.hidden;
   final List<Vec3> _strokePoints = [];
   final List<ShukubaGraph> _undoStack = [];
+  final Map<StructureKind, int> _nextVariantByKind = {};
   Vec3? _hoverPoint;
   BuildPreview _activePreview = const NoBuildPreview();
   bool _isReady = false;
@@ -139,14 +139,12 @@ class ShukubaController extends ChangeNotifier {
       rig: _timeOfDay,
       loopAnchors: world.ambientLoopAnchors,
     );
-    try {
-      await scene.warmUp([
-        RenderView(
-          camera: camera,
-          viewport: const Rect.fromLTWH(0, 0, 1440, 778),
-        ),
-      ], allShadingTiers: true);
-    } on Object catch (_) {}
+    await scene.warmUp(
+      [RenderView(camera: camera)],
+      includeOffscreen: true,
+      sliceBudget: const Duration(milliseconds: 50),
+      allShadingTiers: true,
+    );
     elapsed = stageSw.elapsedMicroseconds / 1000.0;
     timings.add(
       BootStageTiming(stage: BootStageId.gpuWarmup, durationMs: elapsed),
@@ -191,6 +189,9 @@ class ShukubaController extends ChangeNotifier {
     }
     _strokePoints.clear();
     _activeTool = tool;
+    if (tool case StampStructureTool(:final kind)) {
+      _nextVariantByKind[kind] = tool.resolvedVariant;
+    }
     _refreshPreview();
     _syncLookImmediate();
     notifyListeners();
@@ -203,17 +204,55 @@ class ShukubaController extends ChangeNotifier {
       (DrawLaneTool(style: final a), DrawLaneTool(style: final b)) => a == b,
       _ => _activeTool.runtimeType == tool.runtimeType,
     };
-    selectTool(isSameKind ? const ExploreTool() : tool);
+    if (isSameKind) {
+      selectTool(const ExploreTool());
+      return;
+    }
+    if (tool case StampStructureTool(:final kind, :final yawOffsetRadians)) {
+      selectTool(
+        StampStructureTool(
+          kind: kind,
+          yawOffsetRadians: yawOffsetRadians,
+          variant: _nextVariantByKind[kind] ?? tool.resolvedVariant,
+        ),
+      );
+      return;
+    }
+    selectTool(tool);
   }
 
   void rotateStampYaw([double deltaRadians = math.pi / 4]) {
     if (_activeTool case StampStructureTool(
       :final kind,
       :final yawOffsetRadians,
+      :final variant,
     )) {
       _activeTool = StampStructureTool(
         kind: kind,
         yawOffsetRadians: yawOffsetRadians + deltaRadians,
+        variant: variant,
+      );
+      _refreshPreview();
+      notifyListeners();
+    }
+  }
+
+  void cycleStampVariant([int delta = 1]) {
+    if (_activeTool case StampStructureTool(
+      :final kind,
+      :final yawOffsetRadians,
+    )) {
+      final count = kind.spec.variantCount;
+      if (count <= 1) {
+        return;
+      }
+      final current = (_activeTool as StampStructureTool).resolvedVariant;
+      final nextVariant = ((current + delta) % count + count) % count;
+      _nextVariantByKind[kind] = nextVariant;
+      _activeTool = StampStructureTool(
+        kind: kind,
+        yawOffsetRadians: yawOffsetRadians,
+        variant: nextVariant,
       );
       _refreshPreview();
       notifyListeners();
@@ -318,11 +357,12 @@ class ShukubaController extends ChangeNotifier {
   void handlePrimaryPlotTap(Vec3 rawWorldPoint) {
     _hoverPoint = rawWorldPoint;
     switch (_activeTool) {
-      case StampStructureTool(:final kind, :final yawOffsetRadians):
+      case final StampStructureTool stampTool:
         _stampStructure(
-          kind: kind,
+          kind: stampTool.kind,
           rawWorldPoint: rawWorldPoint,
-          yawOffsetRadians: yawOffsetRadians,
+          yawOffsetRadians: stampTool.yawOffsetRadians,
+          variant: stampTool.resolvedVariant,
         );
       case DrawLaneTool() || BuildTerraceTool() || BuildWallTool():
         final snappedY = world.sampleGroundHeight(
@@ -450,6 +490,7 @@ class ShukubaController extends ChangeNotifier {
     required StructureKind kind,
     required Vec3 rawWorldPoint,
     required double yawOffsetRadians,
+    required int variant,
   }) {
     final snapped = world.graph.snapStructure(
       kind: kind,
@@ -463,8 +504,26 @@ class ShukubaController extends ChangeNotifier {
       kind: kind,
       position: snapped.position,
       yawRadians: snapped.yawRadians + yawOffsetRadians,
+      variant: variant,
     );
     world.applyGraph(world.graph.putStructure(placed));
+    final count = kind.spec.variantCount;
+    if (count > 1) {
+      final nextVariant = (variant + 1) % count;
+      _nextVariantByKind[kind] = nextVariant;
+      if (_activeTool
+          case StampStructureTool(
+            kind: final activeKind,
+            yawOffsetRadians: final activeYaw,
+          )
+          when activeKind == kind) {
+        _activeTool = StampStructureTool(
+          kind: activeKind,
+          yawOffsetRadians: activeYaw,
+          variant: nextVariant,
+        );
+      }
+    }
     audio.playPlacementNote(
       PlacementNoteEvent.fromSnap(
         instrument: placed.spec.instrument,
@@ -503,24 +562,28 @@ class ShukubaController extends ChangeNotifier {
     BuildPreview next = const NoBuildPreview();
 
     switch (_activeTool) {
-      case StampStructureTool(:final kind, :final yawOffsetRadians):
+      case final StampStructureTool stampTool:
         if (hover != null) {
+          final kind = stampTool.kind;
+          final variant = stampTool.resolvedVariant;
           final snapped = world.graph.snapStructure(
             kind: kind,
             rawPoint: hover,
             sampleGroundY: world.sampleGroundHeight,
           );
-          final finalYaw = snapped.yawRadians + yawOffsetRadians;
+          final finalYaw = snapped.yawRadians + stampTool.yawOffsetRadians;
           final candidate = PlacedStructure(
             id: const EntityId('__ghost_preview__'),
             kind: kind,
             position: snapped.position,
             yawRadians: finalYaw,
+            variant: variant,
           );
           next = StampGhostPreview(
             kind: kind,
             position: snapped.position,
             yawRadians: finalYaw,
+            variant: variant,
             lanternSpans: world.graph.previewLanternSpansFor(candidate),
           );
         }

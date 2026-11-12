@@ -1,18 +1,20 @@
-import 'package:flutter/material.dart' hide Matrix4;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
+import 'package:material_ui/material_ui.dart' hide Matrix4;
 
 class ShukubaHud extends StatelessWidget {
   const new({
     required this.controller,
     required this.onSelectPreset,
+    this.onOpenMenu,
     super.key,
   });
 
   final ShukubaController controller;
   final ValueChanged<CameraPreset> onSelectPreset;
+  final VoidCallback? onOpenMenu;
 
-  static const Color _lacquerBg = Color(0xD6121318);
+  static const Color _lacquerBg = Color(0xDC121318);
   static const Color _washiInk = Color(0xFFF4EAD7);
   static const Color _mutedSand = Color(0xFFBCAFA0);
   static const Color _amberAccent = Color(0xFFE89B42);
@@ -27,10 +29,12 @@ class ShukubaHud extends StatelessWidget {
         final rig = controller.timeOfDay;
         final graph = controller.graph;
         final strokeCount = controller.strokePoints.length;
+        final showGuidance =
+            controller.activeTool is! ExploreTool || strokeCount > 0;
 
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -39,18 +43,18 @@ class ShukubaHud extends StatelessWidget {
                   child: SizedBox(
                     width: double.infinity,
                     child: Wrap(
-                      spacing: 12,
-                      runSpacing: 10,
+                      spacing: 10,
+                      runSpacing: 8,
                       alignment: WrapAlignment.spaceBetween,
                       children: [
                         _WardPlaque(
                           structureCount: graph.structures.length,
-                          wallCount: graph.walls.length,
-                          lanternSpanCount: graph.lanternSpans.length,
                           onSelectPreset: onSelectPreset,
+                          onOpenMenu: onOpenMenu,
                         ),
                         _AtmospherePanel(
                           rig: rig,
+                          audio: controller.audio,
                           onChangedTime: controller.setTimeOfDay,
                         ),
                       ],
@@ -62,23 +66,25 @@ class ShukubaHud extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: _ToolGuidanceBar(
-                          activeTool: controller.activeTool,
-                          preview: controller.activePreview,
-                          strokeCount: strokeCount,
-                          onCommitStroke: controller.commitActiveStroke,
-                          onCancelStroke: controller.cancelActiveStroke,
-                          onExitTool: () =>
-                              controller.selectTool(const ExploreTool()),
+                      if (showGuidance)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: _ToolGuidanceBar(
+                            activeTool: controller.activeTool,
+                            preview: controller.activePreview,
+                            strokeCount: strokeCount,
+                            onCycleVariant: controller.cycleStampVariant,
+                            onRotateStamp: controller.rotateStampYaw,
+                            onCommitStroke: controller.commitActiveStroke,
+                            onCancelStroke: controller.cancelActiveStroke,
+                            onExitTool: () =>
+                                controller.selectTool(const ExploreTool()),
+                          ),
                         ),
-                      ),
                       _CityBuilderDock(
                         activeTool: controller.activeTool,
                         canUndo: controller.canUndo,
                         onSelectTool: controller.toggleTool,
-                        onRotateStamp: controller.rotateStampYaw,
                         onUndo: controller.undo,
                       ),
                     ],
@@ -93,27 +99,34 @@ class ShukubaHud extends StatelessWidget {
   }
 }
 
-class _WardPlaque extends StatelessWidget {
+class _WardPlaque extends StatefulWidget {
   const new({
     required this.structureCount,
-    required this.wallCount,
-    required this.lanternSpanCount,
     required this.onSelectPreset,
+    this.onOpenMenu,
   });
 
   final int structureCount;
-  final int wallCount;
-  final int lanternSpanCount;
   final ValueChanged<CameraPreset> onSelectPreset;
+  final VoidCallback? onOpenMenu;
+
+  @override
+  State<_WardPlaque> createState() => _WardPlaqueState();
+}
+
+class _WardPlaqueState extends State<_WardPlaque> {
+  bool _viewsOpen = false;
+
+  static const List<(String, CameraPreset)> _presets = [
+    ('1 Golden Dusk', CameraPreset.duskOverview),
+    ('2 Night Market', CameraPreset.nightMarket),
+    ('3 Gorge Crossing', CameraPreset.riverCrossing),
+    ('4 Gorge & Garden', CameraPreset.meadowCloseup),
+    ('5 Valley Vista', CameraPreset.countrysideVista),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    const presets = [
-      ('1 Golden Dusk', CameraPreset.duskOverview),
-      ('2 Night Market', CameraPreset.nightMarket),
-      ('3 Gorge Crossing', CameraPreset.riverCrossing),
-      ('4 Gorge & Garden', CameraPreset.meadowCloseup),
-    ];
     return DecoratedBox(
       decoration: BoxDecoration(
         color: ShukubaHud._lacquerBg,
@@ -121,43 +134,129 @@ class _WardPlaque extends StatelessWidget {
         border: Border.all(color: ShukubaHud._borderStroke),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'KAGE NO MACHI · EDO POST-TOWN',
-              style: TextStyle(
-                color: ShukubaHud._washiInk,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              '$structureCount buildings & trees · $wallCount walls · '
-              '$lanternSpanCount lantern spans',
-              style: const TextStyle(
-                color: ShukubaHud._mutedSand,
-                fontSize: 11,
-              ),
-            ),
-            const SizedBox(height: 8),
             Wrap(
-              spacing: 6,
+              spacing: 8,
               runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                for (final (label, preset) in presets)
+                Container(
+                  width: 18,
+                  height: 18,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0x1FD9533F),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: ShukubaHud._vermilionAccent),
+                  ),
+                  child: const Text(
+                    '影',
+                    style: TextStyle(
+                      color: ShukubaHud._vermilionAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'serif',
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const Text(
+                  'KAGE NO MACHI',
+                  style: TextStyle(
+                    color: ShukubaHud._washiInk,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                Text(
+                  '· ${widget.structureCount} built',
+                  style: const TextStyle(
+                    color: ShukubaHud._mutedSand,
+                    fontSize: 10.5,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _viewsOpen = !_viewsOpen),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: _viewsOpen
+                          ? ShukubaHud._amberAccent.withValues(alpha: 0.22)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _viewsOpen
+                            ? ShukubaHud._amberAccent
+                            : ShukubaHud._borderStroke,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Views',
+                            style: TextStyle(
+                              color: _viewsOpen
+                                  ? ShukubaHud._washiInk
+                                  : ShukubaHud._mutedSand,
+                              fontSize: 10.5,
+                              fontWeight: _viewsOpen
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            _viewsOpen
+                                ? Icons.arrow_drop_up
+                                : Icons.arrow_drop_down,
+                            size: 14,
+                            color: _viewsOpen
+                                ? ShukubaHud._amberAccent
+                                : ShukubaHud._mutedSand,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.onOpenMenu != null)
                   _ActionChip(
-                    label: label,
+                    label: 'Menu',
                     active: false,
-                    accent: ShukubaHud._amberAccent,
-                    onTap: () => onSelectPreset(preset),
+                    accent: ShukubaHud._mutedSand,
+                    onTap: widget.onOpenMenu!,
                   ),
               ],
             ),
+            if (_viewsOpen) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final (label, preset) in _presets)
+                    _ActionChip(
+                      label: label,
+                      active: false,
+                      accent: ShukubaHud._amberAccent,
+                      onTap: () {
+                        setState(() => _viewsOpen = false);
+                        widget.onSelectPreset(preset);
+                      },
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -165,15 +264,27 @@ class _WardPlaque extends StatelessWidget {
   }
 }
 
-class _AtmospherePanel extends StatelessWidget {
-  const new({required this.rig, required this.onChangedTime});
+class _AtmospherePanel extends StatefulWidget {
+  const new({
+    required this.rig,
+    required this.audio,
+    required this.onChangedTime,
+  });
 
   final TimeOfDayRig rig;
+  final ShukubaAudioDriver audio;
   final ValueChanged<double> onChangedTime;
 
   @override
+  State<_AtmospherePanel> createState() => _AtmospherePanelState();
+}
+
+class _AtmospherePanelState extends State<_AtmospherePanel> {
+  @override
   Widget build(BuildContext context) {
-    final phaseLabel = rig.isMoonlit ? 'Blue Hour Night' : 'Golden Dusk';
+    final rig = widget.rig;
+    final muted = widget.audio.isMuted;
+    final phaseLabel = rig.isMoonlit ? 'Blue Hour' : 'Golden Dusk';
     return DecoratedBox(
       decoration: BoxDecoration(
         color: ShukubaHud._lacquerBg,
@@ -181,49 +292,64 @@ class _AtmospherePanel extends StatelessWidget {
         border: Border.all(color: ShukubaHud._borderStroke),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  rig.isMoonlit ? Icons.nights_stay : Icons.wb_twilight,
-                  size: 14,
-                  color: rig.celestialHudColor,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$phaseLabel · ${rig.scale.label}',
-                  style: const TextStyle(
-                    color: ShukubaHud._washiInk,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            Icon(
+              rig.isMoonlit ? Icons.nights_stay : Icons.wb_twilight,
+              size: 14,
+              color: rig.celestialHudColor,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              phaseLabel,
+              style: const TextStyle(
+                color: ShukubaHud._washiInk,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             SizedBox(
-              width: 230,
-              height: 26,
+              width: 132,
+              height: 24,
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  trackHeight: 3,
+                  trackHeight: 2.5,
                   thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 6,
+                    enabledThumbRadius: 5.5,
+                  ),
+                  overlayShape: const RoundSliderOverlayShape(
+                    overlayRadius: 10,
                   ),
                   activeTrackColor: rig.celestialHudColor,
                   inactiveTrackColor: const Color(0x44F2E8D5),
                   thumbColor: ShukubaHud._washiInk,
                 ),
-                child: Slider(value: rig.value, onChanged: onChangedTime),
+                child: Slider(
+                  value: rig.value,
+                  onChanged: widget.onChangedTime,
+                ),
               ),
             ),
-            const Text(
-              'Right-drag rotate · Left-drag or WASD pan · Scroll zoom',
-              style: TextStyle(color: ShukubaHud._mutedSand, fontSize: 10),
+            GestureDetector(
+              onTap: () => setState(() => widget.audio.setMuted(!muted)),
+              child: Tooltip(
+                message: muted ? 'Unmute audio' : 'Mute audio',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Icon(
+                    muted ? Icons.volume_off : Icons.volume_up,
+                    size: 15,
+                    color: muted
+                        ? ShukubaHud._vermilionAccent
+                        : ShukubaHud._mutedSand,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -237,6 +363,8 @@ class _ToolGuidanceBar extends StatelessWidget {
     required this.activeTool,
     required this.preview,
     required this.strokeCount,
+    required this.onCycleVariant,
+    required this.onRotateStamp,
     required this.onCommitStroke,
     required this.onCancelStroke,
     required this.onExitTool,
@@ -245,6 +373,8 @@ class _ToolGuidanceBar extends StatelessWidget {
   final PlacementTool activeTool;
   final BuildPreview preview;
   final int strokeCount;
+  final VoidCallback onCycleVariant;
+  final VoidCallback onRotateStamp;
   final VoidCallback onCommitStroke;
   final VoidCallback onCancelStroke;
   final VoidCallback onExitTool;
@@ -252,44 +382,31 @@ class _ToolGuidanceBar extends StatelessWidget {
   String _describeGuidance() {
     switch (activeTool) {
       case ExploreTool():
-        return 'Select any building, road, wall, rock, or tree below · '
-            'Right-drag to rotate · Left-drag or WASD to pan · Scroll to zoom';
+        return 'Explore Valley';
       case StampStructureTool(:final kind):
         final spec = kind.spec;
         var spanHint = '';
         if (preview case StampGhostPreview(:final lanternSpans)) {
           if (lanternSpans.isNotEmpty) {
             final n = lanternSpans.length;
-            spanHint = ' · +$n lantern string${n == 1 ? '' : 's'} ready';
+            spanHint = ' · +$n lantern${n == 1 ? '' : 's'}';
           }
         }
-        final snapNote = spec.straddlesRoad
-            ? 'Straddles roads automatically'
-            : (spec.snapsToRoadTangent
-                  ? 'Faces nearest road automatically'
-                  : 'Free landscape placement');
-        return '${spec.displayName} (${spec.edoSubtitle}) · '
-            'Left-click to place · $snapNote$spanHint · [R] Rotate';
+        return '${spec.displayName} · Click ground to place$spanHint';
       case DrawLaneTool(:final style):
         if (style == RoadStyle.gardenPath) {
-          return 'Garden Path (Roji & tobi-ishi) · '
-              'Left-drag on ground to curve a raked-gravel stepping-stone path';
+          return 'Garden Path · Drag on ground to curve stepping stones';
         }
-        return 'Road (Kaidō thoroughfare) · '
-            'Left-drag on ground to paint a curved dirt & stone-curbed road';
+        return 'Road · Drag on ground to paint a curbed lane';
       case BuildTerraceTool():
-        return 'Stone Terrace (Ishigaki retaining wall) · '
-            'Left-drag to raise a fitted castle-stone plateau';
+        return 'Stone Terrace · Drag on ground to raise a stone plateau';
       case BuildWallTool():
-        return 'Courtyard Wall (Hei plaster & tile wall) · '
-            'Left-drag to enclose compounds and gardens';
+        return 'Courtyard Wall · Drag on ground to enclose a compound';
       case DemolishTool():
         if (preview case DemolishHoverPreview(:final candidate)) {
-          return 'Demolish · Left-click to remove ${candidate.label} · '
-              '[Z] Undo';
+          return 'Demolish · Click to remove ${candidate.label}';
         }
-        return 'Demolish · Hover any building, road, wall, terrace, or rock '
-            'and click to remove · [Z] Undo';
+        return 'Demolish · Click any building, road, wall, terrace, or rock';
       case InspectWatchTool():
         return 'Town View';
     }
@@ -297,8 +414,8 @@ class _ToolGuidanceBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDemolish = activeTool is DemolishTool;
-    final isToolActive = activeTool is! ExploreTool;
+    final tool = activeTool;
+    final isDemolish = tool is DemolishTool;
     final borderColor = isDemolish
         ? ShukubaHud._vermilionAccent
         : (strokeCount > 0
@@ -312,7 +429,7 @@ class _ToolGuidanceBar extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Wrap(
           spacing: 8,
           runSpacing: 6,
@@ -326,6 +443,21 @@ class _ToolGuidanceBar extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            if (tool is StampStructureTool && tool.kind.spec.variantCount > 1)
+              _ActionChip(
+                label:
+                    'Style: ${tool.kind.spec.variantLabelAt(tool.variant)} [V]',
+                active: true,
+                accent: ShukubaHud._amberAccent,
+                onTap: onCycleVariant,
+              ),
+            if (tool is StampStructureTool)
+              _ActionChip(
+                label: 'Rotate [R]',
+                active: false,
+                accent: ShukubaHud._amberAccent,
+                onTap: onRotateStamp,
+              ),
             if (strokeCount >= 2)
               _ActionChip(
                 label: 'Build [$strokeCount pts · Enter]',
@@ -340,7 +472,7 @@ class _ToolGuidanceBar extends StatelessWidget {
                 accent: ShukubaHud._mutedSand,
                 onTap: onCancelStroke,
               )
-            else if (isToolActive)
+            else if (tool is! ExploreTool)
               _ActionChip(
                 label: 'Done [Esc]',
                 active: false,
@@ -714,56 +846,61 @@ class _CategoryTabButton extends StatelessWidget {
     required this.category,
     required this.icon,
     required this.isExpanded,
+    required this.hasActiveTool,
     required this.onTap,
   });
 
   final HudToolCategory category;
   final InkBrushIconKind icon;
   final bool isExpanded;
+  final bool hasActiveTool;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     const accent = ShukubaHud._amberAccent;
+    final highlighted = isExpanded || hasActiveTool;
     return GestureDetector(
       onTap: onTap,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: isExpanded ? const Color(0x33DECBAE) : const Color(0x18000000),
+          color: isExpanded
+              ? const Color(0x36DECBAE)
+              : (hasActiveTool
+                    ? accent.withValues(alpha: 0.16)
+                    : const Color(0x18000000)),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isExpanded ? accent : ShukubaHud._borderStroke,
-            width: isExpanded ? 1.2 : 1.0,
+            color: highlighted ? accent : ShukubaHud._borderStroke,
+            width: highlighted ? 1.2 : 1.0,
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               InkBrushIcon(
                 icon: icon,
-                color: isExpanded
-                    ? ShukubaHud._washiInk
-                    : ShukubaHud._mutedSand,
+                color: highlighted ? accent : ShukubaHud._mutedSand,
                 size: 14,
               ),
               const SizedBox(width: 5),
               Text(
                 category.label,
                 style: TextStyle(
-                  color: isExpanded
+                  color: highlighted
                       ? ShukubaHud._washiInk
                       : ShukubaHud._mutedSand,
-                  fontSize: 10.5,
-                  fontWeight: isExpanded ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 11,
+                  fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               Icon(
-                isExpanded ? Icons.arrow_drop_down : Icons.arrow_right,
+                isExpanded ? Icons.arrow_drop_up : Icons.arrow_drop_down,
                 size: 14,
-                color: isExpanded ? accent : ShukubaHud._mutedSand,
+                color: highlighted ? accent : ShukubaHud._mutedSand,
               ),
             ],
           ),
@@ -778,44 +915,42 @@ class _CityBuilderDock extends StatefulWidget {
     required this.activeTool,
     required this.canUndo,
     required this.onSelectTool,
-    required this.onRotateStamp,
     required this.onUndo,
   });
 
   final PlacementTool activeTool;
   final bool canUndo;
   final ValueChanged<PlacementTool> onSelectTool;
-  final VoidCallback onRotateStamp;
   final VoidCallback onUndo;
 
   static const List<_ToolCardSpec> _dwellingsAndShops = [
     _ToolCardSpec(
       title: 'Townhouse',
-      subtitle: 'Machiya',
+      subtitle: 'Machiya · 4 styles',
       tool: StampStructureTool(kind: StructureKind.machiya),
       icon: InkBrushIconKind.machiya,
     ),
     _ToolCardSpec(
       title: 'Teahouse',
-      subtitle: 'Chaya inn',
+      subtitle: 'Chaya · 3 styles',
       tool: StampStructureTool(kind: StructureKind.chaya),
       icon: InkBrushIconKind.chaya,
     ),
     _ToolCardSpec(
       title: 'Storehouse',
-      subtitle: 'White Kura',
+      subtitle: 'Kura · 3 styles',
       tool: StampStructureTool(kind: StructureKind.kura),
       icon: InkBrushIconKind.kura,
     ),
     _ToolCardSpec(
       title: 'Farmhouse',
-      subtitle: 'Minka cottage',
+      subtitle: 'Minka · 4 styles',
       tool: StampStructureTool(kind: StructureKind.minka),
       icon: InkBrushIconKind.minka,
     ),
     _ToolCardSpec(
       title: 'Market Stall',
-      subtitle: 'Yatai booth',
+      subtitle: 'Yatai · 4 styles',
       tool: StampStructureTool(kind: StructureKind.marketStall),
       icon: InkBrushIconKind.marketStall,
     ),
@@ -836,7 +971,7 @@ class _CityBuilderDock extends StatefulWidget {
     ),
     _ToolCardSpec(
       title: 'Stone Terrace',
-      subtitle: 'Drag wall',
+      subtitle: 'Retaining wall',
       tool: BuildTerraceTool(),
       icon: InkBrushIconKind.terrace,
     ),
@@ -908,41 +1043,67 @@ class _CityBuilderDock extends StatefulWidget {
     ),
   ];
 
+  static List<_ToolCardSpec> _cardsFor(HudToolCategory category) {
+    return switch (category) {
+      HudToolCategory.dwellingsAndShops => _dwellingsAndShops,
+      HudToolCategory.roadsAndWalls => _roadsAndWalls,
+      HudToolCategory.treesAndRocks => _treesAndRocks,
+      HudToolCategory.shrinesAndCourtyards => _shrinesAndCourtyards,
+    };
+  }
+
   @override
   State<_CityBuilderDock> createState() => _CityBuilderDockState();
 }
 
 class _CityBuilderDockState extends State<_CityBuilderDock> {
-  late final Set<HudToolCategory> _expandedCategories = HudToolCategory.values
-      .toSet();
+  HudToolCategory? _openCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _openCategory = widget.activeTool.hudCategory;
+  }
+
+  @override
+  void didUpdateWidget(covariant _CityBuilderDock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_sameToolSelection(oldWidget.activeTool, widget.activeTool)) {
+      return;
+    }
+    if (widget.activeTool is ExploreTool) {
+      _openCategory = null;
+    } else if (widget.activeTool.hudCategory case final nextCat?) {
+      _openCategory = nextCat;
+    }
+  }
+
+  static bool _sameToolSelection(PlacementTool a, PlacementTool b) {
+    return switch ((a, b)) {
+      (
+        StampStructureTool(kind: final ka),
+        StampStructureTool(kind: final kb),
+      ) =>
+        ka == kb,
+      (DrawLaneTool(style: final sa), DrawLaneTool(style: final sb)) =>
+        sa == sb,
+      _ => a.runtimeType == b.runtimeType,
+    };
+  }
 
   void _toggleCategory(HudToolCategory category) {
     setState(() {
-      if (_expandedCategories.contains(category)) {
-        _expandedCategories.remove(category);
-      } else {
-        _expandedCategories.add(category);
-      }
+      _openCategory = _openCategory == category ? null : category;
     });
   }
 
-  bool _matches(PlacementTool candidate) {
-    return switch ((widget.activeTool, candidate)) {
-      (StampStructureTool(kind: final a), StampStructureTool(kind: final b)) =>
-        a == b,
-      (DrawLaneTool(style: final a), DrawLaneTool(style: final b)) => a == b,
-      _ => widget.activeTool.runtimeType == candidate.runtimeType,
-    };
-  }
+  bool _matches(PlacementTool candidate) =>
+      _sameToolSelection(widget.activeTool, candidate);
 
   @override
   Widget build(BuildContext context) {
     final activeCat = widget.activeTool.hudCategory;
-    if (activeCat != null && !_expandedCategories.contains(activeCat)) {
-      _expandedCategories.add(activeCat);
-    }
-
-    final isStamp = widget.activeTool is StampStructureTool;
+    final openCat = _openCategory;
     const demolishSpec = _ToolCardSpec(
       title: 'Demolish',
       subtitle: 'Remove [Del]',
@@ -958,10 +1119,30 @@ class _CityBuilderDockState extends State<_CityBuilderDock> {
         border: Border.all(color: ShukubaHud._borderStroke),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (openCat != null) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final spec in _CityBuilderDock._cardsFor(openCat))
+                    _ToolCardButton(
+                      spec: spec,
+                      active: _matches(spec.tool),
+                      onTap: () => widget.onSelectTool(spec.tool),
+                    ),
+                ],
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Divider(height: 1, color: ShukubaHud._borderStroke),
+              ),
+            ],
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -971,45 +1152,35 @@ class _CityBuilderDockState extends State<_CityBuilderDock> {
                 _CategoryTabButton(
                   category: HudToolCategory.dwellingsAndShops,
                   icon: InkBrushIconKind.dwellingsTab,
-                  isExpanded: _expandedCategories.contains(
-                    HudToolCategory.dwellingsAndShops,
-                  ),
+                  isExpanded: openCat == HudToolCategory.dwellingsAndShops,
+                  hasActiveTool: activeCat == HudToolCategory.dwellingsAndShops,
                   onTap: () =>
                       _toggleCategory(HudToolCategory.dwellingsAndShops),
                 ),
                 _CategoryTabButton(
                   category: HudToolCategory.roadsAndWalls,
                   icon: InkBrushIconKind.roadsTab,
-                  isExpanded: _expandedCategories.contains(
-                    HudToolCategory.roadsAndWalls,
-                  ),
+                  isExpanded: openCat == HudToolCategory.roadsAndWalls,
+                  hasActiveTool: activeCat == HudToolCategory.roadsAndWalls,
                   onTap: () => _toggleCategory(HudToolCategory.roadsAndWalls),
                 ),
                 _CategoryTabButton(
                   category: HudToolCategory.treesAndRocks,
                   icon: InkBrushIconKind.natureTab,
-                  isExpanded: _expandedCategories.contains(
-                    HudToolCategory.treesAndRocks,
-                  ),
+                  isExpanded: openCat == HudToolCategory.treesAndRocks,
+                  hasActiveTool: activeCat == HudToolCategory.treesAndRocks,
                   onTap: () => _toggleCategory(HudToolCategory.treesAndRocks),
                 ),
                 _CategoryTabButton(
                   category: HudToolCategory.shrinesAndCourtyards,
                   icon: InkBrushIconKind.shrinesTab,
-                  isExpanded: _expandedCategories.contains(
-                    HudToolCategory.shrinesAndCourtyards,
-                  ),
+                  isExpanded: openCat == HudToolCategory.shrinesAndCourtyards,
+                  hasActiveTool:
+                      activeCat == HudToolCategory.shrinesAndCourtyards,
                   onTap: () =>
                       _toggleCategory(HudToolCategory.shrinesAndCourtyards),
                 ),
                 const _DockDivider(),
-                if (isStamp)
-                  _ActionChip(
-                    label: 'Rotate [R]',
-                    active: false,
-                    accent: ShukubaHud._amberAccent,
-                    onTap: widget.onRotateStamp,
-                  ),
                 _ToolCardButton(
                   spec: demolishSpec,
                   active: _matches(demolishSpec.tool),
@@ -1026,53 +1197,6 @@ class _CityBuilderDockState extends State<_CityBuilderDock> {
                 ),
               ],
             ),
-            if (_expandedCategories.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  if (_expandedCategories.contains(
-                    HudToolCategory.dwellingsAndShops,
-                  ))
-                    for (final spec in _CityBuilderDock._dwellingsAndShops)
-                      _ToolCardButton(
-                        spec: spec,
-                        active: _matches(spec.tool),
-                        onTap: () => widget.onSelectTool(spec.tool),
-                      ),
-                  if (_expandedCategories.contains(
-                    HudToolCategory.roadsAndWalls,
-                  ))
-                    for (final spec in _CityBuilderDock._roadsAndWalls)
-                      _ToolCardButton(
-                        spec: spec,
-                        active: _matches(spec.tool),
-                        onTap: () => widget.onSelectTool(spec.tool),
-                      ),
-                  if (_expandedCategories.contains(
-                    HudToolCategory.treesAndRocks,
-                  ))
-                    for (final spec in _CityBuilderDock._treesAndRocks)
-                      _ToolCardButton(
-                        spec: spec,
-                        active: _matches(spec.tool),
-                        onTap: () => widget.onSelectTool(spec.tool),
-                      ),
-                  if (_expandedCategories.contains(
-                    HudToolCategory.shrinesAndCourtyards,
-                  ))
-                    for (final spec in _CityBuilderDock._shrinesAndCourtyards)
-                      _ToolCardButton(
-                        spec: spec,
-                        active: _matches(spec.tool),
-                        onTap: () => widget.onSelectTool(spec.tool),
-                      ),
-                ],
-              ),
-            ],
           ],
         ),
       ),

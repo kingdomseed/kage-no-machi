@@ -1,12 +1,12 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart' hide Material;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_page.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
+import 'package:material_ui/material_ui.dart' hide Material;
 
 import '../../e2e/helpers/e2e_test_harness.dart';
 
@@ -47,10 +47,9 @@ void main() {
         );
 
         expect(find.text('影の町'), findsOneWidget);
-        expect(
-          find.text('SHADOW TACTICS: RETURN OF THE SHOGUN'),
-          findsOneWidget,
-        );
+        expect(find.text('KAGE NO MACHI'), findsOneWidget);
+        expect(find.text('Edo Post-Town Diorama Builder'), findsOneWidget);
+        expect(find.textContaining('SHADOW TACTICS'), findsNothing);
         expect(find.text('Enter Valley (渓谷へ入る)'), findsOneWidget);
         expect(find.text('Field Notes (野帳)'), findsOneWidget);
         expect(find.text('Settings (設定)'), findsOneWidget);
@@ -82,12 +81,15 @@ void main() {
       expect(find.textContaining('Welcome to Kage no Machi'), findsNothing);
     });
 
-    testWidgets('TitleMenuOverlay opens Settings dialog and closes it', (
+    testWidgets('TitleMenuOverlay opens Settings dialog and adjusts audio', (
       tester,
     ) async {
+      final audio = EdoAudioDriver();
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: TitleMenuOverlay(onEnterValley: () {})),
+          home: Scaffold(
+            body: TitleMenuOverlay(audioDriver: audio, onEnterValley: () {}),
+          ),
         ),
       );
 
@@ -95,8 +97,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Settings (設定)'), findsWidgets);
-      expect(find.text('OK'), findsOneWidget);
+      expect(audio.isMuted, isFalse);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      expect(audio.isMuted, isTrue);
 
+      expect(find.text('OK'), findsOneWidget);
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
       expect(find.text('OK'), findsNothing);

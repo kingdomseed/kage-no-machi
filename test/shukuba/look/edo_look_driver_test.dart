@@ -80,14 +80,14 @@ void main() {
         final haloMat = driver.materialFor(ShukubaSurfaceRole.lanternHaze);
         final moteMat = driver.materialFor(ShukubaSurfaceRole.airborneMotes);
 
-        expect(groundMat.depthLayer, -1);
+        expect(groundMat.depthLayer, 0);
         expect(kitMat.depthLayer, 0);
         expect(meadowMat.depthLayer, 0);
         expect(livingMat.depthLayer, 0);
         expect(pineMat.depthLayer, 0);
         expect(willowMat.depthLayer, 0);
         expect(wallMat.depthLayer, 0);
-        expect(waterMat.depthLayer, 0);
+        expect(waterMat.depthLayer, 1);
         expect(laneMat.depthLayer, 1);
         expect(mistMat.depthLayer, 3);
         expect(haloMat.depthLayer, 4);

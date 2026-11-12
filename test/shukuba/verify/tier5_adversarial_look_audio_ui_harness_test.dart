@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart' hide Material;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +13,7 @@ import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_page.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
+import 'package:material_ui/material_ui.dart' hide Material;
 import 'package:vector_math/vector_math.dart' hide Colors;
 
 import '../../e2e/helpers/e2e_test_harness.dart';
@@ -242,10 +242,8 @@ void main() {
         await tester.pumpWidget(MaterialApp(home: Scaffold(body: menu)));
 
         expect(find.text('影の町'), findsOneWidget);
-        expect(
-          find.text('SHADOW TACTICS: RETURN OF THE SHOGUN'),
-          findsOneWidget,
-        );
+        expect(find.text('KAGE NO MACHI'), findsOneWidget);
+        expect(find.textContaining('SHADOW TACTICS'), findsNothing);
         expect(find.byType(HankoSealWidget), findsOneWidget);
 
         await tester.tap(find.text('Enter Valley (渓谷へ入る)'));
@@ -320,6 +318,8 @@ void main() {
       );
       await tester.pump();
 
+      await tester.tap(find.text('Roads & Walls'));
+      await tester.pump();
       await tester.tap(find.text('Road'));
       await tester.pump();
 
