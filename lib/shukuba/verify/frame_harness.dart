@@ -744,6 +744,13 @@ class ShukubaFrameHarness {
     scene.debugCheckCoplanarOverlaps = false;
     try {
       List<CoplanarOverlap>? staticValleyOverlaps;
+      var lastTimeValue = -1.0;
+      int resolvePumpCount(CameraPreset preset) {
+        final changed = (preset.timeOfDay.value - lastTimeValue).abs() > 0.008;
+        lastTimeValue = preset.timeOfDay.value;
+        return changed ? 18 : 2;
+      }
+
       for (var i = 0; i < valleyPresets.length; i++) {
         final preset = valleyPresets[i];
         final frames = math.min(settleFrames, i == 0 ? 24 : 8);
@@ -752,6 +759,7 @@ class ShukubaFrameHarness {
           outputPath: '${directory.path}/${preset.id}.png',
           framesToSettle: frames,
           startElapsedSeconds: elapsedSeconds,
+          pumpCount: resolvePumpCount(preset),
           cachedOverlaps: staticValleyOverlaps,
         );
         staticValleyOverlaps ??= shot.overlaps;
@@ -766,7 +774,7 @@ class ShukubaFrameHarness {
           outputPath: '${directory.path}/seams/${seamPreset.id}.png',
           framesToSettle: 4,
           startElapsedSeconds: elapsedSeconds,
-          pumpCount: i == 0 ? 2 : 1,
+          pumpCount: resolvePumpCount(seamPreset),
           cachedOverlaps: staticValleyOverlaps,
         );
         staticValleyOverlaps ??= shot.overlaps;
@@ -818,7 +826,7 @@ class ShukubaFrameHarness {
                       '${directory.path}/buildings/${specimenPreset.id}.png',
                   framesToSettle: 2,
                   startElapsedSeconds: elapsedSeconds,
-                  pumpCount: 1,
+                  pumpCount: resolvePumpCount(specimenPreset),
                   stepWorld: false,
                   sightconesOverride: const [],
                   lanternOriginsOverride: specimenLanternOrigins,
@@ -877,8 +885,10 @@ class ShukubaFrameHarness {
           lanternOrigins: world.activeLanternOrigins,
           elapsedSeconds: elapsedSeconds,
         );
-        await pumpFrame();
-        await pumpFrame();
+        final hoverPumps = resolvePumpCount(CameraPreset.duskOverview);
+        for (var i = 0; i < hoverPumps; i++) {
+          await pumpFrame();
+        }
         final hoverBoundary = repaintBoundaryKey.currentContext
             ?.findRenderObject();
         if (hoverBoundary is RenderRepaintBoundary) {

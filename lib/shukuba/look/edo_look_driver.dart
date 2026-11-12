@@ -53,6 +53,31 @@ class EdoLookDriver implements ShukubaLookDriver {
     return _sunbeamByRiverMist[mistMat] ?? mistMat;
   }
 
+  static Vec3 solarSkyDirectionFor(TimeOfDayRig rig) {
+    final t = rig.value;
+    final elevationDeg = 24 - (448 / 9) * t + (160 / 9) * t * t;
+    final azimuthDeg = -58 - 28 * t;
+    final elevation = elevationDeg * degrees2Radians;
+    final azimuth = azimuthDeg * degrees2Radians;
+    final horiz = math.cos(elevation);
+    return Vec3(
+      -math.sin(azimuth) * horiz,
+      math.sin(elevation),
+      -math.cos(azimuth) * horiz,
+    ).normalized();
+  }
+
+  static Vec3 _preethamSkyScatterDirectionFor(TimeOfDayRig rig) {
+    final solar = solarSkyDirectionFor(rig);
+    final minY = 0.48 * rig.nightFactor;
+    final effY =
+        0.5 * (solar.y + math.sqrt(solar.y * solar.y + 4 * minY * minY));
+    final horizCurr = math.sqrt(solar.x * solar.x + solar.z * solar.z);
+    final horizTarget = math.sqrt(math.max(0, 1 - effY * effY));
+    final scale = horizCurr > 1e-9 ? horizTarget / horizCurr : 0.0;
+    return Vec3(solar.x * scale, effY, solar.z * scale).normalized();
+  }
+
   static List<LanternLightCluster> clusterLanternOrigins(
     List<Vec3> origins, {
     double mergeRadiusMeters = lanternClusterRadiusMeters,
@@ -251,7 +276,8 @@ class EdoLookDriver implements ShukubaLookDriver {
     SkyEnvironment? skyEnvInstance;
     try {
       final sky = PhysicalSkySource(
-        sunDirection: TimeOfDayRig.goldenDusk.celestialSkyDirection.toVector3(),
+        sunDirection: _preethamSkyScatterDirectionFor(TimeOfDayRig.goldenDusk)
+            .toVector3(),
         sunAngularRadius: 0.024,
         rayleighCoefficient: 2.4,
         rayleighColor: Vector3(0.24, 0.42, 0.66),
@@ -260,7 +286,7 @@ class EdoLookDriver implements ShukubaLookDriver {
         mieColor: Vector3(0.96, 0.72, 0.46),
         turbidity: 6.5,
         groundColor: Vector3(0.16, 0.12, 0.09),
-        energy: 0.96,
+        energy: 0.94,
       );
       _skySource = sky;
       skyboxInstance = Skybox(sky);
@@ -279,7 +305,8 @@ class EdoLookDriver implements ShukubaLookDriver {
       skybox: skyboxInstance,
       skyEnvironment: skyEnvInstance,
       toneMapping: ToneMappingMode.aces,
-      exposure: 0.96,
+      environmentIntensity: 0.96,
+      exposure: 0.95,
       colorGradingEnabled: true,
       saturation: 1.22,
       contrast: 1.10,
@@ -299,15 +326,17 @@ class EdoLookDriver implements ShukubaLookDriver {
       ambientOcclusionDirectLightAffect: 0.30,
       fogEnabled: true,
       fogColor: Vector3(0.20, 0.31, 0.40),
-      fogDensity: 0.0092,
-      fogSunInScatter: 0.58,
+      fogStart: 18,
+      fogDensity: 0.0046,
+      fogMaxOpacity: 0.48,
+      fogSunInScatter: 0.18,
       fogSunInScatterExponent: 6.5,
-      fogSkyColorInfluence: 0.36,
-      fogHeight: 1.8,
-      fogHeightFalloff: 0.28,
+      fogSkyColorInfluence: 0.24,
+      fogHeight: 1.4,
+      fogHeightFalloff: 0.34,
       godRaysEnabled: true,
-      godRaysIntensity: 0.82,
-      godRaysDensity: 0.72,
+      godRaysIntensity: 0.34,
+      godRaysDensity: 0.42,
       godRaysAnisotropy: 0.76,
       godRaysStepCount: 36,
       godRaysColor: Vector3(1, 0.78, 0.44),
@@ -319,15 +348,17 @@ class EdoLookDriver implements ShukubaLookDriver {
       skybox: skyboxInstance,
       skyEnvironment: skyEnvInstance,
       toneMapping: ToneMappingMode.aces,
-      exposure: 0.92,
+      environmentIntensity: 0.36,
+      exposure: 0.84,
       colorGradingEnabled: true,
       saturation: 1.18,
-      contrast: 1.14,
+      contrast: 1.03,
       temperature: -0.05,
+      lift: Vector3(0.008, 0.016, 0.034),
       bloomEnabled: true,
-      bloomThreshold: 0.72,
-      bloomIntensity: 0.40,
-      bloomScatter: 0.82,
+      bloomThreshold: 0.88,
+      bloomIntensity: 0.28,
+      bloomScatter: 0.72,
       ambientOcclusionEnabled: true,
       ambientOcclusionMethod: AmbientOcclusionMethod.groundTruth,
       ambientOcclusionBentNormals: true,
@@ -338,16 +369,18 @@ class EdoLookDriver implements ShukubaLookDriver {
       ambientOcclusionMultiBounce: 0.46,
       ambientOcclusionDirectLightAffect: 0.30,
       fogEnabled: true,
-      fogColor: Vector3(0.036, 0.088, 0.175),
-      fogDensity: 0.0114,
-      fogSunInScatter: 0.18,
+      fogColor: Vector3(0.024, 0.058, 0.125),
+      fogStart: 22,
+      fogDensity: 0.0052,
+      fogMaxOpacity: 0.44,
+      fogSunInScatter: 0.03,
       fogSunInScatterExponent: 6.5,
-      fogSkyColorInfluence: 0.36,
-      fogHeight: 1.8,
-      fogHeightFalloff: 0.28,
+      fogSkyColorInfluence: 0.16,
+      fogHeight: 1.4,
+      fogHeightFalloff: 0.34,
       godRaysEnabled: true,
-      godRaysIntensity: 0.20,
-      godRaysDensity: 0.72,
+      godRaysIntensity: 0.05,
+      godRaysDensity: 0.28,
       godRaysAnisotropy: 0.76,
       godRaysStepCount: 36,
       godRaysColor: Vector3(0.44, 0.64, 0.94),
@@ -386,7 +419,7 @@ class EdoLookDriver implements ShukubaLookDriver {
         final cluster = clusteredLanterns[i];
         final weightBoost = 1 + 0.16 * math.min(cluster.weight - 1, 4);
         _lanternLights[i]
-          ..intensity = baseLanternIntensity * weightBoost
+          ..intensity = baseLanternIntensity * 0.68 * weightBoost
           ..range = lanternPointLightRangeMeters
           ..falloffExponent = lanternPointLightFalloffExponent;
         if (i < _lanternNodes.length) {
@@ -421,23 +454,25 @@ class EdoLookDriver implements ShukubaLookDriver {
       final sky = _skySource;
       if (sky != null) {
         sky
-          ..sunDirection = rig.celestialSkyDirection.toVector3()
+          ..sunDirection = _preethamSkyScatterDirectionFor(rig).toVector3()
+          ..sunAngularRadius = 0.024 * (1 - 0.92 * nf)
           ..turbidity = 6.5 - 2.3 * nf
-          ..energy = 0.96 - 0.80 * nf
+          ..mieCoefficient = 0.012 * (1 - 0.75 * nf)
+          ..energy = 0.94 - 0.86 * nf
           ..rayleighColor = Vector3(
-            0.24 * (1 - nf) + 0.16 * nf,
-            0.42 * (1 - nf) + 0.34 * nf,
-            0.66 * (1 - nf) + 0.76 * nf,
+            0.24 * (1 - nf) + 0.12 * nf,
+            0.42 * (1 - nf) + 0.30 * nf,
+            0.66 * (1 - nf) + 0.80 * nf,
           )
           ..mieColor = Vector3(
-            0.96 * (1 - nf) + 0.44 * nf,
-            0.72 * (1 - nf) + 0.64 * nf,
-            0.46 * (1 - nf) + 0.94 * nf,
+            0.96 * (1 - nf) + 0.30 * nf,
+            0.72 * (1 - nf) + 0.52 * nf,
+            0.46 * (1 - nf) + 0.90 * nf,
           )
           ..groundColor = Vector3(
             0.16 * (1 - nf) + 0.03 * nf,
-            0.12 * (1 - nf) + 0.04 * nf,
-            0.09 * (1 - nf) + 0.07 * nf,
+            0.12 * (1 - nf) + 0.05 * nf,
+            0.09 * (1 - nf) + 0.10 * nf,
           );
         _skyEnvironment?.invalidate();
       }

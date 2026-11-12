@@ -252,11 +252,18 @@ void main() {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('FogMode.exponential'), isTrue);
-        expect(lookSrc.contains('fogDensity: 0.0092'), isTrue);
-        expect(lookSrc.contains('fogDensity: 0.0114'), isTrue);
-        expect(lookSrc.contains('fogHeight: 1.8'), isTrue);
-        expect(lookSrc.contains('fogHeightFalloff: 0.28'), isTrue);
-        expect(lookSrc.contains('fogSkyColorInfluence: 0.36'), isTrue);
+        expect(lookSrc.contains('fogStart: 18'), isTrue);
+        expect(lookSrc.contains('fogStart: 22'), isTrue);
+        expect(lookSrc.contains('fogDensity: 0.0046'), isTrue);
+        expect(lookSrc.contains('fogDensity: 0.0052'), isTrue);
+        expect(lookSrc.contains('fogHeight: 1.4'), isTrue);
+        expect(lookSrc.contains('fogHeightFalloff: 0.34'), isTrue);
+        expect(lookSrc.contains('fogSkyColorInfluence: 0.24'), isTrue);
+        expect(lookSrc.contains('fogSkyColorInfluence: 0.16'), isTrue);
+        expect(
+          EdoLookDriver.solarSkyDirectionFor(TimeOfDayRig.blueHourNight).y,
+          lessThan(0),
+        );
       },
     );
 

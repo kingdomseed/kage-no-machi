@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/look/look.dart';
@@ -156,6 +158,20 @@ void main() {
       expect(driver.activeLanternLights.length, 2);
       expect(
         driver.activeLanternLights.first.intensity,
+        closeTo(
+          TimeOfDayRig.goldenDusk.lanternPointLightIntensity * 0.68 * 1.16,
+          1e-5,
+        ),
+      );
+      expect(
+        driver.activeLanternLights.last.intensity,
+        closeTo(
+          TimeOfDayRig.goldenDusk.lanternPointLightIntensity * 0.68,
+          1e-5,
+        ),
+      );
+      expect(
+        driver.activeLanternLights.first.intensity,
         greaterThan(driver.activeLanternLights.last.intensity),
       );
 
@@ -169,6 +185,52 @@ void main() {
       driver.dispose();
       expect(driver.activeLanternLights, isEmpty);
     });
+  });
+
+  group('EdoLookDriver solar sky horizon trajectory', () {
+    test(
+      'solarSkyDirectionFor descends continuously from +24 deg through +2 deg '
+      'at 0.55 to below the horizon at night',
+      () {
+        final atStart = EdoLookDriver.solarSkyDirectionFor(
+          const TimeOfDayRig(0),
+        );
+        final atDusk = EdoLookDriver.solarSkyDirectionFor(
+          TimeOfDayRig.goldenDusk,
+        );
+        final atSwitch = EdoLookDriver.solarSkyDirectionFor(
+          const TimeOfDayRig(0.55),
+        );
+        final atNight = EdoLookDriver.solarSkyDirectionFor(
+          TimeOfDayRig.blueHourNight,
+        );
+        final atMidnight = EdoLookDriver.solarSkyDirectionFor(
+          const TimeOfDayRig(1),
+        );
+
+        expect(atStart.length, closeTo(1.0, 1e-6));
+        expect(atSwitch.length, closeTo(1.0, 1e-6));
+        expect(atNight.length, closeTo(1.0, 1e-6));
+        expect(atMidnight.length, closeTo(1.0, 1e-6));
+
+        expect(atStart.y, closeTo(math.sin(24 * degrees2Radians), 1e-5));
+        expect(atDusk.y, greaterThan(0.28));
+        expect(atSwitch.y, closeTo(math.sin(2 * degrees2Radians), 1e-5));
+        expect(atNight.y, lessThan(0));
+        expect(atMidnight.y, closeTo(math.sin(-8 * degrees2Radians), 1e-5));
+
+        var prevY = atStart.y;
+        for (var i = 1; i <= 100; i++) {
+          final currentY = EdoLookDriver.solarSkyDirectionFor(
+            TimeOfDayRig(i / 100),
+          ).y;
+          expect(currentY, lessThan(prevY));
+          prevY = currentY;
+        }
+
+        expect(TimeOfDayRig.blueHourNight.celestialRayDirection.y, lessThan(0));
+      },
+    );
   });
 
   group('EdoLookDriver headless attach, materials, and syncFrame', () {
@@ -272,8 +334,17 @@ void main() {
       if (scene != null) {
         expect(scene.directionalLight, same(key));
 
+        final duskNf = TimeOfDayRig.goldenDusk.nightFactor;
         final env = scene.environmentSettings;
         expect(env.toneMapping, ToneMappingMode.aces);
+        expect(
+          env.environmentIntensity,
+          closeTo(0.96 * (1 - duskNf) + 0.36 * duskNf, 1e-5),
+        );
+        expect(
+          env.exposure,
+          closeTo(0.95 * (1 - duskNf) + 0.84 * duskNf, 1e-5),
+        );
         expect(env.ambientOcclusionEnabled, isTrue);
         expect(env.ambientOcclusionMethod, AmbientOcclusionMethod.groundTruth);
         expect(env.ambientOcclusionBentNormals, isTrue);
@@ -288,11 +359,34 @@ void main() {
         expect(env.ambientOcclusionDirectLightAffect, closeTo(0.30, 1e-5));
         expect(env.fogEnabled, isTrue);
         expect(env.fogMode, FogMode.exponential);
-        expect(env.fogSkyColorInfluence, closeTo(0.36, 1e-5));
-        expect(env.fogHeight, closeTo(1.8, 1e-5));
-        expect(env.fogHeightFalloff, closeTo(0.28, 1e-5));
+        expect(env.fogStart, closeTo(18 * (1 - duskNf) + 22 * duskNf, 1e-5));
+        expect(
+          env.fogDensity,
+          closeTo(0.0046 * (1 - duskNf) + 0.0052 * duskNf, 1e-6),
+        );
+        expect(
+          env.fogMaxOpacity,
+          closeTo(0.48 * (1 - duskNf) + 0.44 * duskNf, 1e-5),
+        );
+        expect(
+          env.fogSunInScatter,
+          closeTo(0.18 * (1 - duskNf) + 0.03 * duskNf, 1e-5),
+        );
+        expect(
+          env.fogSkyColorInfluence,
+          closeTo(0.24 * (1 - duskNf) + 0.16 * duskNf, 1e-5),
+        );
+        expect(env.fogHeight, closeTo(1.4, 1e-5));
+        expect(env.fogHeightFalloff, closeTo(0.34, 1e-5));
         expect(env.godRaysEnabled, isTrue);
-        expect(env.godRaysDensity, closeTo(0.72, 1e-5));
+        expect(
+          env.godRaysIntensity,
+          closeTo(0.34 * (1 - duskNf) + 0.05 * duskNf, 1e-5),
+        );
+        expect(
+          env.godRaysDensity,
+          closeTo(0.42 * (1 - duskNf) + 0.28 * duskNf, 1e-5),
+        );
         expect(env.godRaysAnisotropy, closeTo(0.76, 1e-5));
         expect(env.godRaysStepCount, 36);
       }
@@ -315,9 +409,27 @@ void main() {
       );
 
       if (scene != null) {
+        final nightNf = TimeOfDayRig.blueHourNight.nightFactor;
+        final nightEnv = scene.environmentSettings;
         expect(
-          scene.environmentSettings.exposure,
-          inInclusiveRange(0.92, 0.96),
+          nightEnv.environmentIntensity,
+          closeTo(0.96 * (1 - nightNf) + 0.36 * nightNf, 1e-5),
+        );
+        expect(
+          nightEnv.exposure,
+          closeTo(0.95 * (1 - nightNf) + 0.84 * nightNf, 1e-5),
+        );
+        expect(
+          nightEnv.bloomThreshold,
+          closeTo(0.96 * (1 - nightNf) + 0.88 * nightNf, 1e-5),
+        );
+        expect(
+          nightEnv.bloomIntensity,
+          closeTo(0.24 * (1 - nightNf) + 0.28 * nightNf, 1e-5),
+        );
+        expect(
+          nightEnv.bloomScatter,
+          closeTo(0.74 * (1 - nightNf) + 0.72 * nightNf, 1e-5),
         );
       }
 

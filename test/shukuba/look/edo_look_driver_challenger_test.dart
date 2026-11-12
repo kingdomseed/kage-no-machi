@@ -216,12 +216,38 @@ void main() {
           expect(env.ambientOcclusionPower, closeTo(1.85, 1e-5));
           expect(env.ambientOcclusionMultiBounce, closeTo(0.46, 1e-5));
           expect(env.ambientOcclusionDirectLightAffect, closeTo(0.30, 1e-5));
-          expect(env.exposure, inInclusiveRange(0.92 - 1e-5, 0.96 + 1e-5));
+          expect(env.exposure, inInclusiveRange(0.84 - 1e-5, 0.95 + 1e-5));
+          expect(
+            env.environmentIntensity,
+            inInclusiveRange(0.36 - 1e-5, 0.96 + 1e-5),
+          );
           expect(env.fogEnabled, isTrue);
           expect(env.fogMode, FogMode.exponential);
-          expect(env.fogHeight, closeTo(1.8, 1e-5));
-          expect(env.fogHeightFalloff, closeTo(0.28, 1e-5));
+          expect(env.fogStart, inInclusiveRange(18 - 1e-5, 22 + 1e-5));
+          expect(
+            env.fogDensity,
+            inInclusiveRange(0.0046 - 1e-6, 0.0052 + 1e-6),
+          );
+          expect(env.fogMaxOpacity, inInclusiveRange(0.44 - 1e-5, 0.48 + 1e-5));
+          expect(env.fogHeight, closeTo(1.4, 1e-5));
+          expect(env.fogHeightFalloff, closeTo(0.34, 1e-5));
+          expect(
+            env.fogSunInScatter,
+            inInclusiveRange(0.03 - 1e-5, 0.18 + 1e-5),
+          );
+          expect(
+            env.fogSkyColorInfluence,
+            inInclusiveRange(0.16 - 1e-5, 0.24 + 1e-5),
+          );
           expect(env.godRaysEnabled, isTrue);
+          expect(
+            env.godRaysIntensity,
+            inInclusiveRange(0.05 - 1e-5, 0.34 + 1e-5),
+          );
+          expect(
+            env.godRaysDensity,
+            inInclusiveRange(0.28 - 1e-5, 0.42 + 1e-5),
+          );
           expect(env.godRaysStepCount, 36);
         }
       }
