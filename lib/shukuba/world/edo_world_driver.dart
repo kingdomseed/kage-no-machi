@@ -7,6 +7,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         AmbientLoopKind,
         BootStageId,
         BuildPreview,
+        CourtyardWall,
         EntityId,
         NoBuildPreview,
         PlacedStructure,
@@ -81,9 +82,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   Node? _worldRoot;
   late final Node _terrainContainerNode = Node();
   late Node _waterNode;
-  late Node _gorgeDressingNode;
+  late final Node _gorgeDressingNode = Node(name: 'gorge_dressing_container');
   late Node _bridgeNode;
-  late final Node _floraNode = Node();
+  late final Node _floraNode = Node(name: 'flora_scatter_root');
   late final Node _roadsNode = Node();
   late final Node _terracesNode = Node();
   late final Node _wallsNode = Node();
@@ -92,6 +93,16 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final Node _agentsNode = Node();
   late final Node _atmosphereNode = Node();
   late final Node _previewNode = Node();
+
+  final Set<int> _dirtyFloraChunkIndices = <int>{
+    for (var i = 0; i < TerrainConfig.chunkCount; i++) i,
+  };
+  final Map<int, Node> _floraChunkNodes = <int, Node>{};
+
+  Set<int> get dirtyFloraChunkIndices =>
+      Set<int>.unmodifiable(_dirtyFloraChunkIndices);
+
+  void clearDirtyFlora() => _dirtyFloraChunkIndices.clear();
 
   final List<_SimAgent> _simAgents = [];
   final Map<EntityId, Node> _agentNodes = {};
@@ -170,9 +181,6 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _waterNode = markSubtreeShadowStatic(
       _terrainBuilder.buildWaterNode(_resolveMaterial),
     );
-    _gorgeDressingNode = markSubtreeShadowStatic(
-      _terrainBuilder.buildGorgeDressingNode(_resolveMaterial),
-    );
     _bridgeNode = markSubtreeShadowStatic(
       _terrainBuilder.buildBridgeNode(_resolveMaterial),
     );
@@ -213,9 +221,6 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _worldRoot = Node();
     _waterNode = markSubtreeShadowStatic(
       _terrainBuilder.buildWaterNode(_resolveMaterial),
-    );
-    _gorgeDressingNode = markSubtreeShadowStatic(
-      _terrainBuilder.buildGorgeDressingNode(_resolveMaterial),
     );
     _bridgeNode = markSubtreeShadowStatic(
       _terrainBuilder.buildBridgeNode(_resolveMaterial),
@@ -274,6 +279,11 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     bool rebuildAgentNodes = true,
   }) {
     _terrainBuilder.markAllDirty();
+    _dirtyFloraChunkIndices
+      ..clear()
+      ..addAll(Iterable<int>.generate(TerrainConfig.chunkCount));
+    _floraChunkNodes.clear();
+    _floraNode.removeAll();
     _graph =
         initialGraph ??
         buildStarterShukubaGraph(_terrainBuilder.sampleGroundHeight);
@@ -371,9 +381,35 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _rebuildGraphNodes();
   }
 
+  void _markFloraDirty(Aabb2 bounds) {
+    const margin = 3.5;
+    final minCx =
+        ((bounds.min.x - margin - TerrainConfig.minX) / TerrainConfig.chunkSpan)
+            .floor()
+            .clamp(0, TerrainConfig.gridDimension - 1);
+    final maxCx =
+        ((bounds.max.x + margin - TerrainConfig.minX) / TerrainConfig.chunkSpan)
+            .floor()
+            .clamp(0, TerrainConfig.gridDimension - 1);
+    final minCz =
+        ((bounds.min.y - margin - TerrainConfig.minZ) / TerrainConfig.chunkSpan)
+            .floor()
+            .clamp(0, TerrainConfig.gridDimension - 1);
+    final maxCz =
+        ((bounds.max.y + margin - TerrainConfig.minZ) / TerrainConfig.chunkSpan)
+            .floor()
+            .clamp(0, TerrainConfig.gridDimension - 1);
+
+    for (var cz = minCz; cz <= maxCz; cz++) {
+      for (var cx = minCx; cx <= maxCx; cx++) {
+        _dirtyFloraChunkIndices.add(cz * TerrainConfig.gridDimension + cx);
+      }
+    }
+  }
+
   void _markGraphDeltaDirty(ShukubaGraph prev, ShukubaGraph next) {
-    void markPoints(List<Vec3> pts, double pad) {
-      if (pts.isEmpty) return;
+    Aabb2? boundsForPoints(List<Vec3> pts, double pad) {
+      if (pts.isEmpty) return null;
       var minX = pts.first.x;
       var maxX = pts.first.x;
       var minZ = pts.first.z;
@@ -385,23 +421,34 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         if (p.z < minZ) minZ = p.z;
         if (p.z > maxZ) maxZ = p.z;
       }
-      _terrainBuilder.markDirty(
-        Aabb2.minMax(
-          Vector2(minX - pad, minZ - pad),
-          Vector2(maxX + pad, maxZ + pad),
-        ),
+      return Aabb2.minMax(
+        Vector2(minX - pad, minZ - pad),
+        Vector2(maxX + pad, maxZ + pad),
       );
+    }
+
+    void markPoints(List<Vec3> pts, double pad) {
+      final box = boundsForPoints(pts, pad);
+      if (box == null) return;
+      _terrainBuilder.markDirty(box);
+      _markFloraDirty(box);
+    }
+
+    void markFloraOnlyPoints(List<Vec3> pts, double pad) {
+      final box = boundsForPoints(pts, pad);
+      if (box == null) return;
+      _markFloraDirty(box);
     }
 
     void markStructure(PlacedStructure s) {
       final halfR =
           math.max(s.spec.footprintWidth, s.spec.footprintDepth) + 2.5;
-      _terrainBuilder.markDirty(
-        Aabb2.minMax(
-          Vector2(s.position.x - halfR, s.position.z - halfR),
-          Vector2(s.position.x + halfR, s.position.z + halfR),
-        ),
+      final box = Aabb2.minMax(
+        Vector2(s.position.x - halfR, s.position.z - halfR),
+        Vector2(s.position.x + halfR, s.position.z + halfR),
       );
+      _terrainBuilder.markDirty(box);
+      _markFloraDirty(box);
     }
 
     final prevRoads = <EntityId, RoadSpline>{
@@ -441,6 +488,29 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     for (final entry in nextTerraces.entries) {
       if (prevTerraces[entry.key] != entry.value) {
         markPoints(entry.value.crestPoints, entry.value.depthMeters + 6.0);
+      }
+    }
+
+    final prevWalls = <EntityId, CourtyardWall>{
+      for (final w in prev.walls) w.id: w,
+    };
+    final nextWalls = <EntityId, CourtyardWall>{
+      for (final w in next.walls) w.id: w,
+    };
+    for (final entry in prevWalls.entries) {
+      if (nextWalls[entry.key] != entry.value) {
+        markFloraOnlyPoints(
+          entry.value.controlPoints,
+          entry.value.thicknessMeters * 0.5 + 2.5,
+        );
+      }
+    }
+    for (final entry in nextWalls.entries) {
+      if (prevWalls[entry.key] != entry.value) {
+        markFloraOnlyPoints(
+          entry.value.controlPoints,
+          entry.value.thicknessMeters * 0.5 + 2.5,
+        );
       }
     }
 
@@ -495,6 +565,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
             terraces: _graph.terraces,
             roads: _graph.roads,
             structures: _graph.structures.values,
+          ),
+        ),
+      );
+
+    _gorgeDressingNode
+      ..removeAll()
+      ..add(
+        markSubtreeShadowStatic(
+          _terrainBuilder.buildGorgeDressingNode(
+            _resolveMaterial,
+            roads: _graph.roads,
           ),
         ),
       );
@@ -573,17 +654,35 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       return;
     }
 
-    _floraNode
-      ..removeAll()
-      ..add(
-        markSubtreeShadowStatic(
-          _floraBuilder.buildFloraScatterNode(
-            graph: _graph,
-            resolveMaterial: _resolveMaterial,
-            sampleGroundY: sampleGroundHeight,
-          ),
-        ),
+    final rebuildAll = _floraChunkNodes.isEmpty;
+    if (rebuildAll || _dirtyFloraChunkIndices.isNotEmpty) {
+      final targetChunks = rebuildAll
+          ? null
+          : Set<int>.of(_dirtyFloraChunkIndices);
+      if (rebuildAll) {
+        _floraNode.removeAll();
+      } else {
+        for (final idx in targetChunks!) {
+          final prevNode = _floraChunkNodes.remove(idx);
+          if (prevNode != null) {
+            _floraNode.remove(prevNode);
+          }
+        }
+      }
+      final rebuilt = _floraBuilder.buildFloraChunkNodes(
+        graph: _graph,
+        resolveMaterial: _resolveMaterial,
+        sampleGroundY: sampleGroundHeight,
+        onlyChunks: targetChunks,
       );
+      final orderedKeys = rebuilt.keys.toList()..sort();
+      for (final idx in orderedKeys) {
+        final chunkNode = markSubtreeShadowStatic(rebuilt[idx]!);
+        _floraChunkNodes[idx] = chunkNode;
+        _floraNode.add(chunkNode);
+      }
+      _dirtyFloraChunkIndices.clear();
+    }
 
     _atmosphereNode
       ..removeAll()
@@ -671,6 +770,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
     _simAgents.clear();
     _agentNodes.clear();
+    _floraChunkNodes.clear();
+    _floraNode.removeAll();
+    _gorgeDressingNode.removeAll();
     _worldRoot = null;
     _scene = null;
   }
