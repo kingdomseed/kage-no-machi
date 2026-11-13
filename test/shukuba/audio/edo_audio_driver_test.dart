@@ -236,9 +236,14 @@ void main() {
       final driver = EdoAudioDriver();
       expect(driver.wavBank, isNotNull);
       expect(driver.recentNotes, isEmpty);
-      expect(driver.currentLoopGains, contains(AmbientLoopKind.riverMurmur));
-      expect(driver.currentLoopGains, contains(AmbientLoopKind.bambooWind));
-      expect(driver.currentLoopGains, contains(AmbientLoopKind.nightCrickets));
+      expect(
+        driver.currentLoopGains[AmbientLoopKind.riverMurmur],
+        equals(0.15),
+      );
+      expect(driver.currentLoopGains[AmbientLoopKind.bambooWind], equals(0.18));
+      expect(driver.currentLoopGains[AmbientLoopKind.nightCrickets], equals(0));
+      expect(EdoAudioDriver.defaultMusicGain, equals(0.24));
+      expect(driver.isMusicPlaying, isFalse);
       expect(driver.isNativeAudioActive, isFalse);
     });
 
@@ -310,7 +315,19 @@ void main() {
         nightGains[AmbientLoopKind.nightCrickets],
         closeTo(TimeOfDayRig.blueHourNight.nightCricketGain, 1e-4),
       );
-      expect(nightGains[AmbientLoopKind.nightCrickets], greaterThan(0.30));
+      expect(nightGains[AmbientLoopKind.nightCrickets], greaterThan(0.08));
+      expect(
+        nightGains[AmbientLoopKind.nightCrickets],
+        lessThanOrEqualTo(0.14),
+      );
+      expect(
+        nightGains[AmbientLoopKind.riverMurmur],
+        lessThan(duskGains[AmbientLoopKind.riverMurmur]!),
+      );
+      expect(
+        nightGains[AmbientLoopKind.bambooWind],
+        lessThan(duskGains[AmbientLoopKind.bambooWind]!),
+      );
     });
 
     test('playPlacementNote emits Yo below 0.55 and In-sen at/above 0.55', () {
@@ -482,6 +499,24 @@ void main() {
       await driver.prewarm();
       expect(driver.isWavBankLoaded, isTrue);
     });
+
+    test(
+      'startMenuMusic and transition to attach/dispose complete cleanly',
+      () async {
+        final driver = EdoAudioDriver();
+        await driver.startMenuMusic();
+        expect(driver.isMusicPlaying, isA<bool>());
+        expect(driver.isNativeAudioActive, isA<bool>());
+
+        final scene = _tryScene();
+        await driver.attach(scene);
+        expect(driver.isNativeAudioActive, isA<bool>());
+
+        driver.dispose();
+        expect(driver.isMusicPlaying, isFalse);
+        expect(driver.isNativeAudioActive, isFalse);
+      },
+    );
   });
 }
 

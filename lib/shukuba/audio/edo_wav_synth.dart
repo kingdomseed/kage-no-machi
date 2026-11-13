@@ -263,9 +263,6 @@ abstract final class EdoWavSynth {
     final rng = _FastRng(0x1337);
     final dt = 1.0 / sampleRate;
 
-    final bubbleOffsets = [0.45, 1.15, 1.85, 2.55, 3.25, 3.85];
-    final bubbleFreqs = [980.0, 1280.0, 1050.0, 1390.0, 1140.0, 1220.0];
-
     for (var n = 0; n < totalGen; n++) {
       final t = n * dt;
       final white = rng.nextDouble() * 2 - 1;
@@ -278,19 +275,9 @@ abstract final class EdoWavSynth {
           0.10 * math.sin(2 * math.pi * 1.25 * t);
       final midRush = bpMid.process(white) * midMod * 0.40;
 
-      final higSpray = bpHig.process(white) * 0.18;
+      final higSpray = bpHig.process(white) * 0.03;
 
-      var bubbles = 0.0;
-      for (var b = 0; b < bubbleOffsets.length; b++) {
-        final relT = (t - bubbleOffsets[b]) % durationSeconds;
-        if (relT >= 0 && relT < 0.035) {
-          final fChirp = bubbleFreqs[b] * (1 + relT * 4);
-          final env = math.sin(math.pi * (relT / 0.035));
-          bubbles += math.sin(2 * math.pi * fChirp * relT) * env * 0.22;
-        }
-      }
-
-      raw[n] = lowRush + midRush + higSpray + bubbles;
+      raw[n] = lowRush + midRush + higSpray;
     }
 
     final seamless = _wrapCircularCrossfade(raw, loopSamples, crossfadeSamples);
@@ -352,8 +339,8 @@ abstract final class EdoWavSynth {
     final samples = Float64List(loopSamples);
     final dt = 1.0 / sampleRate;
 
-    const f1 = 4300;
-    const f2 = 4375;
+    const f1 = 3200;
+    const f2 = 3275;
 
     for (var n = 0; n < loopSamples; n++) {
       final t = n * dt;

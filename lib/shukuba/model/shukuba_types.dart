@@ -2264,11 +2264,11 @@ class TimeOfDayRig {
 
   double get lanternPointLightRange => 7.9 + 4.5 * nightFactor;
 
-  double get riverMurmurGain => 0.44 - 0.08 * nightFactor;
+  double get riverMurmurGain => 0.15 - 0.03 * nightFactor;
 
-  double get bambooWindGain => 0.34 - 0.06 * nightFactor;
+  double get bambooWindGain => 0.18 - 0.04 * nightFactor;
 
-  double get nightCricketGain => math.max(0, (value - 0.38) / 0.62) * 0.42;
+  double get nightCricketGain => math.max(0, (value - 0.45) / 0.55) * 0.14;
 
   double get dewFactor => 0.20 + 0.72 * nightFactor;
 

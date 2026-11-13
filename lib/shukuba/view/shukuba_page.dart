@@ -86,7 +86,12 @@ class _ShukubaPageState extends State<ShukubaPage> {
     WidgetsBinding.instance.addTimingsCallback(_onFrameTimings);
 
     unawaited(_controller.audio.prewarm());
-    if (_shellMode == ShukubaShellMode.inValley ||
+    if (_shellMode == ShukubaShellMode.titleMenu &&
+        kShukubaCaptureDir.isEmpty) {
+      if (_controller.audio case final EdoAudioDriver edoAudio) {
+        unawaited(edoAudio.startMenuMusic());
+      }
+    } else if (_shellMode == ShukubaShellMode.inValley ||
         _shellMode == ShukubaShellMode.loadingValley) {
       unawaited(_bootSceneStaged());
     }
@@ -584,6 +589,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
                       ),
                       onReturnToTitle: () {
                         _controller.audio.dispose();
+                        if (_controller.audio
+                            case final EdoAudioDriver edoAudio) {
+                          unawaited(edoAudio.startMenuMusic());
+                        }
                         setState(() => _shellMode = ShukubaShellMode.titleMenu);
                       },
                       audioDriver: _controller.audio,

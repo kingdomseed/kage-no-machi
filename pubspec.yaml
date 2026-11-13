@@ -33,6 +33,7 @@ dev_dependencies:
 
 flutter:
   assets:
+    - assets/audio/
     - flutter_scene_generated/
     - path: flutter_scene_generated/metal_ios/
       platforms:

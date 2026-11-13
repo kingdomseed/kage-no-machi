@@ -991,6 +991,7 @@ class ShukubaFrameHarness {
           'isNativeAudioActive': edoAudio.isNativeAudioActive,
           'loadedClipCount': edoAudio.loadedClipCount,
           'playingAmbientSourceCount': edoAudio.playingAmbientSourceCount,
+          'musicPlaying': edoAudio.isMusicPlaying,
           'oneShotVoicePlaying': edoAudio.lastOneShotVoicePlaying,
           'listenerPosition': listenerPos == null
               ? null
