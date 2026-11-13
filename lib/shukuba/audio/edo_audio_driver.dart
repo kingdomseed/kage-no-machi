@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_scene/audio.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_scene_soloud/flutter_scene_soloud.dart';
@@ -72,6 +73,7 @@ class EdoAudioDriver implements ShukubaAudioDriver {
   String? _lastAttachError;
   bool _isNativeAudioActive = false;
   int _sceneEpoch = 0;
+  int _assetLoadedClipCount = 0;
 
   double get _effectiveGain => _isMuted ? 0.0 : _masterVolume;
 
@@ -86,6 +88,8 @@ class EdoAudioDriver implements ShukubaAudioDriver {
   EdoWavBank get wavBank => _wavBank ??= EdoWavBank.synthesizeAll();
 
   bool get isNativeAudioActive => _isNativeAudioActive;
+
+  int get assetLoadedClipCount => _assetLoadedClipCount;
 
   int get loadedClipCount =>
       _instrumentClips.length +
@@ -160,8 +164,19 @@ class EdoAudioDriver implements ShukubaAudioDriver {
     Completer<Never> initFailure,
   ) async {
     try {
-      return await Future.any([engine.loadClip(assetKey), initFailure.future])
+      final byteData = await rootBundle
+          .load(assetKey)
           .timeout(const Duration(seconds: 5));
+      final assetBytes = byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      );
+      final clip = await Future.any([
+        engine.loadClipFromBytes(assetKey, assetBytes),
+        initFailure.future,
+      ]).timeout(const Duration(seconds: 5));
+      _assetLoadedClipCount++;
+      return clip;
     } on Object catch (_) {
       if (initFailure.isCompleted) {
         rethrow;
@@ -221,6 +236,7 @@ class EdoAudioDriver implements ShukubaAudioDriver {
 
   void _teardownNativeScene() {
     _sceneEpoch++;
+    _assetLoadedClipCount = 0;
     for (final voice in _activeOneShotVoices) {
       voice.stop();
     }
@@ -290,8 +306,10 @@ class EdoAudioDriver implements ShukubaAudioDriver {
       _scene = menuScene;
 
       final initFailure = Completer<Never>();
-      final engine = SoloudAudioEngine(bufferSize: 1024)
-        ..masterVolume = _effectiveGain;
+      final engine = SoloudAudioEngine(
+        bufferSize: 1024,
+        pauseWhenBackgrounded: false,
+      )..masterVolume = _effectiveGain;
       runZonedGuarded(() => menuScene.root.addComponent(engine), (
         error,
         stack,
@@ -366,8 +384,10 @@ class EdoAudioDriver implements ShukubaAudioDriver {
 
     try {
       final initFailure = Completer<Never>();
-      final engine = SoloudAudioEngine(bufferSize: 1024)
-        ..masterVolume = _effectiveGain;
+      final engine = SoloudAudioEngine(
+        bufferSize: 1024,
+        pauseWhenBackgrounded: false,
+      )..masterVolume = _effectiveGain;
       runZonedGuarded(() => scene.root.addComponent(engine), (error, stack) {
         if (!initFailure.isCompleted) {
           initFailure.completeError(error, stack);

@@ -34,7 +34,7 @@ void main() {
     });
 
     test(
-      'AutumnLeavesPainter paints 38 leaves and repaints on progress change',
+      'AutumnLeavesPainter paints 46 leaves and repaints on progress change',
       () {
         const painter0 = AutumnLeavesPainter(progress: 0);
         const painterMid = AutumnLeavesPainter(progress: 0.35);

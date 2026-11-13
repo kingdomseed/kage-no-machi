@@ -67,27 +67,27 @@ class AutumnLeavesPainter extends CustomPainter {
 
   double get _effectiveProgress => _repaint?.value ?? progress;
 
-  static const int _leafCount = 38;
+  static const int _leafCount = 46;
   static const List<Color> _momijiPalette = [
-    Color(0xFFC84628),
-    Color(0xFFDF6E32),
-    Color(0xFF9E3321),
-    Color(0xFFDDA03A),
+    Color(0xFFD94826),
+    Color(0xFFEB7632),
+    Color(0xFFB6321E),
+    Color(0xFFE59E36),
+    Color(0xFFC93B2B),
   ];
-  static const Color _ichoColor = Color(0xFFE4B444);
+  static const Color _ichoColor = Color(0xFFEBB93E);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
 
     final t = _effectiveProgress.isFinite ? _effectiveProgress : 0.0;
-    const margin = 28.0;
+    const margin = 44.0;
     final spanH = size.height + margin * 2.0;
 
     for (var i = 0; i < _leafCount; i++) {
-      final plane = i < 16 ? 0 : (i < 30 ? 1 : 2);
-      final alpha = plane == 0 ? 0.24 : (plane == 1 ? 0.48 : 0.72);
-      final planeScale = plane == 0 ? 0.72 : (plane == 1 ? 1.0 : 1.32);
+      final plane = i < 18 ? 0 : (i < 36 ? 1 : 2);
+      final alpha = plane == 0 ? 0.40 : (plane == 1 ? 0.68 : 0.88);
       final cycles = plane == 0 ? 1 : (plane == 1 ? 2 : 3);
 
       final y0 = ((i / _leafCount) + ((i * 37) % 13) * 0.007) % 1.0;
@@ -96,11 +96,17 @@ class AutumnLeavesPainter extends CustomPainter {
 
       var x0 = ((i * 0.61803398875) % 1.0) * 0.92 + 0.04;
       if (plane == 2 && x0 > 0.28 && x0 < 0.72) {
-        x0 = x0 < 0.5 ? x0 * 0.52 + 0.04 : 0.96 - (1.0 - x0) * 0.52;
+        x0 = x0 < 0.5
+            ? 0.06 + ((x0 - 0.28) / 0.22) * 0.22
+            : 0.72 + ((x0 - 0.5) / 0.22) * 0.22;
       }
       final swayCycles = plane == 0 ? 1 : 2;
       final swayPhase = ((i * 19) % 100) / 100.0;
-      final driftAmp = (12.0 + (i % 5) * 5.0) * planeScale;
+      final driftAmp = switch (plane) {
+        0 => 16.0 + (i % 5) * 5.0,
+        1 => 26.0 + (i % 5) * 7.0,
+        _ => 36.0 + (i % 5) * 9.0,
+      };
       final dx =
           math.sin(2.0 * math.pi * (swayPhase + t * swayCycles)) * driftAmp;
       final cx = size.width * x0 + dx;
@@ -115,14 +121,19 @@ class AutumnLeavesPainter extends CustomPainter {
 
       final tiltPhase = ((i * 43) % 100) / 100.0;
       final foreshorten =
-          0.55 +
-          0.45 *
+          0.62 +
+          0.38 *
               (0.5 +
                   0.5 *
                       math.cos(2.0 * math.pi * (tiltPhase + t * (plane + 1))));
 
-      final baseR = (9.0 + ((i * 5) % 5) * 1.1) * planeScale;
+      final baseR = switch (plane) {
+        0 => 13.0 + ((i * 5) % 4) * 1.4,
+        1 => 20.0 + ((i * 7) % 5) * 1.6,
+        _ => 29.0 + ((i * 3) % 5) * 2.2,
+      };
       final isGinkgo = i % 7 == 2 || i % 7 == 5;
+      final castShadow = plane >= 1;
 
       canvas
         ..save()
@@ -131,30 +142,36 @@ class AutumnLeavesPainter extends CustomPainter {
         ..scale(1, foreshorten);
 
       if (isGinkgo) {
-        _drawIcho(canvas, baseR, alpha);
+        _drawIcho(canvas, baseR, alpha, castShadow: castShadow);
       } else {
         final color = _momijiPalette[i % _momijiPalette.length];
-        _drawMomiji(canvas, baseR, color, alpha);
+        _drawMomiji(canvas, baseR, color, alpha, castShadow: castShadow);
       }
 
       canvas.restore();
     }
   }
 
-  void _drawMomiji(Canvas canvas, double r, Color color, double alpha) {
+  void _drawMomiji(
+    Canvas canvas,
+    double r,
+    Color color,
+    double alpha, {
+    required bool castShadow,
+  }) {
     final fillPaint = Paint()
       ..color = color.withValues(alpha: alpha)
       ..style = PaintingStyle.fill;
     final stemPaint = Paint()
       ..color = color.withValues(alpha: (alpha * 0.88).clamp(0.0, 1.0))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(0.8, r * 0.085)
+      ..strokeWidth = math.max(1, r * 0.085)
       ..strokeCap = StrokeCap.round;
 
     final path = Path()..moveTo(0, r * 0.24);
-    const lobeAngles = [-1.32, -0.64, 0.0, 0.64, 1.32];
-    const lobeLengths = [0.68, 0.90, 1.05, 0.90, 0.68];
-    const lobeWidths = [0.16, 0.19, 0.21, 0.19, 0.16];
+    const lobeAngles = [-1.36, -0.66, 0.0, 0.66, 1.36];
+    const lobeLengths = [0.72, 0.94, 1.08, 0.94, 0.72];
+    const lobeWidths = [0.22, 0.26, 0.29, 0.26, 0.22];
 
     for (var k = 0; k < 5; k++) {
       final ang = lobeAngles[k] - math.pi / 2.0;
@@ -167,8 +184,8 @@ class AutumnLeavesPainter extends CustomPainter {
 
       final tipX = cosA * len;
       final tipY = sinA * len;
-      final midX = cosA * (len * 0.58);
-      final midY = sinA * (len * 0.58);
+      final midX = cosA * (len * 0.56);
+      final midY = sinA * (len * 0.56);
       final toothX = cosA * (len * 0.72);
       final toothY = sinA * (len * 0.72);
 
@@ -182,7 +199,7 @@ class AutumnLeavesPainter extends CustomPainter {
       if (k < 4) {
         final sinusAng =
             (lobeAngles[k] + lobeAngles[k + 1]) * 0.5 - math.pi / 2.0;
-        final sinusR = r * 0.28;
+        final sinusR = r * 0.32;
         path.lineTo(math.cos(sinusAng) * sinusR, math.sin(sinusAng) * sinusR);
       }
     }
@@ -190,6 +207,13 @@ class AutumnLeavesPainter extends CustomPainter {
     path
       ..lineTo(0, r * 0.24)
       ..close();
+
+    if (castShadow) {
+      final shadowPaint = Paint()
+        ..color = const Color(0xFF050608).withValues(alpha: alpha * 0.38)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path.shift(const Offset(1.5, 2.5)), shadowPaint);
+    }
 
     canvas.drawPath(path, fillPaint);
 
@@ -199,9 +223,9 @@ class AutumnLeavesPainter extends CustomPainter {
     canvas.drawPath(stemPath, stemPaint);
 
     final veinPaint = Paint()
-      ..color = const Color(0xFF4B180E).withValues(alpha: alpha * 0.35)
+      ..color = const Color(0xFF4A160C).withValues(alpha: alpha * 0.42)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(0.6, r * 0.055)
+      ..strokeWidth = math.max(0.7, r * 0.055)
       ..strokeCap = StrokeCap.round;
     for (var k = 0; k < 5; k++) {
       final ang = lobeAngles[k] - math.pi / 2.0;
@@ -212,34 +236,60 @@ class AutumnLeavesPainter extends CustomPainter {
         veinPaint,
       );
     }
+    final highlightPaint = Paint()
+      ..color = const Color(0xFFFFCA7A).withValues(alpha: alpha * 0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(0.6, r * 0.04)
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(0, r * 0.18),
+      Offset(0, -r * lobeLengths[2] * 0.72),
+      highlightPaint,
+    );
   }
 
-  void _drawIcho(Canvas canvas, double r, double alpha) {
+  void _drawIcho(
+    Canvas canvas,
+    double r,
+    double alpha, {
+    required bool castShadow,
+  }) {
     final fillPaint = Paint()
       ..color = _ichoColor.withValues(alpha: alpha)
       ..style = PaintingStyle.fill;
     final veinPaint = Paint()
-      ..color = const Color(0xFF8C6214).withValues(alpha: alpha * 0.55)
+      ..color = const Color(0xFF7D5410).withValues(alpha: alpha * 0.52)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(0.75, r * 0.075)
+      ..strokeWidth = math.max(0.8, r * 0.07)
       ..strokeCap = StrokeCap.round;
 
     final path = Path()
-      ..moveTo(0, r * 0.44)
-      ..quadraticBezierTo(-r * 0.42, r * 0.08, -r * 0.86, -r * 0.26)
-      ..quadraticBezierTo(-r * 0.46, -r * 0.76, -r * 0.08, -r * 0.46)
-      ..lineTo(0, -r * 0.20)
-      ..lineTo(r * 0.08, -r * 0.46)
-      ..quadraticBezierTo(r * 0.46, -r * 0.76, r * 0.86, -r * 0.26)
-      ..quadraticBezierTo(r * 0.42, r * 0.08, 0, r * 0.44)
+      ..moveTo(0, r * 0.46)
+      ..quadraticBezierTo(-r * 0.48, r * 0.10, -r * 0.94, -r * 0.28)
+      ..quadraticBezierTo(-r * 0.52, -r * 0.82, -r * 0.09, -r * 0.50)
+      ..lineTo(0, -r * 0.22)
+      ..lineTo(r * 0.09, -r * 0.50)
+      ..quadraticBezierTo(r * 0.52, -r * 0.82, r * 0.94, -r * 0.28)
+      ..quadraticBezierTo(r * 0.48, r * 0.10, 0, r * 0.46)
       ..close();
+
+    if (castShadow) {
+      final shadowPaint = Paint()
+        ..color = const Color(0xFF050608).withValues(alpha: alpha * 0.38)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path.shift(const Offset(1.5, 2.5)), shadowPaint);
+    }
 
     canvas.drawPath(path, fillPaint);
 
     final stemAndVein = Path()
-      ..moveTo(-r * 0.04, r * 0.86)
-      ..quadraticBezierTo(0, r * 0.62, 0, r * 0.44)
-      ..lineTo(0, -r * 0.20);
+      ..moveTo(-r * 0.04, r * 0.88)
+      ..quadraticBezierTo(0, r * 0.64, 0, r * 0.46)
+      ..lineTo(0, -r * 0.22)
+      ..moveTo(0, r * 0.44)
+      ..lineTo(-r * 0.44, -r * 0.36)
+      ..moveTo(0, r * 0.44)
+      ..lineTo(r * 0.44, -r * 0.36);
     canvas.drawPath(stemAndVein, veinPaint);
   }
 
@@ -524,6 +574,7 @@ class _TitleMenuOverlayState extends State<TitleMenuOverlay>
                               }
                             },
                             style: OutlinedButton.styleFrom(
+                              backgroundColor: const Color(0xDE131720),
                               foregroundColor: _washiInk,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -560,6 +611,7 @@ class _TitleMenuOverlayState extends State<TitleMenuOverlay>
                               }
                             },
                             style: OutlinedButton.styleFrom(
+                              backgroundColor: const Color(0xDE131720),
                               foregroundColor: _mutedSand,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
