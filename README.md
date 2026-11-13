@@ -2,7 +2,17 @@
 
 *Kage no Machi* is an atmospheric isometric Edo post-town (*shukuba*) diorama builder built on Flutter `3.50.0`, Flutter GPU, `flutter_scene` `0.24.3`, and `flutter_scene_soloud` `0.2.0` for macOS Metal. Shape a riverside highway settlement from golden dusk into blue-hour night while buildings, roads, garden paths, terraces, trees, and shrines respond with spatial pentatonic instruments.
 
-> Canonical screenshots and a short showcase video will be added soon.
+[![Kage no Machi — Atmospheric Showcase](docs/media/kage-no-machi-showcase.webp)](docs/media/kage-no-machi-showcase.mp4)
+
+> [Watch the full 1080p showcase with spatial audio (MP4)](docs/media/kage-no-machi-showcase.mp4) · Composed with [HyperFrames](https://github.com/heygen-com/hyperframes) from live macOS Metal captures and in-game spatial audio.
+
+## Screenshots
+
+| Golden Dusk Valley | Komorebi Sun Canopy | Misty River Crossing |
+| :---: | :---: | :---: |
+| ![Golden Dusk Valley](docs/media/screenshots/01-golden-dusk-valley.png) | ![Komorebi Sun Canopy](docs/media/screenshots/02-komorebi-sun-canopy.png) | ![Misty River Crossing](docs/media/screenshots/03-misty-river-crossing.png) |
+| **Blue-Hour Lantern Market** | **Terraced Countryside** | **Tactile City-Builder HUD** |
+| ![Blue-Hour Lantern Market](docs/media/screenshots/04-blue-hour-lantern-market.png) | ![Terraced Countryside](docs/media/screenshots/05-terraced-countryside.png) | ![Tactile City-Builder HUD](docs/media/screenshots/06-tactile-city-builder-hud.png) |
 
 ## Highlights
 

@@ -35,6 +35,8 @@ const String kShukubaCaptureFilter = String.fromEnvironment(
   'SHUKUBA_CAPTURE_FILTER',
 );
 
+const bool kShukubaCaptureReel = bool.fromEnvironment('SHUKUBA_CAPTURE_REEL');
+
 @immutable
 class FramePixelStats {
   const new({
@@ -662,6 +664,7 @@ class ShukubaFrameHarness {
     bool includeAtlas = kShukubaCaptureAtlas,
     List<CameraPreset> presets = CameraPreset.verificationPresets,
     String captureFilter = kShukubaCaptureFilter,
+    bool captureReel = kShukubaCaptureReel,
   }) async {
     final directory = await _prepareOutputDir(outputDir);
     stdout.writeln('SHUKUBA_CAPTURE_OUT:${directory.path}');
@@ -1014,6 +1017,21 @@ class ShukubaFrameHarness {
         );
       }
 
+      if (captureReel) {
+        final reelSw = Stopwatch()..start();
+        final reelDir = Directory('${directory.path}/reel');
+        await reelDir.create(recursive: true);
+        elapsedSeconds = await _captureShowcaseReel(
+          reelDir,
+          startElapsedSeconds: elapsedSeconds,
+          filter: filter,
+        );
+        reelSw.stop();
+        stdout.writeln(
+          'SHUKUBA_SHOWCASE_REEL:done (${reelSw.elapsedMilliseconds}ms)',
+        );
+      }
+
       await flushPendingWrites();
     } finally {
       scene.debugCheckCoplanarOverlaps = savedDebugCoplanar;
@@ -1038,9 +1056,171 @@ class ShukubaFrameHarness {
     if (autoExit) {
       final exitClean =
           summary.allPassed ||
-          (results.isEmpty && ranUiAtlas && !filter.isUnfiltered);
+          (results.isEmpty &&
+              (ranUiAtlas || captureReel) &&
+              !filter.isUnfiltered);
       exit(exitClean ? 0 : 2);
     }
     return summary;
+  }
+
+  Future<double> _captureShowcaseReel(
+    Directory reelDir, {
+    required double startElapsedSeconds,
+    required _CaptureFilter filter,
+  }) async {
+    const clipFrameCount = 120;
+    const stepSeconds = 1 / 30;
+    final clips = [
+      (
+        id: 'clip1_dusk_valley',
+        label: 'Golden Dusk Valley Sweep',
+        startEye: const Vec3(-52, 50, -40),
+        endEye: const Vec3(-35, 38, -46),
+        startTarget: const Vec3(-2, 1.4, -1),
+        endTarget: const Vec3(3, 1.6, 1),
+        startRig: 0.0,
+        endRig: 0.16,
+        startFov: 19.5,
+        endFov: 18.5,
+        nearMeters: 5.0,
+        farMeters: 320.0,
+      ),
+      (
+        id: 'clip2_komorebi_river',
+        label: 'Komorebi River & Canopy Glide',
+        startEye: const Vec3(-41, 43, 36),
+        endEye: const Vec3(-29, 34, 41),
+        startTarget: const Vec3(-1.5, 1.6, -1.8),
+        endTarget: const Vec3(2.8, 1.5, 0.8),
+        startRig: 0.06,
+        endRig: 0.22,
+        startFov: 18.5,
+        endFov: 17.2,
+        nearMeters: 5.0,
+        farMeters: 320.0,
+      ),
+      (
+        id: 'clip3_night_market',
+        label: 'Blue Hour Lantern Market',
+        startEye: const Vec3(42.5, 45, -34),
+        endEye: const Vec3(32, 38, -44),
+        startTarget: const Vec3(0.5, 1.6, -1),
+        endTarget: const Vec3(2.2, 1.9, 1),
+        startRig: 0.68,
+        endRig: 1.0,
+        startFov: 19.5,
+        endFov: 18.5,
+        nearMeters: 5.0,
+        farMeters: 320.0,
+      ),
+    ];
+
+    final matchingClips = [
+      for (final clip in clips)
+        if (filter.tokens.any(clip.id.contains)) clip,
+    ];
+    final activeClips = matchingClips.isEmpty ? clips : matchingClips;
+
+    var elapsedSeconds = startElapsedSeconds;
+    for (final clip in activeClips) {
+      final clipDir = Directory('${reelDir.path}/${clip.id}');
+      await clipDir.create(recursive: true);
+
+      final initialPreset = CameraPreset(
+        id: clip.id,
+        label: clip.label,
+        eye: clip.startEye,
+        target: clip.startTarget,
+        timeOfDay: TimeOfDayRig(clip.startRig),
+        verticalFovDegrees: clip.startFov,
+        nearMeters: clip.nearMeters,
+        farMeters: clip.farMeters,
+      );
+      applyPreset(initialPreset);
+      for (var settle = 0; settle < 12; settle++) {
+        elapsedSeconds += stepSeconds;
+        world.step(stepSeconds, rig: initialPreset.timeOfDay);
+      }
+      look.syncFrame(
+        rig: initialPreset.timeOfDay,
+        vision: MagistrateVisionState.hidden,
+        sightcones: world.activeSightcones,
+        lanternOrigins: world.activeLanternOrigins,
+        elapsedSeconds: elapsedSeconds,
+      );
+      await pumpFrame();
+
+      final pendingWrites = <Future<void>>[];
+      for (var frame = 0; frame < clipFrameCount; frame++) {
+        final linear = frame / (clipFrameCount - 1);
+        final eased = linear * linear * (3 - 2 * linear);
+        final rig = TimeOfDayRig(
+          clip.startRig + (clip.endRig - clip.startRig) * linear,
+        );
+        final framePreset = CameraPreset(
+          id: clip.id,
+          label: clip.label,
+          eye: Vec3(
+            clip.startEye.x + (clip.endEye.x - clip.startEye.x) * eased,
+            clip.startEye.y + (clip.endEye.y - clip.startEye.y) * eased,
+            clip.startEye.z + (clip.endEye.z - clip.startEye.z) * eased,
+          ),
+          target: Vec3(
+            clip.startTarget.x +
+                (clip.endTarget.x - clip.startTarget.x) * eased,
+            clip.startTarget.y +
+                (clip.endTarget.y - clip.startTarget.y) * eased,
+            clip.startTarget.z +
+                (clip.endTarget.z - clip.startTarget.z) * eased,
+          ),
+          timeOfDay: rig,
+          verticalFovDegrees:
+              clip.startFov + (clip.endFov - clip.startFov) * eased,
+          nearMeters: clip.nearMeters,
+          farMeters: clip.farMeters,
+        );
+
+        applyPreset(framePreset);
+        elapsedSeconds += stepSeconds;
+        world.step(stepSeconds, rig: rig);
+        look.syncFrame(
+          rig: rig,
+          vision: MagistrateVisionState.hidden,
+          sightcones: world.activeSightcones,
+          lanternOrigins: world.activeLanternOrigins,
+          elapsedSeconds: elapsedSeconds,
+        );
+        await pumpFrame();
+        await pumpFrame();
+
+        final boundaryObject = repaintBoundaryKey.currentContext
+            ?.findRenderObject();
+        if (boundaryObject is! RenderRepaintBoundary) {
+          throw StateError('Missing RenderRepaintBoundary for reel capture.');
+        }
+        final image = await boundaryObject.toImage(
+          pixelRatio: capturePixelRatio,
+        );
+        final frameName = 'frame_${frame.toString().padLeft(4, '0')}.png';
+        pendingWrites.add(
+          _encodeAndWritePng(
+            image: image,
+            outputPath: '${clipDir.path}/$frameName',
+            presetId: '${clip.id}_$frameName',
+          ),
+        );
+        if (pendingWrites.length >= 12) {
+          await Future.wait(pendingWrites);
+          pendingWrites.clear();
+        }
+      }
+      if (pendingWrites.isNotEmpty) {
+        await Future.wait(pendingWrites);
+        pendingWrites.clear();
+      }
+      stdout.writeln('SHUKUBA_REEL_CLIP:${clip.id}:$clipFrameCount');
+    }
+    return elapsedSeconds;
   }
 }

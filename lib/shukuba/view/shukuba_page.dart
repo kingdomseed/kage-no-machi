@@ -163,10 +163,18 @@ class _ShukubaPageState extends State<ShukubaPage> {
           repaintBoundaryKey: _repaintBoundaryKey,
           applyPreset: _applyPresetForCapture,
           captureUiAtlas: _captureUiAtlas,
+          capturePixelRatio: _capturePixelRatio,
         );
         unawaited(_executeCaptureSuite(harness));
       });
     }
+  }
+
+  double get _capturePixelRatio {
+    if (kShukubaCaptureReel) {
+      return 1.35;
+    }
+    return 1;
   }
 
   Future<void> _saveUiPng(String filePath) async {
@@ -177,7 +185,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
     if (boundary is! RenderRepaintBoundary) {
       return;
     }
-    final image = await boundary.toImage();
+    final image = await boundary.toImage(pixelRatio: _capturePixelRatio);
     try {
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       if (bytes != null) {
