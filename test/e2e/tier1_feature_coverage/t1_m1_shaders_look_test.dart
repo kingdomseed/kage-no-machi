@@ -198,21 +198,14 @@ void main() {
     );
 
     test(
-      'ambientOcclusionBentNormals and komorebi sunbeam material are enabled',
+      'ambientOcclusionBentNormals and cascade-bounded god rays are enabled',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('ambientOcclusionBentNormals: true'), isTrue);
-
-        final driver = EdoLookDriver(allowHeadlessFallback: true);
-        addTearDown(driver.dispose);
-        final sunbeam = EdoLookDriver.resolveSunbeamMaterial(
-          driver.materialFor,
-        );
-        expect(
-          sunbeam.depthLayer,
-          equals(ShukubaSurfaceRole.riverMist.depthLayer),
-        );
+        expect(lookSrc.contains('godRaysStepCount: 64'), isTrue);
+        expect(lookSrc.contains('godRaysMaxDistance: 54'), isTrue);
+        expect(lookSrc.contains('sky.sunDirection'), isTrue);
       },
     );
   });

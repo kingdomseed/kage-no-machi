@@ -404,7 +404,7 @@ fragment {
     material.emissive = backlitGlow * vColor.rgb * 0.16;
     material.normal = leafNormal;
     material.metallic = 0.0;
-    material.roughness = 0.96;
+    material.roughness = 0.985;
     material.occlusion = clamp(crownOcclusion * mix(0.84, 1.0, goboLight), 0.24, 1.0);
 
     PrepareMaterial(material);

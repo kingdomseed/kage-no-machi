@@ -18,6 +18,8 @@ import 'package:flutter_scene/scene.dart'
         Node,
         PointLightComponent,
         Scene;
+import 'package:kage_no_machi/shukuba/audio/edo_audio_driver.dart'
+    show EdoAudioDriver;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
     show EdoKitBuilder;
@@ -255,6 +257,11 @@ class ShukubaFrameHarness {
   final CaptureUiAtlasCallback? captureUiAtlas;
   final int settleFrames;
   final double capturePixelRatio;
+
+  static const List<CameraPreset> atmospherePresets = [
+    CameraPreset.horizonSunCanopy,
+    CameraPreset.horizonHillsideTilt,
+  ];
 
   static const List<CameraPreset> geometrySeamPresets = [
     CameraPreset(
@@ -685,6 +692,11 @@ class ShukubaFrameHarness {
         if (filter.matchesPreset(category: 'valley', presetId: preset.id))
           preset,
     ];
+    final horizonPresets = [
+      for (final preset in atmospherePresets)
+        if (filter.matchesPreset(category: 'horizon', presetId: preset.id))
+          preset,
+    ];
     final considerAtlas = includeAtlas || !filter.isUnfiltered;
     final seamPresets = considerAtlas
         ? [
@@ -702,6 +714,7 @@ class ShukubaFrameHarness {
 
     final totalShots =
         valleyPresets.length +
+        horizonPresets.length +
         seamPresets.length +
         specimenPlans.fold<int>(0, (sum, plan) => sum + plan.angles.length);
 
@@ -764,6 +777,21 @@ class ShukubaFrameHarness {
         );
         staticValleyOverlaps ??= shot.overlaps;
         elapsedSeconds += frames / 60;
+        await recordShot(shot);
+      }
+
+      for (var i = 0; i < horizonPresets.length; i++) {
+        final horizonPreset = horizonPresets[i];
+        final shot = await _capturePresetFrame(
+          preset: horizonPreset,
+          outputPath: '${directory.path}/${horizonPreset.id}.png',
+          framesToSettle: 4,
+          startElapsedSeconds: elapsedSeconds,
+          pumpCount: resolvePumpCount(horizonPreset),
+          cachedOverlaps: staticValleyOverlaps,
+        );
+        staticValleyOverlaps ??= shot.overlaps;
+        elapsedSeconds += 4 / 60;
         await recordShot(shot);
       }
 
@@ -904,6 +932,29 @@ class ShukubaFrameHarness {
           );
         }
         world.syncPreview(const NoBuildPreview());
+        final savedBenchGraph = world.graph;
+        final benchGraph = savedBenchGraph.putStructure(candidate);
+        final placeBenchSw = Stopwatch()..start();
+        world.applyGraph(benchGraph);
+        placeBenchSw.stop();
+        final placeBenchMs = placeBenchSw.elapsedMicroseconds / 1000.0;
+        stdout.writeln('SHUKUBA_INCREMENTAL_PLACE_MS:$placeBenchMs');
+        world.applyGraph(savedBenchGraph);
+        final singleTileCandidate = PlacedStructure(
+          id: EntityId.validated('bench_single_tile_probe'),
+          kind: StructureKind.machiya,
+          position: Vec3(-22, world.sampleGroundHeight(-22, -22), -22),
+          yawRadians: 0,
+        );
+        final singleTileGraph = savedBenchGraph.putStructure(
+          singleTileCandidate,
+        );
+        final singleBenchSw = Stopwatch()..start();
+        world.applyGraph(singleTileGraph);
+        singleBenchSw.stop();
+        final singleBenchMs = singleBenchSw.elapsedMicroseconds / 1000.0;
+        stdout.writeln('SHUKUBA_INCREMENTAL_SINGLE_TILE_MS:$singleBenchMs');
+        world.applyGraph(savedBenchGraph);
       } else if (specimenPlans.isNotEmpty) {
         applyPreset(CameraPreset.duskOverview);
         look.syncFrame(
@@ -913,6 +964,40 @@ class ShukubaFrameHarness {
           lanternOrigins: world.activeLanternOrigins,
           elapsedSeconds: elapsedSeconds,
         );
+      }
+
+      if (audio case final EdoAudioDriver edoAudio) {
+        applyPreset(CameraPreset.duskOverview);
+        edoAudio
+          ..syncAtmosphere(
+            rig: CameraPreset.duskOverview.timeOfDay,
+            loopAnchors: world.ambientLoopAnchors,
+          )
+          ..playPlacementNote(
+            PlacementNoteEvent.fromSnap(
+              instrument: EdoInstrument.koto,
+              rig: CameraPreset.duskOverview.timeOfDay,
+              snapped: SnappedPlacement(
+                position: CameraPreset.duskOverview.target,
+                yawRadians: 0,
+                scaleDegree: 0,
+              ),
+            ),
+          );
+        scene.update(1 / 60);
+        await pumpFrame();
+        final listenerPos = edoAudio.listenerWorldPosition;
+        final status = <String, Object?>{
+          'isNativeAudioActive': edoAudio.isNativeAudioActive,
+          'loadedClipCount': edoAudio.loadedClipCount,
+          'playingAmbientSourceCount': edoAudio.playingAmbientSourceCount,
+          'oneShotVoicePlaying': edoAudio.lastOneShotVoicePlaying,
+          'listenerPosition': listenerPos == null
+              ? null
+              : [listenerPos.x, listenerPos.y, listenerPos.z],
+          'lastAttachError': edoAudio.lastAttachError,
+        };
+        stdout.writeln('SHUKUBA_AUDIO_STATUS:${jsonEncode(status)}');
       }
 
       if (considerAtlas && filter.matchesUiAtlas && captureUiAtlas != null) {

@@ -123,6 +123,7 @@ class _WardPlaqueState extends State<_WardPlaque> {
     ('3 Gorge Crossing', CameraPreset.riverCrossing),
     ('4 Gorge & Garden', CameraPreset.meadowCloseup),
     ('5 Valley Vista', CameraPreset.countrysideVista),
+    ('6 Canopy Sun', CameraPreset.horizonSunCanopy),
   ];
 
   @override

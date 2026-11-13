@@ -407,6 +407,81 @@ void main() {
       driver.dispose();
       expect(driver.isNativeAudioActive, isFalse);
     });
+
+    test('computes valley-focal listener pose across camera zoom levels', () {
+      final (nullPos, nullFwd) = EdoAudioDriver.computeListenerPose(null);
+      expect(nullPos, equals(const Vec3(0, 10.5, 0)));
+      expect(nullFwd, equals(Vec3.forward));
+
+      final closeCam = PerspectiveCamera(
+        position:
+            CameraPreset.duskOverview.target.toVector3() +
+            (CameraPreset.duskOverview.eye - CameraPreset.duskOverview.target)
+                    .normalized()
+                    .toVector3() *
+                12,
+        target: CameraPreset.duskOverview.target.toVector3(),
+      );
+      final (closePos, closeFwd) = EdoAudioDriver.computeListenerPose(closeCam);
+      expect(
+        closePos.y,
+        closeTo(CameraPreset.duskOverview.target.y + 3.5, 1e-4),
+      );
+      expect(closePos.x, closeTo(CameraPreset.duskOverview.target.x, 1e-4));
+      expect(closePos.z, closeTo(CameraPreset.duskOverview.target.z, 1e-4));
+      expect(closeFwd.y, equals(0));
+      expect(closeFwd.length, closeTo(1, 1e-5));
+
+      final duskCam = CameraPreset.duskOverview.toPerspectiveCamera();
+      final duskDist = (duskCam.position - duskCam.target).length;
+      final expectedDuskHeight =
+          3.5 + 0.18 * (duskDist - 12.0).clamp(0.0, 95.0);
+      final (duskPos, duskFwd) = EdoAudioDriver.computeListenerPose(duskCam);
+      expect(
+        duskPos.y,
+        closeTo(CameraPreset.duskOverview.target.y + expectedDuskHeight, 1e-4),
+      );
+      expect(duskFwd.x, closeTo(duskCam.horizontalForward.x, 1e-5));
+      expect(duskFwd.z, closeTo(duskCam.horizontalForward.z, 1e-5));
+
+      final vistaCam = CameraPreset.countrysideVista.toPerspectiveCamera();
+      final (vistaPos, _) = EdoAudioDriver.computeListenerPose(vistaCam);
+      expect(
+        vistaPos.y,
+        closeTo(CameraPreset.countrysideVista.target.y + 20.6, 1e-4),
+      );
+    });
+
+    test('exposes diagnostics and preserves wavBank across dispose', () async {
+      final driver = EdoAudioDriver();
+      expect(driver.loadedClipCount, equals(0));
+      expect(driver.playingAmbientSourceCount, equals(0));
+      expect(driver.listenerWorldPosition, isNull);
+      expect(driver.lastOneShotVoicePlaying, isFalse);
+      expect(driver.lastAttachError, isNull);
+
+      driver
+        ..setMuted(true)
+        ..setMasterVolume(double.nan);
+      expect(driver.isMuted, isTrue);
+      expect(driver.masterVolume, equals(0));
+
+      driver
+        ..setMasterVolume(-0.4)
+        ..setMasterVolume(2.5);
+      expect(driver.masterVolume, equals(1));
+      driver.setMuted(false);
+
+      await driver.prewarm();
+      expect(driver.isWavBankLoaded, isTrue);
+
+      await driver.attach(null);
+      driver.dispose();
+      await driver.attach(null);
+      expect(driver.isWavBankLoaded, isTrue);
+      await driver.prewarm();
+      expect(driver.isWavBankLoaded, isTrue);
+    });
   });
 }
 

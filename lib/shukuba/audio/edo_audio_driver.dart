@@ -1,11 +1,36 @@
+import 'dart:async';
 import 'dart:isolate';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_scene/audio.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_scene_soloud/flutter_scene_soloud.dart';
 import 'package:kage_no_machi/shukuba/audio/edo_wav_synth.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:vector_math/vector_math.dart';
+
+class _ValleyAudioListenerFollower extends Component {
+  new(this._scene);
+
+  final Scene _scene;
+
+  @override
+  void onMount() {
+    _syncPose();
+  }
+
+  @override
+  void update(double deltaSeconds) {
+    _syncPose();
+  }
+
+  void _syncPose() {
+    final (earPos, forward) = EdoAudioDriver.computeListenerPose(_scene.camera);
+    final earVec = earPos.toVector3();
+    node.lookAtFrom(earVec, earVec + forward.toVector3());
+  }
+}
 
 class EdoAudioDriver implements ShukubaAudioDriver {
   new({this._wavBank, this.maxRecentNotes = 64});
@@ -29,11 +54,15 @@ class EdoAudioDriver implements ShukubaAudioDriver {
   final Map<AmbientLoopKind, AudioClip> _ambientClips = {};
   final Map<AmbientLoopKind, Node> _ambientNodes = {};
   final Map<AmbientLoopKind, ClipAudioSource> _ambientSources = {};
+  final List<AudioVoice> _activeOneShotVoices = [];
 
   Scene? _scene;
+  Node? _listenerNode;
   SoloudAudioEngine? _engine;
   AudioBus? _ambientBus;
   AudioBus? _instrumentsBus;
+  AudioVoice? _lastOneShotVoice;
+  String? _lastAttachError;
   bool _isNativeAudioActive = false;
 
   double get _effectiveGain => _isMuted ? 0.0 : _masterVolume;
@@ -50,6 +79,18 @@ class EdoAudioDriver implements ShukubaAudioDriver {
 
   bool get isNativeAudioActive => _isNativeAudioActive;
 
+  int get loadedClipCount => _instrumentClips.length + _ambientClips.length;
+
+  int get playingAmbientSourceCount =>
+      _ambientSources.values.where((source) => source.isPlaying).length;
+
+  Vec3? get listenerWorldPosition =>
+      _listenerNode?.globalTransform.getTranslation().toVec3();
+
+  bool get lastOneShotVoicePlaying => _lastOneShotVoice?.isPlaying ?? false;
+
+  String? get lastAttachError => _lastAttachError;
+
   List<PlacementNoteEvent> get recentNotes =>
       List<PlacementNoteEvent>.unmodifiable(_recentNotes);
 
@@ -58,6 +99,33 @@ class EdoAudioDriver implements ShukubaAudioDriver {
 
   Map<AmbientLoopKind, Vec3> get loopAnchors =>
       Map<AmbientLoopKind, Vec3>.unmodifiable(_loopAnchors);
+
+  static (Vec3 position, Vec3 forward) computeListenerPose(Camera? camera) {
+    if (camera == null) {
+      return (const Vec3(0, 10.5, 0), Vec3.forward);
+    }
+    final rawForward = camera.horizontalForward;
+    final forward = rawForward.length2 > 1e-9
+        ? Vec3(rawForward.x, 0, rawForward.z).normalized()
+        : Vec3.forward;
+    if (camera is PerspectiveCamera) {
+      final target = camera.target;
+      final dist = (camera.position - target).length;
+      final earHeight = 3.5 + 0.18 * (dist - 12.0).clamp(0.0, 95.0);
+      return (Vec3(target.x, target.y + earHeight, target.z), forward);
+    }
+    return (camera.position.toVec3(), forward);
+  }
+
+  static AudioAttenuation _createAmbientAttenuation() =>
+      AudioAttenuation(minDistance: 12, maxDistance: 95, dopplerFactor: 0);
+
+  static AudioAttenuation _createNoteAttenuation() => AudioAttenuation(
+    minDistance: 18,
+    maxDistance: 120,
+    rolloffFactor: 0.65,
+    dopplerFactor: 0,
+  );
 
   @override
   Future<void> prewarm() {
@@ -78,7 +146,7 @@ class EdoAudioDriver implements ShukubaAudioDriver {
   void setMuted(bool muted) {
     if (_isMuted == muted) return;
     _isMuted = muted;
-    _applyAmbientVolumes();
+    _applyVolumes();
   }
 
   @override
@@ -90,17 +158,61 @@ class EdoAudioDriver implements ShukubaAudioDriver {
         : volume;
     if (_masterVolume == clamped) return;
     _masterVolume = clamped;
-    _applyAmbientVolumes();
+    _applyVolumes();
   }
 
-  void _applyAmbientVolumes() {
+  void _applyVolumes() {
     if (!_isNativeAudioActive) return;
+    _engine?.masterVolume = _effectiveGain;
     for (final kind in AmbientLoopKind.values) {
       final source = _ambientSources[kind];
       if (source != null) {
-        source.volume = (_currentLoopGains[kind] ?? 0) * _effectiveGain;
+        source.volume = _currentLoopGains[kind] ?? 0;
       }
     }
+  }
+
+  void _teardownNativeScene() {
+    for (final voice in _activeOneShotVoices) {
+      voice.stop();
+    }
+    _activeOneShotVoices.clear();
+    _lastOneShotVoice = null;
+
+    for (final source in _ambientSources.values) {
+      source.stop();
+    }
+    _ambientSources.clear();
+
+    final scene = _scene;
+    if (scene != null) {
+      _ambientNodes.values.forEach(scene.root.remove);
+      final listenerNode = _listenerNode;
+      if (listenerNode != null) {
+        scene.root.remove(listenerNode);
+      }
+      final engine = _engine;
+      if (engine != null) {
+        scene.root.removeComponent(engine);
+      }
+    }
+    _ambientNodes.clear();
+    _listenerNode = null;
+
+    for (final clip in _instrumentClips.values) {
+      clip.dispose();
+    }
+    _instrumentClips.clear();
+    for (final clip in _ambientClips.values) {
+      clip.dispose();
+    }
+    _ambientClips.clear();
+
+    _engine = null;
+    _ambientBus = null;
+    _instrumentsBus = null;
+    _scene = null;
+    _isNativeAudioActive = false;
   }
 
   @override
@@ -108,11 +220,12 @@ class EdoAudioDriver implements ShukubaAudioDriver {
     Scene? scene, {
     Map<AmbientLoopKind, Vec3> loopAnchors = const {},
   }) async {
-    _scene = scene;
+    _teardownNativeScene();
+    _lastAttachError = null;
     _loopAnchors.addAll(loopAnchors);
+    _scene = scene;
 
     if (scene == null) {
-      _isNativeAudioActive = false;
       return;
     }
 
@@ -122,18 +235,25 @@ class EdoAudioDriver implements ShukubaAudioDriver {
     final bank = wavBank;
 
     try {
-      final engine = SoloudAudioEngine();
-      scene.root.addComponent(engine);
-      if (!engine.isLoaded) {
-        await engine.onLoad();
-      }
-
+      final initFailure = Completer<Never>();
+      final engine = SoloudAudioEngine(bufferSize: 1024)
+        ..masterVolume = _effectiveGain;
+      runZonedGuarded(() => scene.root.addComponent(engine), (error, stack) {
+        if (!initFailure.isCompleted) {
+          initFailure.completeError(error, stack);
+        }
+      });
+      _engine = engine;
       _ambientBus = engine.createBus('ambient');
       _instrumentsBus = engine.createBus('instruments');
 
+      Future<AudioClip> loadGuarded(String key, Uint8List bytes) =>
+          Future.any([engine.loadClipFromBytes(key, bytes), initFailure.future])
+              .timeout(const Duration(seconds: 5));
+
       for (final inst in EdoInstrument.values) {
         final clipBytes = bank.clipForInstrument(inst);
-        _instrumentClips[inst] = await engine.loadClipFromBytes(
+        _instrumentClips[inst] = await loadGuarded(
           'edo_inst_${inst.name}',
           clipBytes,
         );
@@ -141,11 +261,17 @@ class EdoAudioDriver implements ShukubaAudioDriver {
 
       for (final kind in AmbientLoopKind.values) {
         final clipBytes = bank.clipForAmbient(kind);
-        _ambientClips[kind] = await engine.loadClipFromBytes(
+        _ambientClips[kind] = await loadGuarded(
           'edo_ambient_${kind.name}',
           clipBytes,
         );
       }
+
+      final listenerNode = Node(name: 'edo_audio_listener')
+        ..addComponent(AudioListener())
+        ..addComponent(_ValleyAudioListenerFollower(scene));
+      scene.root.add(listenerNode);
+      _listenerNode = listenerNode;
 
       for (final kind in AmbientLoopKind.values) {
         final clip = _ambientClips[kind];
@@ -156,9 +282,9 @@ class EdoAudioDriver implements ShukubaAudioDriver {
         final source = ClipAudioSource(
           clip: clip,
           looping: true,
-          volume: (_currentLoopGains[kind] ?? 0) * _effectiveGain,
+          volume: _currentLoopGains[kind] ?? 0,
           bus: _ambientBus,
-          attenuation: AudioAttenuation(minDistance: 5, maxDistance: 55),
+          attenuation: _createAmbientAttenuation(),
         );
 
         node.addComponent(source);
@@ -168,10 +294,12 @@ class EdoAudioDriver implements ShukubaAudioDriver {
         source.play();
       }
 
-      _engine = engine;
       _isNativeAudioActive = true;
-    } on Object catch (_) {
-      _isNativeAudioActive = false;
+      await Future<void>.delayed(Duration.zero);
+    } on Object catch (error, stack) {
+      _lastAttachError = '$error';
+      debugPrint('EdoAudioDriver.attach failed: $error\n$stack');
+      _teardownNativeScene();
     }
   }
 
@@ -194,14 +322,7 @@ class EdoAudioDriver implements ShukubaAudioDriver {
       }
     }
 
-    if (_isNativeAudioActive) {
-      for (final kind in AmbientLoopKind.values) {
-        final source = _ambientSources[kind];
-        if (source != null) {
-          source.volume = (_currentLoopGains[kind] ?? 0) * _effectiveGain;
-        }
-      }
-    }
+    _applyVolumes();
   }
 
   @override
@@ -210,21 +331,26 @@ class EdoAudioDriver implements ShukubaAudioDriver {
     if (_recentNotes.length > maxRecentNotes) {
       _recentNotes.removeAt(0);
     }
+    _activeOneShotVoices.removeWhere((voice) => !voice.isPlaying);
 
     if (!_isMuted &&
         _masterVolume > 0 &&
         _isNativeAudioActive &&
         _engine != null) {
       final clip = _instrumentClips[event.instrument];
-      if (clip != null) {
-        _engine!.playOneShot(
-          clip,
-          position: event.position.toVector3(),
-          volume: event.volume * _masterVolume,
-          pitch: event.pitchRatio,
-          bus: _instrumentsBus,
-          attenuation: AudioAttenuation(minDistance: 6, maxDistance: 60),
-        );
+      if (clip != null && !clip.isDisposed) {
+        final pos = event.position.toVector3();
+        final attenuation = _createNoteAttenuation();
+        final voice = _engine!.createVoice(clip)
+          ..volume = event.volume
+          ..pitch = event.pitchRatio
+          ..setBus(_instrumentsBus)
+          ..setPositional(true)
+          ..update3d(pos, Vector3.zero(), attenuation)
+          ..start()
+          ..update3d(pos, Vector3.zero(), attenuation);
+        _activeOneShotVoices.add(voice);
+        _lastOneShotVoice = voice;
       }
     }
   }
@@ -232,31 +358,6 @@ class EdoAudioDriver implements ShukubaAudioDriver {
   @override
   void dispose() {
     _prewarmFuture = null;
-    for (final source in _ambientSources.values) {
-      source.stop();
-    }
-    for (final clip in _instrumentClips.values) {
-      clip.dispose();
-    }
-    _instrumentClips.clear();
-    for (final clip in _ambientClips.values) {
-      clip.dispose();
-    }
-    _ambientClips.clear();
-
-    final scene = _scene;
-    if (scene != null) {
-      _ambientNodes.values.forEach(scene.root.remove);
-      final engine = _engine;
-      if (engine != null) {
-        scene.root.removeComponent(engine);
-      }
-    }
-
-    _ambientNodes.clear();
-    _ambientSources.clear();
-    _engine = null;
-    _scene = null;
-    _isNativeAudioActive = false;
+    _teardownNativeScene();
   }
 }

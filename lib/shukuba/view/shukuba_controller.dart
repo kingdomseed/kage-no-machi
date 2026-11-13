@@ -58,6 +58,7 @@ class ShukubaController extends ChangeNotifier {
 
   Future<void> initialize([Scene? scene]) async {
     if (scene != null) {
+      scene.camera ??= CameraPreset.duskOverview.toPerspectiveCamera();
       await look.attach(scene);
       await world.attach(scene, resolveMaterial: look.materialFor);
       await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
@@ -87,6 +88,7 @@ class ShukubaController extends ChangeNotifier {
     final stageSw = Stopwatch()..start();
 
     await Scene.initializeStaticResources();
+    scene.camera = camera;
     await look.attach(scene);
     var elapsed = stageSw.elapsedMicroseconds / 1000.0;
     timings.add(

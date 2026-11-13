@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_scene/kit.dart' show Steering;
 import 'package:flutter_scene/scene.dart' show Node, Scene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
@@ -9,6 +10,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         BuildPreview,
         CourtyardWall,
         EntityId,
+        LanternSpan,
         NoBuildPreview,
         PlacedStructure,
         RoadSpline,
@@ -17,6 +19,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         ShukubaWorldDriver,
         StreetAgentRole,
         StreetAgentSnapshot,
+        StructureKind,
         TerraceCourse,
         TimeOfDayRig,
         Vec3,
@@ -80,24 +83,38 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   BuildPreview _activePreview = const NoBuildPreview();
 
   Node? _worldRoot;
-  late final Node _terrainContainerNode = Node();
+  late final Node _terrainContainerNode = Node(name: 'terrain_tiled_root');
   late Node _waterNode;
   late final Node _gorgeDressingNode = Node(name: 'gorge_dressing_container');
   late Node _bridgeNode;
   late final Node _floraNode = Node(name: 'flora_scatter_root');
-  late final Node _roadsNode = Node();
-  late final Node _terracesNode = Node();
-  late final Node _wallsNode = Node();
-  late final Node _structuresNode = Node();
-  late final Node _lanternSpansNode = Node();
-  late final Node _agentsNode = Node();
-  late final Node _atmosphereNode = Node();
-  late final Node _previewNode = Node();
+  late final Node _roadsNode = Node(name: 'roads_root');
+  late final Node _terracesNode = Node(name: 'terraces_root');
+  late final Node _wallsNode = Node(name: 'walls_root');
+  late final Node _structuresNode = Node(name: 'structures_root');
+  late final Node _lanternSpansNode = Node(name: 'lantern_spans_root');
+  late final Node _agentsNode = Node(name: 'agents_root');
+  late final Node _atmosphereNode = Node(name: 'atmosphere_root');
+  late final Node _atmosphereMistNode = Node(name: 'atmosphere_mist_ribbons');
+  late final Node _previewNode = Node(name: 'preview_root');
 
   final Set<int> _dirtyFloraChunkIndices = <int>{
     for (var i = 0; i < TerrainConfig.chunkCount; i++) i,
   };
   final Map<int, Node> _floraChunkNodes = <int, Node>{};
+  final Map<int, Node> _terrainChunkNodes = <int, Node>{};
+  Node? _tanadaNode;
+  Node? _mitsukeNode;
+  final Map<EntityId, ({PlacedStructure data, Node node})> _structureNodes = {};
+  List<RoadSpline>? _builtRoads;
+  List<TerraceCourse>? _builtTerraces;
+  List<CourtyardWall>? _builtWalls;
+  List<LanternSpan>? _builtLanternSpans;
+  List<Node> _riverMistNodes = const [];
+  List<Node> _wardSteamNodes = const [];
+  Node? _lanternHalosNode;
+  Node? _airborneMotesNode;
+  ShukubaGraph? _lastAtmosphereGraph;
 
   Set<int> get dirtyFloraChunkIndices =>
       Set<int>.unmodifiable(_dirtyFloraChunkIndices);
@@ -278,16 +295,44 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     ShukubaGraph? initialGraph,
     bool rebuildAgentNodes = true,
   }) {
+    _clearIncrementalCaches();
+    _graph =
+        initialGraph ??
+        buildStarterShukubaGraph(_terrainBuilder.sampleGroundHeight);
+    _initAgents(rebuildNodes: rebuildAgentNodes);
+  }
+
+  void _clearIncrementalCaches() {
     _terrainBuilder.markAllDirty();
+    _terrainChunkNodes.clear();
+    _tanadaNode = null;
+    _mitsukeNode = null;
+    _terrainContainerNode.removeAll();
+    _gorgeDressingNode.removeAll();
+    _roadsNode.removeAll();
+    _terracesNode.removeAll();
+    _wallsNode.removeAll();
+    _structuresNode.removeAll();
+    _structureNodes.clear();
+    _lanternSpansNode.removeAll();
+    _builtRoads = null;
+    _builtTerraces = null;
+    _builtWalls = null;
+    _builtLanternSpans = null;
     _dirtyFloraChunkIndices
       ..clear()
       ..addAll(Iterable<int>.generate(TerrainConfig.chunkCount));
     _floraChunkNodes.clear();
     _floraNode.removeAll();
-    _graph =
-        initialGraph ??
-        buildStarterShukubaGraph(_terrainBuilder.sampleGroundHeight);
-    _initAgents(rebuildNodes: rebuildAgentNodes);
+    _atmosphereMistNode.removeAll();
+    _atmosphereNode.removeAll();
+    _riverMistNodes = const [];
+    _wardSteamNodes = const [];
+    _lanternHalosNode = null;
+    _airborneMotesNode = null;
+    _lastAtmosphereGraph = null;
+    _agentNodes.clear();
+    _agentsNode.removeAll();
   }
 
   void _initAgents({bool rebuildNodes = true}) {
@@ -442,7 +487,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     void markStructure(PlacedStructure s) {
       final halfR =
-          math.max(s.spec.footprintWidth, s.spec.footprintDepth) + 2.5;
+          math.max(s.spec.footprintWidth, s.spec.footprintDepth) * 0.5 + 0.5;
       final box = Aabb2.minMax(
         Vector2(s.position.x - halfR, s.position.z - halfR),
         Vector2(s.position.x + halfR, s.position.z + halfR),
@@ -556,71 +601,122 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       return;
     }
 
-    _terrainContainerNode
-      ..removeAll()
-      ..add(
-        markSubtreeShadowStatic(
-          _terrainBuilder.buildTerrainNode(
+    if (_terrainChunkNodes.isEmpty) {
+      _terrainContainerNode.removeAll();
+      for (var cz = 0; cz < TerrainConfig.gridDimension; cz++) {
+        for (var cx = 0; cx < TerrainConfig.gridDimension; cx++) {
+          final idx = cz * TerrainConfig.gridDimension + cx;
+          final chunkNode = _terrainBuilder.buildTerrainChunkNode(
+            cx,
+            cz,
             _resolveMaterial,
             terraces: _graph.terraces,
             roads: _graph.roads,
             structures: _graph.structures.values,
-          ),
-        ),
+          );
+          _terrainChunkNodes[idx] = chunkNode;
+          _terrainContainerNode.add(chunkNode);
+        }
+      }
+      _tanadaNode = markSubtreeShadowStatic(
+        _terrainBuilder.buildTanadaPaddiesNode(_resolveMaterial),
       );
-
-    _gorgeDressingNode
-      ..removeAll()
-      ..add(
-        markSubtreeShadowStatic(
-          _terrainBuilder.buildGorgeDressingNode(
-            _resolveMaterial,
-            roads: _graph.roads,
-          ),
-        ),
+      _mitsukeNode = markSubtreeShadowStatic(
+        _terrainBuilder.buildMitsukeCheckpointsNode(_resolveMaterial),
       );
-
-    _roadsNode.removeAll();
-    for (final road in _graph.roads) {
-      _roadsNode.add(
-        markSubtreeShadowStatic(
-          _terrainBuilder.buildRoadNode(
-            road,
-            _resolveMaterial,
-            sampleGroundHeight,
-            allRoads: _graph.roads,
-            terraces: _graph.terraces,
-          ),
-        ),
-      );
+      _terrainContainerNode
+        ..add(_tanadaNode!)
+        ..add(_mitsukeNode!);
+      _terrainContainerNode.shadowStatic = true;
+    } else if (_terrainBuilder.dirtyChunkIndices.isNotEmpty) {
+      final dirty = _terrainBuilder.dirtyChunkIndices.toList()..sort();
+      for (final idx in dirty) {
+        final prevNode = _terrainChunkNodes.remove(idx);
+        if (prevNode != null) {
+          _terrainContainerNode.remove(prevNode);
+        }
+        final cx = idx % TerrainConfig.gridDimension;
+        final cz = idx ~/ TerrainConfig.gridDimension;
+        final nextNode = _terrainBuilder.buildTerrainChunkNode(
+          cx,
+          cz,
+          _resolveMaterial,
+          terraces: _graph.terraces,
+          roads: _graph.roads,
+          structures: _graph.structures.values,
+        );
+        _terrainChunkNodes[idx] = nextNode;
+        _terrainContainerNode.add(nextNode);
+      }
     }
 
-    _terracesNode.removeAll();
-    for (final terrace in _graph.terraces) {
-      _terracesNode.add(
-        markSubtreeShadowStatic(
-          _terrainBuilder.buildTerraceNode(
-            terrace,
-            _resolveMaterial,
-            roads: _graph.roads,
-            allTerraces: _graph.terraces,
+    final roadsChanged =
+        _builtRoads == null || !listEquals(_builtRoads, _graph.roads);
+    final terracesChanged =
+        _builtTerraces == null || !listEquals(_builtTerraces, _graph.terraces);
+    final wallsChanged =
+        _builtWalls == null || !listEquals(_builtWalls, _graph.walls);
+
+    if (roadsChanged || terracesChanged) {
+      _gorgeDressingNode
+        ..removeAll()
+        ..add(
+          markSubtreeShadowStatic(
+            _terrainBuilder.buildGorgeDressingNode(
+              _resolveMaterial,
+              roads: _graph.roads,
+            ),
           ),
-        ),
-      );
+        );
+
+      _roadsNode.removeAll();
+      for (final road in _graph.roads) {
+        _roadsNode.add(
+          markSubtreeShadowStatic(
+            _terrainBuilder.buildRoadNode(
+              road,
+              _resolveMaterial,
+              sampleGroundHeight,
+              allRoads: _graph.roads,
+              terraces: _graph.terraces,
+            ),
+          ),
+        );
+      }
+
+      _terracesNode.removeAll();
+      for (final terrace in _graph.terraces) {
+        _terracesNode.add(
+          markSubtreeShadowStatic(
+            _terrainBuilder.buildTerraceNode(
+              terrace,
+              _resolveMaterial,
+              roads: _graph.roads,
+              allTerraces: _graph.terraces,
+            ),
+          ),
+        );
+      }
     }
 
-    _wallsNode.removeAll();
-    for (final wall in _graph.walls) {
-      _wallsNode.add(
-        markSubtreeShadowStatic(
-          _terrainBuilder.buildWallNode(
-            wall,
-            _resolveMaterial,
-            sampleGroundHeight,
+    if (wallsChanged || roadsChanged || terracesChanged) {
+      _wallsNode.removeAll();
+      for (final wall in _graph.walls) {
+        _wallsNode.add(
+          markSubtreeShadowStatic(
+            _terrainBuilder.buildWallNode(
+              wall,
+              _resolveMaterial,
+              sampleGroundHeight,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
+
+    _builtRoads = _graph.roads;
+    _builtTerraces = _graph.terraces;
+    _builtWalls = _graph.walls;
   }
 
   void _rebuildArchitectureAndAgentNodes() {
@@ -628,25 +724,81 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       return;
     }
 
-    _structuresNode.removeAll();
-    for (final structure in _graph.structures.values) {
-      _structuresNode.add(
-        markSubtreeShadowStatic(
-          _kitBuilder.buildStructureNode(structure, _resolveMaterial),
-        ),
+    final staleIds = <EntityId>[];
+    for (final entry in _structureNodes.entries) {
+      final next = _graph.structures[entry.key];
+      if (next == null || next != entry.value.data) {
+        staleIds.add(entry.key);
+      }
+    }
+    for (final id in staleIds) {
+      final removed = _structureNodes.remove(id)!;
+      _structuresNode.remove(removed.node);
+    }
+    for (final entry in _graph.structures.entries) {
+      if (_structureNodes.containsKey(entry.key)) {
+        continue;
+      }
+      final built = markSubtreeShadowStatic(
+        _kitBuilder.buildStructureNode(entry.value, _resolveMaterial),
       );
+      _structureNodes[entry.key] = (data: entry.value, node: built);
+      _structuresNode.add(built);
     }
 
-    _lanternSpansNode.removeAll();
-    for (final span in _graph.lanternSpans) {
-      _lanternSpansNode.add(
-        markSubtreeShadowStatic(
-          _kitBuilder.buildLanternSpanNode(span, _resolveMaterial),
-        ),
-      );
+    if (_builtLanternSpans == null ||
+        !listEquals(_builtLanternSpans, _graph.lanternSpans)) {
+      _lanternSpansNode.removeAll();
+      for (final span in _graph.lanternSpans) {
+        _lanternSpansNode.add(
+          markSubtreeShadowStatic(
+            _kitBuilder.buildLanternSpanNode(span, _resolveMaterial),
+          ),
+        );
+      }
+      _builtLanternSpans = _graph.lanternSpans;
     }
 
-    _rebuildAgentNodes();
+    if (_agentNodes.isEmpty) {
+      _rebuildAgentNodes();
+    }
+  }
+
+  static bool _isSteamStructure(StructureKind kind) => switch (kind) {
+    StructureKind.chaya ||
+    StructureKind.marketStall ||
+    StructureKind.minka => true,
+    _ => false,
+  };
+
+  static bool _isLanternStructure(StructureKind kind) => switch (kind) {
+    StructureKind.chaya ||
+    StructureKind.machiya ||
+    StructureKind.minka ||
+    StructureKind.marketStall ||
+    StructureKind.toriiGate ||
+    StructureKind.karesansuiGarden => true,
+    _ => false,
+  };
+
+  bool _anyMatchingStructureChanged(
+    ShukubaGraph prev,
+    ShukubaGraph next,
+    bool Function(StructureKind kind) predicate,
+  ) {
+    for (final entry in prev.structures.entries) {
+      if (predicate(entry.value.kind) &&
+          next.structures[entry.key] != entry.value) {
+        return true;
+      }
+    }
+    for (final entry in next.structures.entries) {
+      if (predicate(entry.value.kind) &&
+          prev.structures[entry.key] != entry.value) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _rebuildFloraAtmosphereAndPreviewNodes() {
@@ -684,15 +836,97 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _dirtyFloraChunkIndices.clear();
     }
 
-    _atmosphereNode
-      ..removeAll()
-      ..add(
-        _atmosphereBuilder.buildAtmosphereNode(
+    final prevAtmosGraph = _lastAtmosphereGraph;
+    if (prevAtmosGraph == null) {
+      _atmosphereNode.removeAll();
+      _atmosphereMistNode.removeAll();
+      _riverMistNodes = _atmosphereBuilder.buildRiverMistNodes(
+        _resolveMaterial,
+      );
+      _riverMistNodes.forEach(_atmosphereMistNode.add);
+      _wardSteamNodes = _atmosphereBuilder.buildWardSteamAndHazeNodes(
+        graph: _graph,
+        resolveMaterial: _resolveMaterial,
+        sampleGroundY: sampleGroundHeight,
+      );
+      _wardSteamNodes.forEach(_atmosphereMistNode.add);
+      _atmosphereNode.add(_atmosphereMistNode);
+
+      _lanternHalosNode = _atmosphereBuilder.buildLanternHalosNode(
+        graph: _graph,
+        resolveMaterial: _resolveMaterial,
+      );
+      if (_lanternHalosNode != null) {
+        _atmosphereNode.add(_lanternHalosNode!);
+      }
+
+      _airborneMotesNode = _atmosphereBuilder.buildAirborneMotesNode(
+        graph: _graph,
+        resolveMaterial: _resolveMaterial,
+        sampleGroundY: sampleGroundHeight,
+      );
+      if (_airborneMotesNode != null) {
+        _atmosphereNode.add(_airborneMotesNode!);
+      }
+    } else {
+      final steamChanged =
+          !listEquals(prevAtmosGraph.walls, _graph.walls) ||
+          !listEquals(prevAtmosGraph.roads, _graph.roads) ||
+          _anyMatchingStructureChanged(
+            prevAtmosGraph,
+            _graph,
+            _isSteamStructure,
+          );
+      if (steamChanged) {
+        _wardSteamNodes.forEach(_atmosphereMistNode.remove);
+        _wardSteamNodes = _atmosphereBuilder.buildWardSteamAndHazeNodes(
           graph: _graph,
           resolveMaterial: _resolveMaterial,
           sampleGroundY: sampleGroundHeight,
-        ),
+        );
+        _wardSteamNodes.forEach(_atmosphereMistNode.add);
+      }
+
+      final halosChanged =
+          !listEquals(prevAtmosGraph.lanternSpans, _graph.lanternSpans) ||
+          _anyMatchingStructureChanged(
+            prevAtmosGraph,
+            _graph,
+            _isLanternStructure,
+          );
+      if (halosChanged) {
+        if (_lanternHalosNode != null) {
+          _atmosphereNode.remove(_lanternHalosNode!);
+        }
+        _lanternHalosNode = _atmosphereBuilder.buildLanternHalosNode(
+          graph: _graph,
+          resolveMaterial: _resolveMaterial,
+        );
+        if (_lanternHalosNode != null) {
+          _atmosphereNode.add(_lanternHalosNode!);
+        }
+      }
+
+      final motesChanged = _anyMatchingStructureChanged(
+        prevAtmosGraph,
+        _graph,
+        (kind) => kind == StructureKind.mapleCluster,
       );
+      if (motesChanged) {
+        if (_airborneMotesNode != null) {
+          _atmosphereNode.remove(_airborneMotesNode!);
+        }
+        _airborneMotesNode = _atmosphereBuilder.buildAirborneMotesNode(
+          graph: _graph,
+          resolveMaterial: _resolveMaterial,
+          sampleGroundY: sampleGroundHeight,
+        );
+        if (_airborneMotesNode != null) {
+          _atmosphereNode.add(_airborneMotesNode!);
+        }
+      }
+    }
+    _lastAtmosphereGraph = _graph;
 
     _rebuildPreviewNode();
   }
@@ -769,10 +1003,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _scene!.remove(_worldRoot!);
     }
     _simAgents.clear();
-    _agentNodes.clear();
-    _floraChunkNodes.clear();
-    _floraNode.removeAll();
-    _gorgeDressingNode.removeAll();
+    _clearIncrementalCaches();
     _worldRoot = null;
     _scene = null;
   }

@@ -140,36 +140,35 @@ void main() {
       }
     });
 
-    test(
-      'TacticalCameraRig.orbitByRadians clamps pitch to [11°, 64°] preventing '
-      'gimbal lock inversion',
-      () {
-        final rig = TacticalCameraRig();
+    test('TacticalCameraRig.orbitByRadians clamps pitch to [2°, 64°] enabling '
+        'horizon framing without inversion', () {
+      final rig = TacticalCameraRig();
 
-        expect(
-          TacticalCameraRig.minPitchRadians,
-          closeTo(11.0 * degrees2Radians, 1e-6),
-        );
-        expect(
-          TacticalCameraRig.maxPitchRadians,
-          closeTo(64.0 * degrees2Radians, 1e-6),
-        );
+      expect(
+        TacticalCameraRig.minPitchRadians,
+        closeTo(2.0 * degrees2Radians, 1e-6),
+      );
+      expect(
+        TacticalCameraRig.maxPitchRadians,
+        closeTo(64.0 * degrees2Radians, 1e-6),
+      );
 
-        rig.orbitByRadians(0, 10);
-        expect(
-          rig.pitchRadians,
-          closeTo(TacticalCameraRig.maxPitchRadians, 1e-6),
-        );
-        expect(rig.pitchRadians, lessThan(math.pi / 2));
+      rig.orbitByRadians(0, 10);
+      expect(
+        rig.pitchRadians,
+        closeTo(TacticalCameraRig.maxPitchRadians, 1e-6),
+      );
+      expect(rig.pitchRadians, lessThan(math.pi / 2));
 
-        rig.orbitByRadians(0, -10);
-        expect(
-          rig.pitchRadians,
-          closeTo(TacticalCameraRig.minPitchRadians, 1e-6),
-        );
-        expect(rig.pitchRadians, greaterThan(0));
-      },
-    );
+      rig.orbitByRadians(0, -10);
+      expect(
+        rig.pitchRadians,
+        closeTo(TacticalCameraRig.minPitchRadians, 1e-6),
+      );
+      expect(rig.pitchRadians, greaterThan(0));
+      expect(rig.camera.target.y, greaterThan(rig.camera.position.y));
+      expect(rig.camera.position.y, greaterThan(3.0));
+    });
 
     test(
       'TacticalCameraRig maintains valid frustum across 16:9, 16:10, and 21:9 '

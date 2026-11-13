@@ -16,10 +16,6 @@ class EdoLookDriver implements ShukubaLookDriver {
   static const double lanternPointLightRangeMeters = 8.2;
   static const double lanternPointLightFalloffExponent = 2;
 
-  static final Expando<Material> _sunbeamByRiverMist = Expando<Material>(
-    'komorebi_sunbeam',
-  );
-
   final bool allowHeadlessFallback;
 
   final Map<ShukubaSurfaceRole, Material> _materials = {};
@@ -30,7 +26,6 @@ class EdoLookDriver implements ShukubaLookDriver {
 
   Scene? _scene;
   SumiInkPass? _sumiPass;
-  PreprocessedMaterial? _sunbeamMaterial;
   DirectionalLight? _keyLight;
   PhysicalSkySource? _skySource;
   SkyEnvironment? _skyEnvironment;
@@ -41,17 +36,12 @@ class EdoLookDriver implements ShukubaLookDriver {
 
   DirectionalLight? get keyLight => _keyLight;
 
+  PhysicalSkySource? get skySource => _skySource;
+
   List<PointLight> get activeLanternLights => List<PointLight>.unmodifiable([
     for (final light in _lanternLights)
       if (light.intensity > 0) light,
   ]);
-
-  static Material resolveSunbeamMaterial(
-    ShukubaMaterialResolver resolveMaterial,
-  ) {
-    final mistMat = resolveMaterial(ShukubaSurfaceRole.riverMist);
-    return _sunbeamByRiverMist[mistMat] ?? mistMat;
-  }
 
   static Vec3 solarSkyDirectionFor(TimeOfDayRig rig) {
     final t = rig.value;
@@ -65,17 +55,6 @@ class EdoLookDriver implements ShukubaLookDriver {
       math.sin(elevation),
       -math.cos(azimuth) * horiz,
     ).normalized();
-  }
-
-  static Vec3 _preethamSkyScatterDirectionFor(TimeOfDayRig rig) {
-    final solar = solarSkyDirectionFor(rig);
-    final minY = 0.48 * rig.nightFactor;
-    final effY =
-        0.5 * (solar.y + math.sqrt(solar.y * solar.y + 4 * minY * minY));
-    final horizCurr = math.sqrt(solar.x * solar.x + solar.z * solar.z);
-    final horizTarget = math.sqrt(math.max(0, 1 - effY * effY));
-    final scale = horizCurr > 1e-9 ? horizTarget / horizCurr : 0.0;
-    return Vec3(solar.x * scale, effY, solar.z * scale).normalized();
   }
 
   static List<LanternLightCluster> clusterLanternOrigins(
@@ -157,27 +136,6 @@ class EdoLookDriver implements ShukubaLookDriver {
       _configureRoleParameters(role, mat);
       _materials[role] = mat;
     }
-
-    final sunbeamMat = await loadFmatMaterial(
-      'assets/materials/atmosphere_mist.fmat',
-    );
-    sunbeamMat.depthLayer = ShukubaSurfaceRole.riverMist.depthLayer;
-    sunbeamMat.parameters
-      ..setVec4('mist_cool', Vector4(0.42, 0.64, 0.72, 1))
-      ..setVec4('mist_warm', Vector4(1, 0.78, 0.44, 1))
-      ..setVec4(
-        'sun_ray_dir',
-        _dirToVec4(TimeOfDayRig.goldenDusk.celestialRayDirection),
-      )
-      ..setFloat('mist_opacity', 0.78)
-      ..setFloat('night_mix', 0)
-      ..setFloat('mist_mode', 2)
-      ..setFloat('time_sec', 0);
-    _sunbeamMaterial = sunbeamMat;
-    final riverMistMat = _materials[ShukubaSurfaceRole.riverMist];
-    if (riverMistMat != null) {
-      _sunbeamByRiverMist[riverMistMat] = sunbeamMat;
-    }
   }
 
   Future<void> _loadSumiInkPass(Scene scene) async {
@@ -210,12 +168,6 @@ class EdoLookDriver implements ShukubaLookDriver {
     } on Object catch (_) {
       for (final role in ShukubaSurfaceRole.values) {
         _materials[role] = defaultShukubaMaterial(role);
-      }
-      final riverMistMat = _materials[ShukubaSurfaceRole.riverMist];
-      if (riverMistMat != null) {
-        _sunbeamByRiverMist[riverMistMat] = defaultShukubaMaterial(
-          ShukubaSurfaceRole.riverMist,
-        );
       }
     }
 
@@ -275,19 +227,8 @@ class EdoLookDriver implements ShukubaLookDriver {
     Skybox? skyboxInstance;
     SkyEnvironment? skyEnvInstance;
     try {
-      final sky = PhysicalSkySource(
-        sunDirection: _preethamSkyScatterDirectionFor(TimeOfDayRig.goldenDusk)
-            .toVector3(),
-        sunAngularRadius: 0.024,
-        rayleighCoefficient: 2.4,
-        rayleighColor: Vector3(0.24, 0.42, 0.66),
-        mieCoefficient: 0.012,
-        mieEccentricity: 0.82,
-        mieColor: Vector3(0.96, 0.72, 0.46),
-        turbidity: 6.5,
-        groundColor: Vector3(0.16, 0.12, 0.09),
-        energy: 0.94,
-      );
+      final sky = PhysicalSkySource();
+      _applySkyForRig(sky, TimeOfDayRig.goldenDusk);
       _skySource = sky;
       skyboxInstance = Skybox(sky);
       skyEnvInstance = SkyEnvironment(sky);
@@ -305,7 +246,7 @@ class EdoLookDriver implements ShukubaLookDriver {
       skybox: skyboxInstance,
       skyEnvironment: skyEnvInstance,
       toneMapping: ToneMappingMode.aces,
-      environmentIntensity: 0.96,
+      environmentIntensity: 7.20,
       exposure: 0.95,
       colorGradingEnabled: true,
       saturation: 1.22,
@@ -329,17 +270,17 @@ class EdoLookDriver implements ShukubaLookDriver {
       fogStart: 18,
       fogDensity: 0.0046,
       fogMaxOpacity: 0.48,
-      fogSunInScatter: 0.18,
-      fogSunInScatterExponent: 6.5,
+      fogSunInScatter: 0.07,
+      fogSunInScatterExponent: 10,
       fogSkyColorInfluence: 0.24,
       fogHeight: 1.4,
       fogHeightFalloff: 0.34,
       godRaysEnabled: true,
-      godRaysIntensity: 0.34,
-      godRaysDensity: 0.42,
-      godRaysAnisotropy: 0.76,
-      godRaysStepCount: 36,
-      godRaysColor: Vector3(1, 0.78, 0.44),
+      godRaysIntensity: 0.64,
+      godRaysAnisotropy: 0.66,
+      godRaysStepCount: 64,
+      godRaysMaxDistance: 54,
+      godRaysColor: Vector3(1, 0.72, 0.36),
       vignetteEnabled: true,
       vignetteIntensity: 0.24,
     )..fogMode = FogMode.exponential;
@@ -348,7 +289,7 @@ class EdoLookDriver implements ShukubaLookDriver {
       skybox: skyboxInstance,
       skyEnvironment: skyEnvInstance,
       toneMapping: ToneMappingMode.aces,
-      environmentIntensity: 0.36,
+      environmentIntensity: 0.68,
       exposure: 0.84,
       colorGradingEnabled: true,
       saturation: 1.18,
@@ -373,17 +314,18 @@ class EdoLookDriver implements ShukubaLookDriver {
       fogStart: 22,
       fogDensity: 0.0052,
       fogMaxOpacity: 0.44,
-      fogSunInScatter: 0.03,
-      fogSunInScatterExponent: 6.5,
+      fogSunInScatter: 0.02,
+      fogSunInScatterExponent: 10,
       fogSkyColorInfluence: 0.16,
       fogHeight: 1.4,
       fogHeightFalloff: 0.34,
       godRaysEnabled: true,
-      godRaysIntensity: 0.05,
-      godRaysDensity: 0.28,
-      godRaysAnisotropy: 0.76,
-      godRaysStepCount: 36,
-      godRaysColor: Vector3(0.44, 0.64, 0.94),
+      godRaysIntensity: 0.06,
+      godRaysDensity: 0.26,
+      godRaysAnisotropy: 0.66,
+      godRaysStepCount: 64,
+      godRaysMaxDistance: 54,
+      godRaysColor: Vector3(0.46, 0.66, 0.96),
       vignetteEnabled: true,
       vignetteIntensity: 0.36,
     )..fogMode = FogMode.exponential;
@@ -448,32 +390,11 @@ class EdoLookDriver implements ShukubaLookDriver {
       );
     }
 
-    if ((_lastSkyTimeValue - rig.value).abs() > 0.008) {
+    if ((_lastSkyTimeValue - rig.value).abs() > 0.002) {
       _lastSkyTimeValue = rig.value;
-      final nf = rig.nightFactor;
       final sky = _skySource;
       if (sky != null) {
-        sky
-          ..sunDirection = _preethamSkyScatterDirectionFor(rig).toVector3()
-          ..sunAngularRadius = 0.024 * (1 - 0.92 * nf)
-          ..turbidity = 6.5 - 2.3 * nf
-          ..mieCoefficient = 0.012 * (1 - 0.75 * nf)
-          ..energy = 0.94 - 0.86 * nf
-          ..rayleighColor = Vector3(
-            0.24 * (1 - nf) + 0.12 * nf,
-            0.42 * (1 - nf) + 0.30 * nf,
-            0.66 * (1 - nf) + 0.80 * nf,
-          )
-          ..mieColor = Vector3(
-            0.96 * (1 - nf) + 0.30 * nf,
-            0.72 * (1 - nf) + 0.52 * nf,
-            0.46 * (1 - nf) + 0.90 * nf,
-          )
-          ..groundColor = Vector3(
-            0.16 * (1 - nf) + 0.03 * nf,
-            0.12 * (1 - nf) + 0.05 * nf,
-            0.09 * (1 - nf) + 0.10 * nf,
-          );
+        _applySkyForRig(sky, rig);
         _skyEnvironment?.invalidate();
       }
     }
@@ -585,16 +506,6 @@ class EdoLookDriver implements ShukubaLookDriver {
     _setParamFloat(ShukubaSurfaceRole.riverMist, 'night_mix', rig.nightFactor);
     _setParamFloat(ShukubaSurfaceRole.riverMist, 'time_sec', elapsedSeconds);
 
-    final sunbeamMat = _sunbeamMaterial;
-    if (sunbeamMat != null) {
-      final duskBeamOpacity = 0.78 * (1 - rig.nightFactor).clamp(0.0, 1.0);
-      sunbeamMat.parameters
-        ..setVec4('sun_ray_dir', _dirToVec4(rig.celestialRayDirection))
-        ..setFloat('mist_opacity', duskBeamOpacity)
-        ..setFloat('night_mix', rig.nightFactor)
-        ..setFloat('time_sec', elapsedSeconds);
-    }
-
     _setParamFloat(
       ShukubaSurfaceRole.lanternHaze,
       'mist_opacity',
@@ -685,11 +596,48 @@ class EdoLookDriver implements ShukubaLookDriver {
     _decalMaterials.clear();
     _materials.clear();
     _keyLight = null;
-    _sunbeamMaterial = null;
+    _skySource = null;
     _scene = null;
   }
 
-  static Vector4 _dirToVec4(Vec3 d) => Vector4(d.x, d.y, d.z, 0);
+  static void _applySkyForRig(PhysicalSkySource sky, TimeOfDayRig rig) {
+    sky.sunDirection = rig.celestialSkyDirection.toVector3();
+    if (!rig.isMoonlit) {
+      final duskProgress = (rig.value / TimeOfDayRig.scaleSwitchScalar).clamp(
+        0.0,
+        1.0,
+      );
+      sky
+        ..sunAngularRadius = 0.032
+        ..turbidity = 3.2 - 0.6 * duskProgress
+        ..rayleighCoefficient = 1.45
+        ..mieCoefficient = 0.0032 * (1 - 0.25 * duskProgress)
+        ..mieEccentricity = 0.72
+        ..energy = 0.29 - 0.12 * duskProgress
+        ..rayleighColor = Vector3(0.22, 0.42, 0.72)
+        ..mieColor = Vector3(
+          1,
+          0.66 - 0.10 * duskProgress,
+          0.34 - 0.08 * duskProgress,
+        )
+        ..groundColor = Vector3(
+          0.12 * (1 - 0.45 * duskProgress),
+          0.09 * (1 - 0.45 * duskProgress),
+          0.07 * (1 - 0.45 * duskProgress),
+        );
+      return;
+    }
+    sky
+      ..sunAngularRadius = 0.014
+      ..turbidity = 3.4
+      ..rayleighCoefficient = 2.2
+      ..mieCoefficient = 0.0035
+      ..mieEccentricity = 0.86
+      ..energy = 0.075
+      ..rayleighColor = Vector3(0.11, 0.28, 0.78)
+      ..mieColor = Vector3(0.44, 0.64, 0.96)
+      ..groundColor = Vector3(0.03, 0.05, 0.10);
+  }
 
   static String _fmatPathForRole(ShukubaSurfaceRole role) => switch (role) {
     ShukubaSurfaceRole.packedEarth ||
@@ -867,10 +815,6 @@ class EdoLookDriver implements ShukubaLookDriver {
         mat.parameters
           ..setVec4('mist_cool', Vector4(0.38, 0.62, 0.72, 1))
           ..setVec4('mist_warm', Vector4(0.88, 0.68, 0.44, 1))
-          ..setVec4(
-            'sun_ray_dir',
-            _dirToVec4(TimeOfDayRig.goldenDusk.celestialRayDirection),
-          )
           ..setFloat('mist_opacity', 0.68)
           ..setFloat('night_mix', 0)
           ..setFloat('mist_mode', 0)

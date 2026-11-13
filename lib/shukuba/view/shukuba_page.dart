@@ -384,6 +384,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
       _selectPreset(CameraPreset.countrysideVista);
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.digit6) {
+      _selectPreset(CameraPreset.horizonSunCanopy);
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -578,9 +582,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
                       onResume: () => setState(
                         () => _shellMode = ShukubaShellMode.inValley,
                       ),
-                      onReturnToTitle: () => setState(
-                        () => _shellMode = ShukubaShellMode.titleMenu,
-                      ),
+                      onReturnToTitle: () {
+                        _controller.audio.dispose();
+                        setState(() => _shellMode = ShukubaShellMode.titleMenu);
+                      },
                       audioDriver: _controller.audio,
                     ),
                   if (_showTelemetry &&

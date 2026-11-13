@@ -2223,7 +2223,7 @@ class TimeOfDayRig {
   Vec3 get celestialRayDirection {
     if (!isMoonlit) {
       final duskT = value / scaleSwitchScalar;
-      final elevation = (24 - 11 * duskT) * degrees2Radians;
+      final elevation = (18.5 - 8.5 * duskT) * degrees2Radians;
       final azimuth = (-58 - 18 * duskT) * degrees2Radians;
       final horiz = math.cos(elevation);
       return Vec3(
@@ -2233,7 +2233,7 @@ class TimeOfDayRig {
       ).normalized();
     }
     final moonT = (value - scaleSwitchScalar) / (1 - scaleSwitchScalar);
-    final elevation = (30 + 14 * moonT) * degrees2Radians;
+    final elevation = (18 + 12 * moonT) * degrees2Radians;
     final azimuth = (36 + 16 * moonT) * degrees2Radians;
     final horiz = math.cos(elevation);
     return Vec3(
@@ -2254,7 +2254,7 @@ class TimeOfDayRig {
   Color get celestialHudColor =>
       isMoonlit ? const Color(0xFF8AB4F8) : const Color(0xFFFFB86C);
 
-  double get celestialIntensity => 3.35 - 2.4 * nightFactor;
+  double get celestialIntensity => 3.85 - 2.85 * nightFactor;
 
   double get shojiEmissiveGain => 0.12 + 2.55 * nightFactor;
 
@@ -2371,6 +2371,28 @@ class CameraPreset {
     verticalFovDegrees: 22,
     nearMeters: 4,
     farMeters: 350,
+  );
+
+  static const CameraPreset horizonSunCanopy = CameraPreset(
+    id: 'horizon_sun_canopy',
+    label: 'Canopy Sunbeams',
+    eye: Vec3(-19.5, 6.6, 13.5),
+    target: Vec3(10.5, 12.6, -1.9),
+    timeOfDay: TimeOfDayRig.goldenDusk,
+    verticalFovDegrees: 24,
+    nearMeters: 3.5,
+    farMeters: 320,
+  );
+
+  static const CameraPreset horizonHillsideTilt = CameraPreset(
+    id: 'horizon_hillside_tilt',
+    label: 'Hillside Sun Horizon',
+    eye: Vec3(-36.5, 10.8, 29.5),
+    target: Vec3(0.5, 15.8, 10.5),
+    timeOfDay: TimeOfDayRig.goldenDusk,
+    verticalFovDegrees: 24,
+    nearMeters: 4.5,
+    farMeters: 340,
   );
 
   static const List<CameraPreset> verificationPresets = [

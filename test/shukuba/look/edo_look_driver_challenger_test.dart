@@ -219,7 +219,7 @@ void main() {
           expect(env.exposure, inInclusiveRange(0.84 - 1e-5, 0.95 + 1e-5));
           expect(
             env.environmentIntensity,
-            inInclusiveRange(0.36 - 1e-5, 0.96 + 1e-5),
+            inInclusiveRange(0.68 - 1e-5, 7.20 + 1e-5),
           );
           expect(env.fogEnabled, isTrue);
           expect(env.fogMode, FogMode.exponential);
@@ -233,7 +233,7 @@ void main() {
           expect(env.fogHeightFalloff, closeTo(0.34, 1e-5));
           expect(
             env.fogSunInScatter,
-            inInclusiveRange(0.03 - 1e-5, 0.18 + 1e-5),
+            inInclusiveRange(0.02 - 1e-5, 0.07 + 1e-5),
           );
           expect(
             env.fogSkyColorInfluence,
@@ -242,23 +242,22 @@ void main() {
           expect(env.godRaysEnabled, isTrue);
           expect(
             env.godRaysIntensity,
-            inInclusiveRange(0.05 - 1e-5, 0.34 + 1e-5),
+            inInclusiveRange(0.06 - 1e-5, 0.64 + 1e-5),
           );
           expect(
             env.godRaysDensity,
-            inInclusiveRange(0.28 - 1e-5, 0.42 + 1e-5),
+            inInclusiveRange(0.26 - 1e-5, 0.50 + 1e-5),
           );
-          expect(env.godRaysStepCount, 36);
+          expect(env.godRaysStepCount, 64);
+          expect(env.godRaysMaxDistance, closeTo(54, 1e-5));
+          expect(
+            driver.skySource!.sunDirection.normalized().dot(
+              driver.keyLight!.direction.normalized(),
+            ),
+            closeTo(-1.0, 1e-5),
+          );
         }
       }
-
-      final sunbeamMat = EdoLookDriver.resolveSunbeamMaterial(
-        driver.materialFor,
-      );
-      expect(
-        sunbeamMat.depthLayer,
-        equals(ShukubaSurfaceRole.riverMist.depthLayer),
-      );
     });
 
     test('EdoLookDriver wires PhysicalSkySource, SkyEnvironment, and zero '

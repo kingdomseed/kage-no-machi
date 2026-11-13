@@ -8,8 +8,6 @@ import 'package:flutter_scene/scene.dart'
         Mesh,
         Node,
         ShadowCastingMode;
-import 'package:kage_no_machi/shukuba/look/edo_look_driver.dart'
-    show EdoLookDriver;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         GroundHeightSampler,
@@ -18,7 +16,6 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
         StructureKind,
-        TimeOfDayRig,
         Vec3;
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
     show EdoKitBuilder;
@@ -30,42 +27,39 @@ import 'package:vector_math/vector_math.dart'
 class AtmosphereBuilder {
   const new();
 
-  Node buildAtmosphereNode({
+  List<Node> buildRiverMistNodes(ShukubaMaterialResolver resolveMaterial) {
+    final mistMat = resolveMaterial(ShukubaSurfaceRole.riverMist);
+
+    final southRiverMist = GeometryBuilder();
+    _emitRiverGorgeMistRibbons(southRiverMist, zMin: -38, zMax: 0);
+    final southNode = Node(
+      name: 'atmosphere_mist_river_south',
+      mesh: Mesh(southRiverMist.build(), mistMat),
+    )..shadowCastingMode = ShadowCastingMode.off;
+
+    final northRiverMist = GeometryBuilder();
+    _emitRiverGorgeMistRibbons(northRiverMist, zMin: 0, zMax: 38);
+    final northNode = Node(
+      name: 'atmosphere_mist_river_north',
+      mesh: Mesh(northRiverMist.build(), mistMat),
+    )..shadowCastingMode = ShadowCastingMode.off;
+
+    return [southNode, northNode];
+  }
+
+  List<Node> buildWardSteamAndHazeNodes({
     required ShukubaGraph graph,
     required ShukubaMaterialResolver resolveMaterial,
     required GroundHeightSampler sampleGroundY,
   }) {
-    final root = Node(name: 'atmosphere_root');
     final mistMat = resolveMaterial(ShukubaSurfaceRole.riverMist);
-    final sunbeamMat = EdoLookDriver.resolveSunbeamMaterial(resolveMaterial);
-    final haloMat = resolveMaterial(ShukubaSurfaceRole.lanternHaze);
-    final moteMat = resolveMaterial(ShukubaSurfaceRole.airborneMotes);
-
-    final mistGroup = Node(name: 'atmosphere_mist_ribbons');
-    final southRiverMist = GeometryBuilder();
-    _emitRiverGorgeMistRibbons(southRiverMist, zMin: -38, zMax: 0);
-    mistGroup.add(
-      Node(
-        name: 'atmosphere_mist_river_south',
-        mesh: Mesh(southRiverMist.build(), mistMat),
-      )..shadowCastingMode = ShadowCastingMode.off,
-    );
-
-    final northRiverMist = GeometryBuilder();
-    _emitRiverGorgeMistRibbons(northRiverMist, zMin: 0, zMax: 38);
-    mistGroup.add(
-      Node(
-        name: 'atmosphere_mist_river_north',
-        mesh: Mesh(northRiverMist.build(), mistMat),
-      )..shadowCastingMode = ShadowCastingMode.off,
-    );
-
     final westMist = GeometryBuilder();
     final eastMist = GeometryBuilder();
     _emitCourtyardAlleyHaze(westMist, eastMist, graph, sampleGroundY);
     _emitStructureSteamWisps(westMist, eastMist, graph);
+    final nodes = <Node>[];
     if (westMist.vertexCount > 0) {
-      mistGroup.add(
+      nodes.add(
         Node(
           name: 'atmosphere_mist_west_ward',
           mesh: Mesh(westMist.build(), mistMat),
@@ -73,63 +67,80 @@ class AtmosphereBuilder {
       );
     }
     if (eastMist.vertexCount > 0) {
-      mistGroup.add(
+      nodes.add(
         Node(
           name: 'atmosphere_mist_east_ward',
           mesh: Mesh(eastMist.build(), mistMat),
         )..shadowCastingMode = ShadowCastingMode.off,
       );
     }
+    return nodes;
+  }
 
-    const sunbeamGrid = 6;
-    final sunbeamTiles = List.generate(
-      sunbeamGrid * sunbeamGrid,
-      (_) => GeometryBuilder(),
-    );
-    _emitKomorebiSunbeamCurtains(sunbeamTiles, sunbeamGrid, graph);
-    if (sunbeamTiles.any((b) => b.vertexCount > 0)) {
-      final sunbeamGroup = Node(name: 'atmosphere_komorebi_sunbeams')
-        ..shadowCastingMode = ShadowCastingMode.off
-        ..raycastable = false;
-      for (var r = 0; r < sunbeamGrid; r++) {
-        for (var c = 0; c < sunbeamGrid; c++) {
-          final tile = sunbeamTiles[r * sunbeamGrid + c];
-          if (tile.vertexCount == 0) {
-            continue;
-          }
-          sunbeamGroup.add(
-            Node(
-                name: 'atmosphere_komorebi_${r}_$c',
-                mesh: Mesh(tile.build(retainCpuData: false), sunbeamMat),
-              )
-              ..shadowCastingMode = ShadowCastingMode.off
-              ..raycastable = false,
-          );
-        }
-      }
-      mistGroup.add(sunbeamGroup);
-    }
-    root.add(mistGroup);
-
+  Node? buildLanternHalosNode({
+    required ShukubaGraph graph,
+    required ShukubaMaterialResolver resolveMaterial,
+  }) {
+    final haloMat = resolveMaterial(ShukubaSurfaceRole.lanternHaze);
     final quadGeo = EdoKitBuilder.buildUnitBillboardQuad();
     final haloInstanced = InstancedMesh(geometry: quadGeo, material: haloMat);
     _populateLanternHalos(haloInstanced, graph);
-    if (haloInstanced.instanceCount > 0) {
-      root.add(
-        Node(name: 'atmosphere_lantern_halos')
-          ..shadowCastingMode = ShadowCastingMode.off
-          ..addComponent(InstancedMeshComponent(haloInstanced)),
-      );
+    if (haloInstanced.instanceCount == 0) {
+      return null;
     }
+    return Node(name: 'atmosphere_lantern_halos')
+      ..shadowCastingMode = ShadowCastingMode.off
+      ..addComponent(InstancedMeshComponent(haloInstanced));
+  }
 
+  Node? buildAirborneMotesNode({
+    required ShukubaGraph graph,
+    required ShukubaMaterialResolver resolveMaterial,
+    required GroundHeightSampler sampleGroundY,
+  }) {
+    final moteMat = resolveMaterial(ShukubaSurfaceRole.airborneMotes);
+    final quadGeo = EdoKitBuilder.buildUnitBillboardQuad();
     final moteInstanced = InstancedMesh(geometry: quadGeo, material: moteMat);
     _populateAirborneMotes(moteInstanced, graph, sampleGroundY);
-    if (moteInstanced.instanceCount > 0) {
-      root.add(
-        Node(name: 'atmosphere_airborne_motes')
-          ..shadowCastingMode = ShadowCastingMode.off
-          ..addComponent(InstancedMeshComponent(moteInstanced)),
-      );
+    if (moteInstanced.instanceCount == 0) {
+      return null;
+    }
+    return Node(name: 'atmosphere_airborne_motes')
+      ..shadowCastingMode = ShadowCastingMode.off
+      ..addComponent(InstancedMeshComponent(moteInstanced));
+  }
+
+  Node buildAtmosphereNode({
+    required ShukubaGraph graph,
+    required ShukubaMaterialResolver resolveMaterial,
+    required GroundHeightSampler sampleGroundY,
+  }) {
+    final root = Node(name: 'atmosphere_root');
+
+    final mistGroup = Node(name: 'atmosphere_mist_ribbons');
+    buildRiverMistNodes(resolveMaterial).forEach(mistGroup.add);
+    buildWardSteamAndHazeNodes(
+      graph: graph,
+      resolveMaterial: resolveMaterial,
+      sampleGroundY: sampleGroundY,
+    ).forEach(mistGroup.add);
+    root.add(mistGroup);
+
+    final halos = buildLanternHalosNode(
+      graph: graph,
+      resolveMaterial: resolveMaterial,
+    );
+    if (halos != null) {
+      root.add(halos);
+    }
+
+    final motes = buildAirborneMotesNode(
+      graph: graph,
+      resolveMaterial: resolveMaterial,
+      sampleGroundY: sampleGroundY,
+    );
+    if (motes != null) {
+      root.add(motes);
     }
 
     return root;
@@ -368,125 +379,6 @@ class AtmosphereBuilder {
           ..addTriangle(v0, v3, v2)
           ..addTriangle(v2, v3, v5)
           ..addTriangle(v2, v5, v4);
-      }
-    }
-  }
-
-  static void _emitKomorebiSunbeamCurtains(
-    List<GeometryBuilder> tiles,
-    int gridDim,
-    ShukubaGraph graph,
-  ) {
-    final ray = TimeOfDayRig.goldenDusk.celestialRayDirection
-        .toVector3()
-        .normalized();
-    final side0 = Vector3(0, 1, 0).cross(ray).normalized();
-    final upPerp = ray.cross(side0).normalized();
-    const tStops = [0.0, 0.34, 0.70, 1.0];
-    const minCoord = TerrainConfig.minX;
-    final cellSpan = (TerrainConfig.maxX - TerrainConfig.minX) / gridDim;
-
-    for (final s in graph.structures.values) {
-      final double crownHeight;
-      final double shaftLength;
-      final double halfWidthTop;
-      final double halfWidthBottom;
-      final double peakAlpha;
-      final Vector3 tint;
-
-      switch (s.kind) {
-        case StructureKind.bambooGrove:
-          crownHeight = 5.5;
-          shaftLength = 13.6;
-          halfWidthTop = 1.65;
-          halfWidthBottom = 2.55;
-          peakAlpha = 0.88;
-          tint = Vector3(1, 0.86, 0.52);
-        case StructureKind.pineTree:
-          crownHeight = 4.9;
-          shaftLength = 12.2;
-          halfWidthTop = 1.50;
-          halfWidthBottom = 2.35;
-          peakAlpha = 0.82;
-          tint = Vector3(1, 0.82, 0.46);
-        case StructureKind.mapleCluster:
-          crownHeight = 4.3;
-          shaftLength = 10.8;
-          halfWidthTop = 1.40;
-          halfWidthBottom = 2.15;
-          peakAlpha = 0.78;
-          tint = Vector3(1, 0.76, 0.42);
-        case StructureKind.machiya ||
-            StructureKind.minka ||
-            StructureKind.chaya ||
-            StructureKind.kura ||
-            StructureKind.marketStall ||
-            StructureKind.toriiGate ||
-            StructureKind.shoroBell ||
-            StructureKind.stoneWell ||
-            StructureKind.karesansuiGarden ||
-            StructureKind.yaguraTower ||
-            StructureKind.rockOutcrop ||
-            StructureKind.weepingWillow:
-          continue;
-      }
-
-      final col = ((s.position.x - minCoord) / cellSpan).floor().clamp(
-        0,
-        gridDim - 1,
-      );
-      final row = ((s.position.z - minCoord) / cellSpan).floor().clamp(
-        0,
-        gridDim - 1,
-      );
-      final builder = tiles[row * gridDim + col];
-
-      var hash = 0x811c9dc5;
-      for (final unit in s.id.value.codeUnits) {
-        hash ^= unit;
-        hash = (hash * 0x01000193) & 0xffffffff;
-      }
-      final jitter = ((hash & 0xffff) / 65535.0 - 0.5) * 0.14;
-      final baseOrigin =
-          s.position.toVector3() + Vector3(0, crownHeight, 0) - ray * 1.35;
-
-      for (final curtain in [(0.58 + jitter, -0.42), (-0.64 + jitter, 0.42)]) {
-        final theta = curtain.$1;
-        final lateralShift = curtain.$2;
-        final cosT = math.cos(theta);
-        final sinT = math.sin(theta);
-        final across = (side0 * cosT + upPerp * sinT).normalized();
-        final faceNormal = (upPerp * cosT - side0 * sinT).normalized();
-        final origin = baseOrigin + side0 * lateralShift;
-
-        final rows = <int>[];
-        for (final tY in tStops) {
-          final halfW = halfWidthTop + (halfWidthBottom - halfWidthTop) * tY;
-          final centerPos = origin + ray * (shaftLength * tY);
-
-          int emitVertex(double sideSign, double u, double edgeScale) {
-            builder
-              ..normal(faceNormal)
-              ..color(Vector4(tint.x, tint.y, tint.z, peakAlpha * edgeScale))
-              ..texCoord(Vector2(u, tY));
-            return builder.addVertex(centerPos + across * (sideSign * halfW));
-          }
-
-          rows
-            ..add(emitVertex(-1, 0, 0.25))
-            ..add(emitVertex(0, 0.5, 1))
-            ..add(emitVertex(1, 1, 0.25));
-        }
-
-        for (var r = 0; r < tStops.length - 1; r++) {
-          final a = r * 3;
-          final b = (r + 1) * 3;
-          builder
-            ..addTriangle(rows[a], rows[b], rows[a + 1])
-            ..addTriangle(rows[a + 1], rows[b], rows[b + 1])
-            ..addTriangle(rows[a + 1], rows[b + 1], rows[a + 2])
-            ..addTriangle(rows[a + 2], rows[b + 1], rows[b + 2]);
-        }
       }
     }
   }

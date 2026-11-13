@@ -250,6 +250,13 @@ void main() {
           sampleGroundY: terrain.sampleGroundHeight,
         );
         expect(atmosNode.children.length, 3);
+        final mistGroup = atmosNode.children.firstWhere(
+          (n) => n.name == 'atmosphere_mist_ribbons',
+        );
+        expect(
+          mistGroup.children.any((n) => n.name.contains('komorebi')),
+          isFalse,
+        );
 
         final townsfolkNode = kit.buildStreetAgentNode(
           StreetAgentRole.townsfolk,
@@ -438,6 +445,58 @@ void main() {
       },
       skip: !impellerAvailable ? impellerSkipReason : false,
     );
+
+    test('applyGraph caches unchanged structures, roads, and terraces across '
+        'single-building placement', () async {
+      final scene = Scene();
+      final driver = EdoWorldDriver();
+      await driver.attach(scene);
+
+      final worldRoot = scene.root.children.last;
+      final structuresRoot = worldRoot.children.firstWhere(
+        (n) => n.name == 'structures_root',
+      );
+      final roadsRoot = worldRoot.children.firstWhere(
+        (n) => n.name == 'roads_root',
+      );
+      final terracesRoot = worldRoot.children.firstWhere(
+        (n) => n.name == 'terraces_root',
+      );
+
+      final prevStructures = List<Node>.of(structuresRoot.children);
+      final prevRoads = List<Node>.of(roadsRoot.children);
+      final prevTerraces = List<Node>.of(terracesRoot.children);
+      expect(prevStructures.length, driver.graph.structures.length);
+
+      final nextGraph = driver.graph.putStructure(
+        PlacedStructure(
+          id: EntityId.validated('machiya_incremental_probe'),
+          kind: StructureKind.machiya,
+          position: Vec3(-22, driver.sampleGroundHeight(-22, 10), 10),
+        ),
+      );
+
+      final placeWatch = Stopwatch()..start();
+      driver.applyGraph(nextGraph);
+      placeWatch.stop();
+
+      expect(structuresRoot.children.length, prevStructures.length + 1);
+      for (var i = 0; i < prevStructures.length; i++) {
+        expect(structuresRoot.children[i], same(prevStructures[i]));
+      }
+      expect(roadsRoot.children.length, prevRoads.length);
+      for (var i = 0; i < prevRoads.length; i++) {
+        expect(roadsRoot.children[i], same(prevRoads[i]));
+      }
+      expect(terracesRoot.children.length, prevTerraces.length);
+      for (var i = 0; i < prevTerraces.length; i++) {
+        expect(terracesRoot.children[i], same(prevTerraces[i]));
+      }
+      final placeMs = placeWatch.elapsedMicroseconds / 1000.0;
+      stdout.writeln('SHUKUBA_INCREMENTAL_PLACE_MS:$placeMs');
+
+      driver.dispose();
+    }, skip: !impellerAvailable ? impellerSkipReason : false);
   });
 
   group('Static mesh shadow caching (markSubtreeShadowStatic)', () {

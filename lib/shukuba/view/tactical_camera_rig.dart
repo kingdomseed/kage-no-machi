@@ -9,14 +9,16 @@ import 'package:vector_math/vector_math.dart'
 class TacticalCameraRig {
   new({CameraPreset initialPreset = CameraPreset.duskOverview})
     : _camera = initialPreset.toPerspectiveCamera(),
-      _target = initialPreset.target.toVector3() {
+      _target = initialPreset.target.toVector3(),
+      _baseVerticalFovDegrees = initialPreset.verticalFovDegrees {
     _syncSphericalFromEye(initialPreset.eye.toVector3());
   }
 
   static const double minDistanceMeters = 12;
   static const double maxDistanceMeters = 115;
-  static const double minPitchRadians = 11 * degrees2Radians;
+  static const double minPitchRadians = 2 * degrees2Radians;
   static const double maxPitchRadians = 64 * degrees2Radians;
+  static const double horizonLiftStartRadians = 16 * degrees2Radians;
   static const double panBoundsMeters = 32;
   static const double keyPanSpeedMetersPerSec = 18;
 
@@ -26,6 +28,7 @@ class TacticalCameraRig {
   double _yawRadians = -math.pi * 0.75;
   double _pitchRadians = CameraPreset.defaultPitchDegrees * degrees2Radians;
   double _distanceMeters = 56;
+  double _baseVerticalFovDegrees;
 
   PerspectiveCamera get camera => _camera;
 
@@ -38,6 +41,7 @@ class TacticalCameraRig {
   double get distanceMeters => _distanceMeters;
 
   PerspectiveCamera applyPreset(CameraPreset preset) {
+    _baseVerticalFovDegrees = preset.verticalFovDegrees;
     _target.setValues(preset.target.x, preset.target.y, preset.target.z);
     _camera
       ..fovRadiansY = preset.verticalFovDegrees * degrees2Radians
@@ -112,7 +116,9 @@ class TacticalCameraRig {
     final forward = _camera.horizontalForward;
     final dragRight = -screenDelta.dx * metersPerPixel;
     final dragForward =
-        screenDelta.dy * metersPerPixel / math.sin(_pitchRadians);
+        screenDelta.dy *
+        metersPerPixel /
+        math.max(math.sin(_pitchRadians), 0.22);
     _moveTarget(
       dx: right.x * dragRight + forward.x * dragForward,
       dz: right.z * dragRight + forward.z * dragForward,
@@ -191,23 +197,37 @@ class TacticalCameraRig {
       return;
     }
     _distanceMeters = dist.clamp(minDistanceMeters, maxDistanceMeters);
-    final sinPitch = (offset.y / dist).clamp(0.02, 0.92);
+    final sinPitch = (offset.y / dist).clamp(
+      math.sin(minPitchRadians),
+      math.sin(maxPitchRadians),
+    );
     _pitchRadians = math.asin(sinPitch);
     _yawRadians = math.atan2(offset.x, offset.z);
+    if (offset.y < dist * math.sin(6 * degrees2Radians)) {
+      _target.y = math.min(_target.y, 2.2);
+    }
   }
 
   void _applySphericalToCamera() {
     final horiz = math.cos(_pitchRadians) * _distanceMeters;
     final sinPitch = math.sin(_pitchRadians);
+    final rawH =
+        ((horizonLiftStartRadians - _pitchRadians) /
+                (horizonLiftStartRadians - minPitchRadians))
+            .clamp(0.0, 1.0);
+    final h = rawH * rawH * (3 - 2 * rawH);
+    final eyeLift = h * (2.4 + 0.06 * _distanceMeters);
+    final targetLift = h * (3.2 + 0.22 * _distanceMeters);
     final eye = Vector3(
       _target.x + math.sin(_yawRadians) * horiz,
-      _target.y + sinPitch * _distanceMeters,
+      _target.y + sinPitch * _distanceMeters + eyeLift,
       _target.z + math.cos(_yawRadians) * horiz,
     );
     _camera
+      ..fovRadiansY = (_baseVerticalFovDegrees + 6 * h) * degrees2Radians
       ..fovNear = (_distanceMeters * (0.017 + 0.095 * sinPitch.clamp(0.0, 1.0)))
           .clamp(0.45, 6.0)
-      ..target = _target.clone()
+      ..target = Vector3(_target.x, _target.y + targetLift, _target.z)
       ..position = eye;
   }
 

@@ -234,48 +234,41 @@ void main() {
   });
 
   group('EdoLookDriver headless attach, materials, and syncFrame', () {
-    test(
-      'materialFor and resolveSunbeamMaterial preserve depthLayer ordering',
-      () async {
-        final driver = EdoLookDriver(allowHeadlessFallback: true);
-        if (gpuAvailable()) {
-          final scene = Scene();
-          await driver.attach(scene);
-        }
+    test('materialFor preserves depthLayer ordering', () async {
+      final driver = EdoLookDriver(allowHeadlessFallback: true);
+      if (gpuAvailable()) {
+        final scene = Scene();
+        await driver.attach(scene);
+      }
 
-        final groundMat = driver.materialFor(ShukubaSurfaceRole.packedEarth);
-        final kitMat = driver.materialFor(ShukubaSurfaceRole.ishigakiStone);
-        final meadowMat = driver.materialFor(ShukubaSurfaceRole.groundMeadow);
-        final livingMat = driver.materialFor(ShukubaSurfaceRole.livingMeadow);
-        final pineMat = driver.materialFor(ShukubaSurfaceRole.pineCanopy);
-        final willowMat = driver.materialFor(ShukubaSurfaceRole.willowCanopy);
-        final laneMat = driver.materialFor(ShukubaSurfaceRole.laneOverlay);
-        final wallMat = driver.materialFor(ShukubaSurfaceRole.plasterWall);
-        final waterMat = driver.materialFor(ShukubaSurfaceRole.riverWater);
-        final mistMat = driver.materialFor(ShukubaSurfaceRole.riverMist);
-        final sunbeamMat = EdoLookDriver.resolveSunbeamMaterial(
-          driver.materialFor,
-        );
-        final haloMat = driver.materialFor(ShukubaSurfaceRole.lanternHaze);
-        final moteMat = driver.materialFor(ShukubaSurfaceRole.airborneMotes);
+      final groundMat = driver.materialFor(ShukubaSurfaceRole.packedEarth);
+      final kitMat = driver.materialFor(ShukubaSurfaceRole.ishigakiStone);
+      final meadowMat = driver.materialFor(ShukubaSurfaceRole.groundMeadow);
+      final livingMat = driver.materialFor(ShukubaSurfaceRole.livingMeadow);
+      final pineMat = driver.materialFor(ShukubaSurfaceRole.pineCanopy);
+      final willowMat = driver.materialFor(ShukubaSurfaceRole.willowCanopy);
+      final laneMat = driver.materialFor(ShukubaSurfaceRole.laneOverlay);
+      final wallMat = driver.materialFor(ShukubaSurfaceRole.plasterWall);
+      final waterMat = driver.materialFor(ShukubaSurfaceRole.riverWater);
+      final mistMat = driver.materialFor(ShukubaSurfaceRole.riverMist);
+      final haloMat = driver.materialFor(ShukubaSurfaceRole.lanternHaze);
+      final moteMat = driver.materialFor(ShukubaSurfaceRole.airborneMotes);
 
-        expect(groundMat.depthLayer, 0);
-        expect(kitMat.depthLayer, 0);
-        expect(meadowMat.depthLayer, 0);
-        expect(livingMat.depthLayer, 0);
-        expect(pineMat.depthLayer, 0);
-        expect(willowMat.depthLayer, 0);
-        expect(wallMat.depthLayer, 0);
-        expect(waterMat.depthLayer, 1);
-        expect(laneMat.depthLayer, 1);
-        expect(mistMat.depthLayer, 3);
-        expect(sunbeamMat.depthLayer, 3);
-        expect(haloMat.depthLayer, 4);
-        expect(moteMat.depthLayer, 4);
+      expect(groundMat.depthLayer, 0);
+      expect(kitMat.depthLayer, 0);
+      expect(meadowMat.depthLayer, 0);
+      expect(livingMat.depthLayer, 0);
+      expect(pineMat.depthLayer, 0);
+      expect(willowMat.depthLayer, 0);
+      expect(wallMat.depthLayer, 0);
+      expect(waterMat.depthLayer, 1);
+      expect(laneMat.depthLayer, 1);
+      expect(mistMat.depthLayer, 3);
+      expect(haloMat.depthLayer, 4);
+      expect(moteMat.depthLayer, 4);
 
-        driver.dispose();
-      },
-    );
+      driver.dispose();
+    });
 
     test('syncFrame updates PCSS key light, PhysicalSkySource, and environment '
         'across Dusk and Night', () async {
@@ -339,7 +332,7 @@ void main() {
         expect(env.toneMapping, ToneMappingMode.aces);
         expect(
           env.environmentIntensity,
-          closeTo(0.96 * (1 - duskNf) + 0.36 * duskNf, 1e-5),
+          closeTo(7.20 * (1 - duskNf) + 0.68 * duskNf, 1e-5),
         );
         expect(
           env.exposure,
@@ -370,7 +363,7 @@ void main() {
         );
         expect(
           env.fogSunInScatter,
-          closeTo(0.18 * (1 - duskNf) + 0.03 * duskNf, 1e-5),
+          closeTo(0.07 * (1 - duskNf) + 0.02 * duskNf, 1e-5),
         );
         expect(
           env.fogSkyColorInfluence,
@@ -381,14 +374,16 @@ void main() {
         expect(env.godRaysEnabled, isTrue);
         expect(
           env.godRaysIntensity,
-          closeTo(0.34 * (1 - duskNf) + 0.05 * duskNf, 1e-5),
+          closeTo(0.64 * (1 - duskNf) + 0.06 * duskNf, 1e-5),
         );
         expect(
           env.godRaysDensity,
-          closeTo(0.42 * (1 - duskNf) + 0.28 * duskNf, 1e-5),
+          closeTo(0.50 * (1 - duskNf) + 0.26 * duskNf, 1e-5),
         );
-        expect(env.godRaysAnisotropy, closeTo(0.76, 1e-5));
-        expect(env.godRaysStepCount, 36);
+        expect(env.godRaysAnisotropy, closeTo(0.66, 1e-5));
+        expect(env.godRaysStepCount, 64);
+        expect(env.godRaysMaxDistance, closeTo(54, 1e-5));
+        expect(env.godRaysMaxDistance, lessThan(key.shadowMaxDistance));
       }
 
       driver.syncFrame(
@@ -413,7 +408,7 @@ void main() {
         final nightEnv = scene.environmentSettings;
         expect(
           nightEnv.environmentIntensity,
-          closeTo(0.96 * (1 - nightNf) + 0.36 * nightNf, 1e-5),
+          closeTo(7.20 * (1 - nightNf) + 0.68 * nightNf, 1e-5),
         );
         expect(
           nightEnv.exposure,
