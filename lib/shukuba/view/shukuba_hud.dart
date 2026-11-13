@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:material_ui/material_ui.dart' hide Matrix4;
@@ -117,13 +119,13 @@ class _WardPlaque extends StatefulWidget {
 class _WardPlaqueState extends State<_WardPlaque> {
   bool _viewsOpen = false;
 
-  static const List<(String, CameraPreset)> _presets = [
-    ('1 Golden Dusk', CameraPreset.duskOverview),
-    ('2 Night Market', CameraPreset.nightMarket),
-    ('3 Gorge Crossing', CameraPreset.riverCrossing),
-    ('4 Gorge & Garden', CameraPreset.meadowCloseup),
-    ('5 Valley Vista', CameraPreset.countrysideVista),
-    ('6 Canopy Sun', CameraPreset.horizonSunCanopy),
+  static const List<(String, String, CameraPreset)> _presets = [
+    ('Golden Dusk', 'Shortcut: 1', CameraPreset.duskOverview),
+    ('Night Market', 'Shortcut: 2', CameraPreset.nightMarket),
+    ('Gorge Crossing', 'Shortcut: 3', CameraPreset.riverCrossing),
+    ('Gorge & Garden', 'Shortcut: 4', CameraPreset.meadowCloseup),
+    ('Valley Vista', 'Shortcut: 5', CameraPreset.countrysideVista),
+    ('Canopy Sun', 'Shortcut: 6', CameraPreset.horizonSunCanopy),
   ];
 
   @override
@@ -140,104 +142,84 @@ class _WardPlaqueState extends State<_WardPlaque> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Container(
-                  width: 18,
-                  height: 18,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0x1FD9533F),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: ShukubaHud._vermilionAccent),
-                  ),
-                  child: const Text(
-                    '影',
-                    style: TextStyle(
-                      color: ShukubaHud._vermilionAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'serif',
-                      height: 1,
-                    ),
-                  ),
-                ),
-                const Text(
-                  'KAGE NO MACHI',
-                  style: TextStyle(
-                    color: ShukubaHud._washiInk,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-                Text(
-                  '· ${widget.structureCount} built',
-                  style: const TextStyle(
-                    color: ShukubaHud._mutedSand,
-                    fontSize: 10.5,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => setState(() => _viewsOpen = !_viewsOpen),
-                  child: DecoratedBox(
+            SizedBox(
+              height: 32,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: _viewsOpen
-                          ? ShukubaHud._amberAccent.withValues(alpha: 0.22)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: _viewsOpen
-                            ? ShukubaHud._amberAccent
-                            : ShukubaHud._borderStroke,
-                      ),
+                      color: const Color(0x1FD9533F),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: ShukubaHud._vermilionAccent),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3.5,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Views',
-                            style: TextStyle(
-                              color: _viewsOpen
-                                  ? ShukubaHud._washiInk
-                                  : ShukubaHud._mutedSand,
-                              fontSize: 10.5,
-                              fontWeight: _viewsOpen
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Icon(
-                            _viewsOpen
-                                ? Icons.arrow_drop_up
-                                : Icons.arrow_drop_down,
-                            size: 14,
-                            color: _viewsOpen
-                                ? ShukubaHud._amberAccent
-                                : ShukubaHud._mutedSand,
-                          ),
-                        ],
+                    child: const Text(
+                      '影',
+                      style: TextStyle(
+                        color: ShukubaHud._vermilionAccent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'serif',
+                        height: 1,
                       ),
                     ),
                   ),
-                ),
-                if (widget.onOpenMenu != null)
-                  _ActionChip(
-                    label: 'Menu',
-                    active: false,
-                    accent: ShukubaHud._mutedSand,
-                    onTap: widget.onOpenMenu!,
+                  const SizedBox(width: 8),
+                  const Text(
+                    'KAGE NO MACHI',
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: ShukubaHud._washiInk,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                    ),
                   ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    '· ${widget.structureCount} built',
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: ShukubaHud._mutedSand,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _HudButton(
+                    label: 'Views',
+                    tooltip: 'Camera views (1–6)',
+                    trailingIcon: _viewsOpen
+                        ? Icons.arrow_drop_up
+                        : Icons.arrow_drop_down,
+                    active: _viewsOpen,
+                    filledActive: _viewsOpen,
+                    accent: ShukubaHud._amberAccent,
+                    onTap: () => setState(() => _viewsOpen = !_viewsOpen),
+                  ),
+                  if (widget.onOpenMenu != null) ...[
+                    const SizedBox(width: 6),
+                    _HudButton(
+                      label: 'Menu',
+                      tooltip: 'Pause menu (Esc)',
+                      leading: const Icon(
+                        Icons.menu,
+                        size: 15,
+                        color: ShukubaHud._mutedSand,
+                      ),
+                      active: false,
+                      accent: ShukubaHud._mutedSand,
+                      onTap: widget.onOpenMenu!,
+                    ),
+                  ],
+                ],
+              ),
             ),
             if (_viewsOpen) ...[
               const SizedBox(height: 6),
@@ -245,9 +227,10 @@ class _WardPlaqueState extends State<_WardPlaque> {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (final (label, preset) in _presets)
-                    _ActionChip(
+                  for (final (label, tip, preset) in _presets)
+                    _HudButton(
                       label: label,
+                      tooltip: tip,
                       active: false,
                       accent: ShukubaHud._amberAccent,
                       onTap: () {
@@ -293,66 +276,75 @@ class _AtmospherePanelState extends State<_AtmospherePanel> {
         border: Border.all(color: ShukubaHud._borderStroke),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              rig.isMoonlit ? Icons.nights_stay : Icons.wb_twilight,
-              size: 14,
-              color: rig.celestialHudColor,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              phaseLabel,
-              style: const TextStyle(
-                color: ShukubaHud._washiInk,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: SizedBox(
+          height: 32,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                rig.isMoonlit ? Icons.nights_stay : Icons.wb_twilight,
+                size: 15,
+                color: rig.celestialHudColor,
               ),
-            ),
-            SizedBox(
-              width: 132,
-              height: 24,
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2.5,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 5.5,
-                  ),
-                  overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 10,
-                  ),
-                  activeTrackColor: rig.celestialHudColor,
-                  inactiveTrackColor: const Color(0x44F2E8D5),
-                  thumbColor: ShukubaHud._washiInk,
-                ),
-                child: Slider(
-                  value: rig.value,
-                  onChanged: widget.onChangedTime,
+              const SizedBox(width: 6),
+              Text(
+                phaseLabel,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: ShukubaHud._washiInk,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            GestureDetector(
-              onTap: () => setState(() => widget.audio.setMuted(!muted)),
-              child: Tooltip(
-                message: muted ? 'Unmute audio' : 'Mute audio',
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
+              SizedBox(
+                width: 132,
+                height: 32,
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2.5,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 5.5,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 10,
+                    ),
+                    activeTrackColor: rig.celestialHudColor,
+                    inactiveTrackColor: const Color(0x44F2E8D5),
+                    thumbColor: ShukubaHud._washiInk,
                   ),
-                  child: Icon(
-                    muted ? Icons.volume_off : Icons.volume_up,
-                    size: 15,
-                    color: muted
-                        ? ShukubaHud._vermilionAccent
-                        : ShukubaHud._mutedSand,
+                  child: Slider(
+                    value: rig.value,
+                    onChanged: widget.onChangedTime,
                   ),
                 ),
               ),
-            ),
-          ],
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => setState(() => widget.audio.setMuted(!muted)),
+                  child: Tooltip(
+                    message: muted ? 'Unmute audio' : 'Mute audio',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 4,
+                      ),
+                      child: Icon(
+                        muted ? Icons.volume_off : Icons.volume_up,
+                        size: 15,
+                        color: muted
+                            ? ShukubaHud._vermilionAccent
+                            : ShukubaHud._mutedSand,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -422,65 +414,117 @@ class _ToolGuidanceBar extends StatelessWidget {
         : (strokeCount > 0
               ? ShukubaHud._amberAccent
               : ShukubaHud._borderStroke);
+    final maxWidth = math.max<double>(
+      240,
+      MediaQuery.sizeOf(context).width - 24,
+    );
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: ShukubaHud._lacquerBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              _describeGuidance(),
-              style: const TextStyle(
-                color: ShukubaHud._washiInk,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: ShukubaHud._lacquerBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  _describeGuidance(),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: ShukubaHud._washiInk,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
-            if (tool is StampStructureTool && tool.kind.spec.variantCount > 1)
-              _ActionChip(
-                label:
-                    'Style: ${tool.kind.spec.variantLabelAt(tool.variant)} [V]',
-                active: true,
-                accent: ShukubaHud._amberAccent,
-                onTap: onCycleVariant,
-              ),
-            if (tool is StampStructureTool)
-              _ActionChip(
-                label: 'Rotate [R]',
-                active: false,
-                accent: ShukubaHud._amberAccent,
-                onTap: onRotateStamp,
-              ),
-            if (strokeCount >= 2)
-              _ActionChip(
-                label: 'Build [$strokeCount pts · Enter]',
-                active: true,
-                accent: ShukubaHud._amberAccent,
-                onTap: onCommitStroke,
-              ),
-            if (strokeCount > 0)
-              _ActionChip(
-                label: 'Cancel [Esc]',
-                active: false,
-                accent: ShukubaHud._mutedSand,
-                onTap: onCancelStroke,
-              )
-            else if (tool is! ExploreTool)
-              _ActionChip(
-                label: 'Done [Esc]',
-                active: false,
-                accent: ShukubaHud._mutedSand,
-                onTap: onExitTool,
-              ),
-          ],
+              if (tool is StampStructureTool &&
+                  tool.kind.spec.variantCount > 1) ...[
+                const SizedBox(width: 8),
+                _HudButton(
+                  label:
+                      'Style: ${tool.kind.spec.variantLabelAt(tool.variant)}',
+                  tooltip: 'Cycle style (V)',
+                  leading: const Icon(
+                    Icons.palette_outlined,
+                    size: 15,
+                    color: ShukubaHud._amberAccent,
+                  ),
+                  active: true,
+                  filledActive: true,
+                  accent: ShukubaHud._amberAccent,
+                  onTap: onCycleVariant,
+                ),
+              ],
+              if (tool is StampStructureTool) ...[
+                const SizedBox(width: 6),
+                _HudButton(
+                  label: 'Rotate',
+                  tooltip: 'Rotate 45° (R)',
+                  leading: const InkBrushIcon(
+                    icon: InkBrushIconKind.rotate,
+                    color: ShukubaHud._mutedSand,
+                    size: 15,
+                  ),
+                  active: false,
+                  accent: ShukubaHud._amberAccent,
+                  onTap: onRotateStamp,
+                ),
+              ],
+              if (strokeCount >= 2) ...[
+                const SizedBox(width: 6),
+                _HudButton(
+                  label: 'Build ($strokeCount pts)',
+                  tooltip: 'Commit stroke (Enter)',
+                  leading: const Icon(
+                    Icons.check,
+                    size: 15,
+                    color: ShukubaHud._amberAccent,
+                  ),
+                  active: true,
+                  filledActive: true,
+                  accent: ShukubaHud._amberAccent,
+                  onTap: onCommitStroke,
+                ),
+              ],
+              if (strokeCount > 0) ...[
+                const SizedBox(width: 6),
+                _HudButton(
+                  label: 'Cancel',
+                  tooltip: 'Cancel stroke (Esc)',
+                  leading: const Icon(
+                    Icons.close,
+                    size: 15,
+                    color: ShukubaHud._mutedSand,
+                  ),
+                  active: false,
+                  accent: ShukubaHud._mutedSand,
+                  onTap: onCancelStroke,
+                ),
+              ] else if (tool is! ExploreTool) ...[
+                const SizedBox(width: 6),
+                _HudButton(
+                  label: 'Done',
+                  tooltip: 'Exit tool (Esc)',
+                  leading: const Icon(
+                    Icons.check,
+                    size: 15,
+                    color: ShukubaHud._mutedSand,
+                  ),
+                  active: false,
+                  accent: ShukubaHud._mutedSand,
+                  onTap: onExitTool,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -832,14 +876,12 @@ class _ToolCardSpec {
     required this.subtitle,
     required this.tool,
     required this.icon,
-    this.isDestructive = false,
   });
 
   final String title;
   final String subtitle;
   final PlacementTool tool;
   final InkBrushIconKind icon;
-  final bool isDestructive;
 }
 
 class _CategoryTabButton extends StatelessWidget {
@@ -861,52 +903,18 @@ class _CategoryTabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     const accent = ShukubaHud._amberAccent;
     final highlighted = isExpanded || hasActiveTool;
-    return GestureDetector(
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: isExpanded
-              ? const Color(0x36DECBAE)
-              : (hasActiveTool
-                    ? accent.withValues(alpha: 0.16)
-                    : const Color(0x18000000)),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: highlighted ? accent : ShukubaHud._borderStroke,
-            width: highlighted ? 1.2 : 1.0,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InkBrushIcon(
-                icon: icon,
-                color: highlighted ? accent : ShukubaHud._mutedSand,
-                size: 14,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                category.label,
-                style: TextStyle(
-                  color: highlighted
-                      ? ShukubaHud._washiInk
-                      : ShukubaHud._mutedSand,
-                  fontSize: 11,
-                  fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 3),
-              Icon(
-                isExpanded ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                size: 14,
-                color: highlighted ? accent : ShukubaHud._mutedSand,
-              ),
-            ],
-          ),
-        ),
+    return _HudButton(
+      label: category.label,
+      leading: InkBrushIcon(
+        icon: icon,
+        color: highlighted ? accent : ShukubaHud._mutedSand,
+        size: 15,
       ),
+      trailingIcon: isExpanded ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+      active: highlighted,
+      filledActive: isExpanded,
+      accent: accent,
+      onTap: onTap,
     );
   }
 }
@@ -1105,13 +1113,7 @@ class _CityBuilderDockState extends State<_CityBuilderDock> {
   Widget build(BuildContext context) {
     final activeCat = widget.activeTool.hudCategory;
     final openCat = _openCategory;
-    const demolishSpec = _ToolCardSpec(
-      title: 'Demolish',
-      subtitle: 'Remove [Del]',
-      tool: DemolishTool(),
-      icon: InkBrushIconKind.demolish,
-      isDestructive: true,
-    );
+    final isDemolishActive = _matches(const DemolishTool());
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1182,17 +1184,34 @@ class _CityBuilderDockState extends State<_CityBuilderDock> {
                       _toggleCategory(HudToolCategory.shrinesAndCourtyards),
                 ),
                 const _DockDivider(),
-                _ToolCardButton(
-                  spec: demolishSpec,
-                  active: _matches(demolishSpec.tool),
-                  onTap: () => widget.onSelectTool(demolishSpec.tool),
+                _HudButton(
+                  label: 'Demolish',
+                  tooltip: 'Demolish (Del / X)',
+                  leading: InkBrushIcon(
+                    icon: InkBrushIconKind.demolish,
+                    color: isDemolishActive
+                        ? ShukubaHud._vermilionAccent
+                        : ShukubaHud._mutedSand,
+                    size: 15,
+                  ),
+                  active: isDemolishActive,
+                  filledActive: isDemolishActive,
+                  accent: ShukubaHud._vermilionAccent,
+                  onTap: () => widget.onSelectTool(const DemolishTool()),
                 ),
                 Opacity(
                   opacity: widget.canUndo ? 1.0 : 0.42,
-                  child: _ActionChip(
-                    label: 'Undo [Z]',
+                  child: _HudButton(
+                    label: 'Undo',
+                    tooltip: 'Undo (Z)',
+                    leading: const InkBrushIcon(
+                      icon: InkBrushIconKind.undo,
+                      color: ShukubaHud._mutedSand,
+                      size: 15,
+                    ),
                     active: false,
                     accent: ShukubaHud._mutedSand,
+                    enabled: widget.canUndo,
                     onTap: widget.canUndo ? widget.onUndo : () {},
                   ),
                 ),
@@ -1211,7 +1230,7 @@ class _DockDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const SizedBox(
-      height: 28,
+      height: 24,
       child: VerticalDivider(
         width: 8,
         thickness: 1,
@@ -1230,58 +1249,81 @@ class _ToolCardButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = spec.isDestructive
-        ? ShukubaHud._vermilionAccent
-        : ShukubaHud._amberAccent;
-    return GestureDetector(
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: active
-              ? accent.withValues(alpha: 0.24)
-              : const Color(0x22000000),
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(
-            color: active ? accent : ShukubaHud._borderStroke,
-            width: active ? 1.3 : 1.0,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InkBrushIcon(
-                icon: spec.icon,
-                color: active ? accent : ShukubaHud._mutedSand,
+    const accent = ShukubaHud._amberAccent;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          height: 42,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 122, maxWidth: 176),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: active
+                    ? accent.withValues(alpha: 0.24)
+                    : const Color(0x22000000),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: active ? accent : ShukubaHud._borderStroke,
+                  width: active ? 1.3 : 1.0,
+                ),
               ),
-              const SizedBox(width: 6),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    spec.title,
-                    style: TextStyle(
-                      color: active
-                          ? ShukubaHud._washiInk
-                          : ShukubaHud._mutedSand,
-                      fontSize: 10.5,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 9),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkBrushIcon(
+                      icon: spec.icon,
+                      color: active ? accent : ShukubaHud._mutedSand,
+                      size: 16,
                     ),
-                  ),
-                  Text(
-                    spec.subtitle,
-                    style: TextStyle(
-                      color: active
-                          ? accent
-                          : ShukubaHud._mutedSand.withValues(alpha: 0.72),
-                      fontSize: 9,
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            spec.title,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: active
+                                  ? ShukubaHud._washiInk
+                                  : ShukubaHud._mutedSand,
+                              fontSize: 11,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              height: 1.15,
+                            ),
+                          ),
+                          Text(
+                            spec.subtitle,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: active
+                                  ? accent
+                                  : ShukubaHud._mutedSand.withValues(
+                                      alpha: 0.72,
+                                    ),
+                              fontSize: 9.5,
+                              height: 1.15,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1289,41 +1331,91 @@ class _ToolCardButton extends StatelessWidget {
   }
 }
 
-class _ActionChip extends StatelessWidget {
+class _HudButton extends StatelessWidget {
   const new({
     required this.label,
     required this.active,
     required this.accent,
     required this.onTap,
+    this.tooltip,
+    this.leading,
+    this.trailingIcon,
+    this.filledActive = false,
+    this.enabled = true,
   });
 
   final String label;
   final bool active;
   final Color accent;
   final VoidCallback onTap;
+  final String? tooltip;
+  final Widget? leading;
+  final IconData? trailingIcon;
+  final bool filledActive;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: active ? accent.withValues(alpha: 0.24) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: active ? accent : ShukubaHud._borderStroke),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: active ? ShukubaHud._washiInk : ShukubaHud._mutedSand,
-              fontSize: 11,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+    final bgColor = filledActive
+        ? accent.withValues(alpha: 0.22)
+        : (active ? accent.withValues(alpha: 0.16) : const Color(0x18000000));
+
+    final button = MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          height: 32,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: active ? accent : ShukubaHud._borderStroke,
+                width: active ? 1.2 : 1.0,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (leading != null) ...[leading!, const SizedBox(width: 6)],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: active
+                            ? ShukubaHud._washiInk
+                            : ShukubaHud._mutedSand,
+                        fontSize: 11.5,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                  if (trailingIcon != null) ...[
+                    const SizedBox(width: 2),
+                    Icon(
+                      trailingIcon,
+                      size: 15,
+                      color: active ? accent : ShukubaHud._mutedSand,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+
+    if (tooltip case final tip?) {
+      return Tooltip(message: tip, child: button);
+    }
+    return button;
   }
 }

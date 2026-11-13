@@ -237,19 +237,20 @@ void main() {
       expect(find.text('Shrines & Courtyards'), findsOneWidget);
       expect(find.text('Views'), findsOneWidget);
       expect(find.text('Demolish'), findsOneWidget);
-      expect(find.text('Undo [Z]'), findsOneWidget);
+      expect(find.text('Undo'), findsOneWidget);
 
       expect(find.text('Townhouse'), findsNothing);
       expect(find.text('Road'), findsNothing);
       expect(find.textContaining('Magistrate'), findsNothing);
       expect(find.text('Yagura'), findsNothing);
       expect(find.text('Watch'), findsNothing);
-      expect(find.text('Done [Esc]'), findsNothing);
+      expect(find.text('Done'), findsNothing);
 
       await tester.tap(find.text('Views'));
       await tester.pump();
-      expect(find.text('4 Gorge & Garden'), findsOneWidget);
-      expect(find.text('5 Valley Vista'), findsOneWidget);
+      expect(find.text('Gorge & Garden'), findsOneWidget);
+      expect(find.text('Valley Vista'), findsOneWidget);
+      expect(find.text('Canopy Sun'), findsOneWidget);
       await tester.tap(find.text('Views'));
       await tester.pump();
 
@@ -285,12 +286,12 @@ void main() {
         controller.activeTool,
         const StampStructureTool(kind: StructureKind.machiya),
       );
-      expect(find.text('Done [Esc]'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
 
-      await tester.tap(find.text('Done [Esc]'));
+      await tester.tap(find.text('Done'));
       await tester.pump();
       expect(controller.activeTool, isA<ExploreTool>());
-      expect(find.text('Done [Esc]'), findsNothing);
+      expect(find.text('Done'), findsNothing);
       expect(find.text('Townhouse'), findsNothing);
     });
 

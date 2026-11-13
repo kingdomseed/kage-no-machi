@@ -33,6 +33,19 @@ void main() {
       expect(() => painter.paint(c2, const Size(12000, 8000)), returnsNormally);
     });
 
+    test(
+      'AutumnLeavesPainter handles extreme canvas sizes and NaN progress',
+      () {
+        const painter = AutumnLeavesPainter(progress: double.nan);
+
+        for (final size in const [Size.zero, Size(1, 1), Size(12000, 8000)]) {
+          final rec = ui.PictureRecorder();
+          final canvas = Canvas(rec);
+          expect(() => painter.paint(canvas, size), returnsNormally);
+        }
+      },
+    );
+
     testWidgets('Rapid multi-click bursts on Enter Valley CTA button', (
       tester,
     ) async {
@@ -88,21 +101,21 @@ void main() {
 
       for (var i = 0; i < 3; i++) {
         await tester.tap(find.text('Field Notes (野帳)'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 350));
         expect(find.textContaining('Welcome to Kage no Machi'), findsOneWidget);
 
         await tester.tap(find.text('Close (閉じる)'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 350));
         expect(find.textContaining('Welcome to Kage no Machi'), findsNothing);
       }
 
       for (var i = 0; i < 3; i++) {
         await tester.tap(find.text('Settings (設定)'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 350));
         expect(find.text('Settings (設定)'), findsWidgets);
 
         await tester.tap(find.text('OK'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 350));
         expect(find.text('OK'), findsNothing);
       }
 
@@ -442,7 +455,7 @@ void main() {
         await tester.tap(find.text('Road'));
         await tester.pump();
 
-        expect(find.text('Cancel [Esc]'), findsNothing);
+        expect(find.text('Cancel'), findsNothing);
 
         final hudFinder = find.byType(ShukubaHud);
         expect(hudFinder, findsOneWidget);
@@ -453,7 +466,7 @@ void main() {
         await tester.pump();
 
         expect(controller.strokePoints.length, equals(2));
-        expect(find.text('Cancel [Esc]'), findsOneWidget);
+        expect(find.text('Cancel'), findsOneWidget);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pump();

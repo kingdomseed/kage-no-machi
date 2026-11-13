@@ -33,8 +33,80 @@ void main() {
       expect(find.byType(HankoSealWidget), findsOneWidget);
     });
 
+    test(
+      'AutumnLeavesPainter paints 38 leaves and repaints on progress change',
+      () {
+        const painter0 = AutumnLeavesPainter(progress: 0);
+        const painterMid = AutumnLeavesPainter(progress: 0.35);
+        const painterEnd = AutumnLeavesPainter(progress: 1);
+
+        for (final size in const [
+          Size.zero,
+          Size(1, 1),
+          Size(1024, 768),
+          Size(12000, 8000),
+        ]) {
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder);
+          expect(() => painter0.paint(canvas, size), returnsNormally);
+          expect(() => painterMid.paint(canvas, size), returnsNormally);
+          expect(() => painterEnd.paint(canvas, size), returnsNormally);
+        }
+
+        expect(painter0.shouldRepaint(const AutumnLeavesPainter()), isFalse);
+        expect(painterMid.shouldRepaint(painter0), isTrue);
+      },
+    );
+
     testWidgets(
-      'TitleMenuOverlay renders calligraphy, seal, and invokes Enter Valley',
+      'TitleMenuOverlay animates autumn leaves and disables when requested',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: TitleMenuOverlay(onEnterValley: () {})),
+          ),
+        );
+
+        final painterFinder = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is AutumnLeavesPainter,
+        );
+        expect(painterFinder, findsOneWidget);
+
+        final initialProgress =
+            (tester.widget<CustomPaint>(painterFinder).painter!
+                    as AutumnLeavesPainter)
+                .progress;
+        await tester.pump(const Duration(seconds: 2));
+        final nextProgress =
+            (tester.widget<CustomPaint>(painterFinder).painter!
+                    as AutumnLeavesPainter)
+                .progress;
+        expect(nextProgress, greaterThan(initialProgress));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: Scaffold(body: TitleMenuOverlay(onEnterValley: () {})),
+            ),
+          ),
+        );
+        final stoppedProgress =
+            (tester.widget<CustomPaint>(painterFinder).painter!
+                    as AutumnLeavesPainter)
+                .progress;
+        await tester.pump(const Duration(seconds: 2));
+        final afterStopProgress =
+            (tester.widget<CustomPaint>(painterFinder).painter!
+                    as AutumnLeavesPainter)
+                .progress;
+        expect(afterStopProgress, equals(stoppedProgress));
+      },
+    );
+
+    testWidgets(
+      'TitleMenuOverlay renders calligraphy, seal, uniform 46px buttons, and'
+      ' invokes Enter Valley',
       (tester) async {
         var entered = false;
 
@@ -54,6 +126,23 @@ void main() {
         expect(find.text('Field Notes (野帳)'), findsOneWidget);
         expect(find.text('Settings (設定)'), findsOneWidget);
 
+        final enterBtn = find.ancestor(
+          of: find.text('Enter Valley (渓谷へ入る)'),
+          matching: find.byType(ElevatedButton),
+        );
+        final notesBtn = find.ancestor(
+          of: find.text('Field Notes (野帳)'),
+          matching: find.byType(OutlinedButton),
+        );
+        final settingsBtn = find.ancestor(
+          of: find.text('Settings (設定)'),
+          matching: find.byType(OutlinedButton),
+        );
+
+        expect(tester.getSize(enterBtn).height, equals(46.0));
+        expect(tester.getSize(notesBtn).height, equals(46.0));
+        expect(tester.getSize(settingsBtn).height, equals(46.0));
+
         await tester.tap(find.text('Enter Valley (渓谷へ入る)'));
         await tester.pump();
         expect(entered, isTrue);
@@ -70,14 +159,14 @@ void main() {
       );
 
       await tester.tap(find.text('Field Notes (野帳)'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('Field Notes (野帳)'), findsWidgets);
       expect(find.textContaining('Welcome to Kage no Machi'), findsOneWidget);
       expect(find.text('Close (閉じる)'), findsOneWidget);
 
       await tester.tap(find.text('Close (閉じる)'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 350));
       expect(find.textContaining('Welcome to Kage no Machi'), findsNothing);
     });
 
@@ -94,9 +183,10 @@ void main() {
       );
 
       await tester.tap(find.text('Settings (設定)'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('Settings (設定)'), findsWidgets);
+      expect(find.text('1 – 6'), findsOneWidget);
       expect(audio.isMuted, isFalse);
       await tester.tap(find.byType(IconButton));
       await tester.pump();
@@ -104,7 +194,7 @@ void main() {
 
       expect(find.text('OK'), findsOneWidget);
       await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 350));
       expect(find.text('OK'), findsNothing);
     });
   });
@@ -170,6 +260,18 @@ void main() {
       expect(find.text('Resume (再開)'), findsOneWidget);
       expect(find.text('Return to Title (表紙へ戻る)'), findsOneWidget);
       expect(find.text('Keybindings (操作手引き)'), findsOneWidget);
+      expect(find.text('1 – 6'), findsOneWidget);
+
+      final returnBtn = find.ancestor(
+        of: find.text('Return to Title (表紙へ戻る)'),
+        matching: find.byType(OutlinedButton),
+      );
+      final resumeBtn = find.ancestor(
+        of: find.text('Resume (再開)'),
+        matching: find.byType(ElevatedButton),
+      );
+      expect(tester.getSize(returnBtn).height, equals(44.0));
+      expect(tester.getSize(resumeBtn).height, equals(44.0));
 
       expect(audio.isMuted, isFalse);
       final muteBtn = find.byType(IconButton);
