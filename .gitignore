@@ -116,8 +116,13 @@ app.*.map.json
 # Generated l10n files
 lib/l10n/gen/
 # Copyrighted game screenshots: private study only
-docs/references/shadow-tactics/
+docs/references/
 # Archived pre-reset experiments and assets
 _archive/
 # Local audit and arena scratch files
 .audit/
+# Local captures and screenshots
+/captures/
+/screenshots/
+*.cap.png
+

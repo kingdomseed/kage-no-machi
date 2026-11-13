@@ -127,20 +127,24 @@ void main() {
 
         expect(find.byType(ShukubaHud), findsOneWidget);
         expect(find.text('Views'), findsOneWidget);
-        expect(find.text('1 Golden Dusk'), findsNothing);
+        expect(find.text('Night Market'), findsNothing);
 
         await tester.tap(find.text('Views'));
         await tester.pump();
-        expect(find.text('1 Golden Dusk'), findsOneWidget);
-        expect(find.text('2 Night Market'), findsOneWidget);
+        expect(find.text('Golden Dusk'), findsNWidgets(2));
+        expect(find.text('Night Market'), findsOneWidget);
 
-        await tester.tap(find.text('1 Golden Dusk'));
+        await tester.tap(
+          find.byWidgetPredicate(
+            (w) => w is Tooltip && w.message == 'Shortcut: 1',
+          ),
+        );
         await tester.pump();
         expect(selectedPreset, equals(CameraPreset.duskOverview));
 
         await tester.tap(find.text('Views'));
         await tester.pump();
-        await tester.tap(find.text('2 Night Market'));
+        await tester.tap(find.text('Night Market'));
         await tester.pump();
         expect(selectedPreset, equals(CameraPreset.nightMarket));
 

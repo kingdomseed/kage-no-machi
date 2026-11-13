@@ -51,7 +51,40 @@ void main() {
         expect(find.text('Road'), findsNothing);
         expect(find.text('Bamboo Grove'), findsNothing);
         expect(find.text('Bell Pavilion'), findsNothing);
-        expect(find.text('Done [Esc]'), findsNothing);
+        expect(find.text('Done'), findsNothing);
+
+        const dockButtonLabels = [
+          'Dwellings & Shops',
+          'Roads & Walls',
+          'Trees & Rocks',
+          'Shrines & Courtyards',
+          'Demolish',
+          'Undo',
+        ];
+        for (final label in dockButtonLabels) {
+          final btn = find
+              .ancestor(
+                of: find.text(label),
+                matching: find.byType(GestureDetector),
+              )
+              .first;
+          expect(
+            tester.getSize(btn).height,
+            equals(32.0),
+            reason: 'Expected 32px height for bottom dock button "$label"',
+          );
+        }
+
+        for (final textWidget in tester.widgetList<Text>(
+          find.descendant(
+            of: find.byType(ShukubaHud),
+            matching: find.byType(Text),
+          ),
+        )) {
+          final data = textWidget.data ?? '';
+          expect(data, isNot(contains('[')));
+          expect(data, isNot(contains(']')));
+        }
       },
     );
 
@@ -184,9 +217,56 @@ void main() {
         await tester.tap(find.text('Bell Pavilion'));
         await tester.pump();
 
-        expect(find.text('Rotate [R]'), findsOneWidget);
+        expect(find.text('Rotate'), findsOneWidget);
+        expect(find.text('Done'), findsOneWidget);
 
-        await tester.tap(find.text('Rotate [R]'));
+        final rotateBtn = find
+            .ancestor(
+              of: find.text('Rotate'),
+              matching: find.byType(GestureDetector),
+            )
+            .first;
+        final doneBtn = find
+            .ancestor(
+              of: find.text('Done'),
+              matching: find.byType(GestureDetector),
+            )
+            .first;
+        expect(tester.getSize(rotateBtn).height, equals(32.0));
+        expect(tester.getSize(doneBtn).height, equals(32.0));
+
+        final viewsBtn = find
+            .ancestor(
+              of: find.text('Views'),
+              matching: find.byType(GestureDetector),
+            )
+            .first;
+        expect(tester.getSize(viewsBtn).height, equals(32.0));
+
+        final wardBox = find
+            .ancestor(
+              of: find.text('KAGE NO MACHI'),
+              matching: find.byType(DecoratedBox),
+            )
+            .first;
+        final atmoBox = find
+            .ancestor(
+              of: find.byType(Slider),
+              matching: find.byType(DecoratedBox),
+            )
+            .first;
+        expect(tester.getSize(wardBox).height, equals(44.0));
+        expect(tester.getSize(atmoBox).height, equals(44.0));
+
+        final cardBtn = find
+            .ancestor(
+              of: find.text('Bell Pavilion'),
+              matching: find.byType(GestureDetector),
+            )
+            .first;
+        expect(tester.getSize(cardBtn).height, equals(42.0));
+
+        await tester.tap(find.text('Rotate'));
         await tester.pump();
 
         final tool = controller.activeTool as StampStructureTool;
