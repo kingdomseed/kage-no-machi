@@ -165,7 +165,7 @@ class TacticalCameraRig {
           }
         }
         final hit = ray.at((lo + hi) * 0.5);
-        if (hit.x.abs() > 38 || hit.z.abs() > 38) {
+        if (hit.x.abs() > 44 || hit.z.abs() > 44) {
           return null;
         }
         return Vec3(hit.x, sampleGroundY(hit.x, hit.z), hit.z);
@@ -227,6 +227,7 @@ class TacticalCameraRig {
       ..fovRadiansY = (_baseVerticalFovDegrees + 6 * h) * degrees2Radians
       ..fovNear = (_distanceMeters * (0.017 + 0.095 * sinPitch.clamp(0.0, 1.0)))
           .clamp(0.45, 6.0)
+      ..fovFar = math.max(_camera.fovFar, 560)
       ..target = Vector3(_target.x, _target.y + targetLift, _target.z)
       ..position = eye;
   }

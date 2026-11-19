@@ -2,7 +2,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_scene/scene.dart'
-    show GeometryBuilder, Mesh, MeshGeometry, Node, ShadowCastingMode;
+    show
+        GeometryBuilder,
+        Mesh,
+        MeshGeometry,
+        Node,
+        PlanarReflectorComponent,
+        ShadowCastingMode;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         CourtyardWall,
@@ -10,6 +16,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         PlacedStructure,
         RoadSpline,
         RoadStyle,
+        ShowcaseRealm,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
         TerraceCourse,
@@ -153,7 +160,24 @@ class _RoadBuildPlan {
 }
 
 class TerrainBuilder {
-  new();
+  new({this._realm = ShowcaseRealm.shukubaValley});
+
+  ShowcaseRealm _realm;
+
+  ShowcaseRealm get realm => _realm;
+
+  set realm(ShowcaseRealm nextRealm) {
+    if (_realm == nextRealm) {
+      return;
+    }
+    _realm = nextRealm;
+    geometryCache.clear();
+    markAllDirty();
+    _cachedTerracesRef = null;
+    _cachedRoadsRef = null;
+    _cachedSortedTerraces = const [];
+    _cachedCrossings = const {};
+  }
 
   final Set<int> dirtyChunkIndices = <int>{for (var i = 0; i < 16; i++) i};
 
@@ -231,7 +255,103 @@ class TerrainBuilder {
     return c * c * c * (c * (c * 6 - 15) + 10);
   }
 
+  static double minatoCoastlineX(double z) {
+    // Sheltered cove curving gently along the central quay (z in [-12, 32])
+    final coveBase = 6.8 + 0.9 * math.sin((z - 10.0) * 0.12);
+
+    // Castle Promontory headland pulled cleanly inside the battered stone walls
+    final promEnter = _quintic((z - (-42.2)) / 3.2);
+    final promExit = 1.0 - _quintic((z - (-16.2)) / 3.2);
+    final castlePromontory = promEnter * promExit;
+
+    // SE Breakwater spit jutting to x ~ 25.0 at z = 33 for tōdai lighthouse
+    final spitEnter = _quintic((z - 28.5) / 3.8);
+    final spitExit = 1.0 - _quintic((z - 35.5) / 8.5);
+    final breakwaterSpit = spitEnter * spitExit;
+
+    final northRetreat = _quintic((-46.0 - z) / 28.0);
+    return coveBase +
+        castlePromontory * 17.6 +
+        breakwaterSpit * 18.2 -
+        northRetreat * 24.0;
+  }
+
+  double sampleMinatoRawTerrain(double x, double z) {
+    final coastX = minatoCoastlineX(z);
+
+    // Inner town & hill baseline rising westward cleanly behind the quay
+    final westFrac = _quintic(((-4.0 - x) / 48.0).clamp(0.0, 1.0));
+    final outerWestFrac = _quintic(((-36.0 - x) / 42.0).clamp(0.0, 1.0));
+    final townUndulate =
+        0.16 * math.sin(x * 0.08 + 0.4) * math.cos(z * 0.09 - 0.3) +
+        0.08 * math.sin(z * 0.18 - x * 0.06);
+    final avenueCorridor =
+        1.0 - _quintic((((z - (-0.28 * (x + 2.0) + 6.5)).abs()) - 3.0) / 5.5);
+    var landY =
+        0.78 +
+        westFrac * (3.1 + 3.4 * outerWestFrac) +
+        townUndulate * (1.0 - 0.55 * avenueCorridor);
+
+    // Castle Promontory (Ninomaru -> Honmaru acropolis), inside stone ramparts
+    final castleZMask =
+        _quintic((z - (-41.5)) / 3.0) * (1.0 - _quintic((z - (-16.0)) / 3.0));
+    final honmaruXMask = _quintic((x - (-2.4)) / 3.6);
+    final ninomaruXMask =
+        _quintic((x - (-15.5)) / 7.5) * (1.0 - _quintic((x - (-2.2)) / 4.0));
+    const castleNinomaruY = 4.65;
+    const castleHonmaruY = 7.80;
+    final castleWeight =
+        castleZMask * math.max(honmaruXMask, ninomaruXMask * 0.72);
+    if (castleWeight > 1e-4) {
+      final plateauTarget =
+          castleNinomaruY + (castleHonmaruY - castleNinomaruY) * honmaruXMask;
+      final blendTarget = math.max(landY, plateauTarget);
+      landY = landY + (blendTarget - landY) * castleWeight;
+    }
+
+    // Flatten the sheltered Stone Quay Promenade (z in [-12.5, 32.0])
+    final quayZMask =
+        _quintic((z - (-13.0)) / 2.2) * (1.0 - _quintic((z - 30.0) / 3.5));
+    final quayXDist = coastX - x;
+    final quayXMask =
+        (1.0 - _quintic((quayXDist - 7.5) / 4.5)) *
+        _quintic((quayXDist + 0.5) / 1.0);
+    final quayBlend = quayZMask * quayXMask * (1.0 - castleZMask);
+    if (quayBlend > 1e-4) {
+      landY = landY + (0.78 - landY) * quayBlend;
+    }
+
+    // Level SE Breakwater Spit ridge to y ~ 0.86 around (x ~ 24, z ~ 33)
+    final spitZ =
+        _quintic((z - 28.8) / 2.8) * (1.0 - _quintic((z - 35.8) / 3.8));
+    final spitX =
+        _quintic((x - 4.0) / 4.0) * (1.0 - _quintic((x - 24.5) / 2.8));
+    final spitW = spitZ * spitX;
+    if (spitW > 1e-4) {
+      landY = landY + (0.86 - landY) * spitW;
+    }
+
+    // Steep seawall drop / rocky coastal cliff -> deep harbor seabed (-4.5m)
+    final seaward = x - coastX;
+    if (seaward <= 0.0) {
+      return landY;
+    }
+    const seaFloorY = -4.50;
+    final dropSpan = 1.5 + 1.1 * castleZMask;
+    if (seaward >= dropSpan) {
+      final shoal =
+          0.14 * math.sin(x * 0.16 + z * 0.11) +
+          0.08 * math.cos(z * 0.27 - x * 0.12);
+      return seaFloorY + shoal * 0.4;
+    }
+    final u = _quintic(seaward / dropSpan);
+    return landY + (seaFloorY - landY) * u;
+  }
+
   double sampleRawTerrain(double x, double z) {
+    if (_realm == ShowcaseRealm.minatoJo) {
+      return sampleMinatoRawTerrain(x, z);
+    }
     final rivX = TerrainConfig.riverCenterX(z);
     final signed = x - rivX;
     final dist = signed.abs();
@@ -546,7 +666,9 @@ class TerrainBuilder {
     required Map<TerraceCourse, List<_RoadTerraceCrossing>> crossingsByTerrace,
     required bool recessUnderStairs,
   }) {
-    var height = sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z));
+    var height = _realm == ShowcaseRealm.shukubaValley
+        ? sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z))
+        : sampleRawTerrain(x, z);
     for (var i = 0; i < sortedTerraces.length; i++) {
       final terrace = sortedTerraces[i];
       height = terrace.sampleGradedElevation(x, z, height);
@@ -617,7 +739,8 @@ class TerrainBuilder {
     Iterable<TerraceCourse> terraces = const [],
     Iterable<RoadSpline> roads = const [],
   }) {
-    if (TerrainConfig.isInsideBridgeFootprint(x, z)) {
+    if (_realm == ShowcaseRealm.shukubaValley &&
+        TerrainConfig.isInsideBridgeFootprint(x, z)) {
       return TerrainConfig.bridgeDeckHeightAt(x);
     }
 
@@ -625,7 +748,9 @@ class TerrainBuilder {
         ? terraces
         : terraces.toList();
     if (inTerraces.isEmpty) {
-      return sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z));
+      return _realm == ShowcaseRealm.shukubaValley
+          ? sampleTanadaGradedElevation(x, z, sampleRawTerrain(x, z))
+          : sampleRawTerrain(x, z);
     }
 
     final inRoads = roads is List<RoadSpline> ? roads : roads.toList();
@@ -953,6 +1078,67 @@ class TerrainBuilder {
               habitatMoss = nm;
             }
           }
+        }
+
+        if (_realm == ShowcaseRealm.minatoJo) {
+          final coastX = minatoCoastlineX(z);
+          final seaward = x - coastX;
+          final slopeSteepness = (1.0 - (ny * invLen)).clamp(0.0, 1.0);
+          final wx = x + 2.0 * math.sin(z * 0.14 + 0.5);
+          final wz = z + 2.0 * math.cos(x * 0.15 - 0.3);
+          final warmWash =
+              0.5 + 0.5 * math.sin(wx * 0.15 + wz * 0.12) * math.cos(wz * 0.18);
+
+          var rCol = 0.80 + 0.16 * warmWash;
+          var gCol = 0.84 + 0.14 * warmWash;
+          var bCol = 0.68 + 0.12 * warmWash;
+
+          // Granite cliff slopes & promontory bluffs
+          final cliffT = (slopeSteepness * 3.8).clamp(0.0, 1.0);
+          rCol = rCol * (1 - cliffT) + 0.60 * cliffT;
+          gCol = gCol * (1 - cliffT) + 0.62 * cliffT;
+          bCol = bCol * (1 - cliffT) + 0.64 * cliffT;
+
+          // Waterfront stone quay promenade & Honmaru masonry apron
+          final onQuay =
+              z >= -10.8 && z <= 32.2 && x >= coastX - 9.2 && x <= coastX + 0.2;
+          final onCastle = z >= -44.0 && z <= -12.0 && x >= -4.0 && x <= 26.5;
+          final urbanApron = onQuay || onCastle ? 0.85 : 0.0;
+
+          final mossBlend = habitatMoss * 0.44;
+          rCol = rCol * (1 - mossBlend) + 0.58 * mossBlend;
+          gCol = gCol * (1 - mossBlend) + 0.82 * mossBlend;
+          bCol = bCol * (1 - mossBlend) + 0.50 * mossBlend;
+
+          final totalWear = math.max(
+            math.max(roadWear * 0.90, yardWear * 0.82),
+            urbanApron,
+          );
+          rCol = rCol * (1 - totalWear) + 1.04 * totalWear;
+          gCol = gCol * (1 - totalWear) + 0.92 * totalWear;
+          bCol = bCol * (1 - totalWear) + 0.78 * totalWear;
+
+          final dampShade = 1.0 - 0.24 * plinthDamp;
+          rCol *= dampShade;
+          gCol *= dampShade;
+          bCol *= dampShade;
+
+          final seaWet = seaward >= -0.4
+              ? 1.0
+              : 1.0 - ((-0.4 - seaward) / 2.2).clamp(0.0, 1.0);
+          final finalR = rCol * (1 - seaWet * 0.68) + 0.28 * (seaWet * 0.68);
+          final finalG = gCol * (1 - seaWet * 0.68) + 0.34 * (seaWet * 0.68);
+          final finalB = bCol * (1 - seaWet * 0.68) + 0.38 * (seaWet * 0.68);
+          final wearAlpha =
+              (math.max(totalWear, seaWet * 0.45) * (1.0 - habitatMoss * 0.35))
+                  .clamp(0.0, 1.0);
+
+          builder
+            ..normal(Vector3(nx * invLen, ny * invLen, nz * invLen))
+            ..color(Vector4(finalR, finalG, finalB, wearAlpha))
+            ..texCoord(Vector2(u * 16.0, v * 16.0))
+            ..addVertex(Vector3(x, y, z));
+          continue;
         }
 
         final tanadaMoss = sampleTanadaMossAffinity(x, z);
@@ -1453,11 +1639,20 @@ class TerrainBuilder {
     return markSubtreeShadowStatic(root);
   }
 
+  static double extendedShukubaRiverCenterX(double z) {
+    final base = TerrainConfig.riverCenterX(z);
+    if (z.abs() <= 88.0) {
+      return base;
+    }
+    final bend = _quintic((z.abs() - 88.0) / 50.0) * 44.0;
+    return base + (z > 0 ? bend : -bend);
+  }
+
   Node buildWaterNode(ShukubaMaterialResolver resolveMaterial) {
     final builder = GeometryBuilder();
-    const minZ = TerrainConfig.minZ;
-    const maxZ = TerrainConfig.maxZ;
-    const lengthSegs = 128;
+    const minZ = -176.0;
+    const maxZ = 176.0;
+    const lengthSegs = 240;
     const crossSegs = 4;
     const zStep = (maxZ - minZ) / lengthSegs;
     const waterY = TerrainConfig.waterSurfaceElevation;
@@ -1466,7 +1661,7 @@ class TerrainBuilder {
 
     for (var i = 0; i <= lengthSegs; i++) {
       final z = minZ + i * zStep;
-      final cX = TerrainConfig.riverCenterX(z);
+      final cX = extendedShukubaRiverCenterX(z);
       final v = i / lengthSegs;
       for (var c = 0; c <= crossSegs; c++) {
         final u = c / crossSegs;
@@ -1494,6 +1689,399 @@ class TerrainBuilder {
       resolveMaterial(ShukubaSurfaceRole.riverWater),
     );
     return markSubtreeShadowStatic(Node(mesh: mesh));
+  }
+
+  /// Seamless 360° terrain and ocean-seabed apron around the 4 outer sides
+  /// strictly outside `[-88, +88]` and morphing to a `252m` circle.
+  Node buildOuterTerrainApronNode(
+    ShukubaMaterialResolver resolveMaterial, {
+    Iterable<TerraceCourse> terraces = const [],
+    Iterable<RoadSpline> roads = const [],
+  }) {
+    const halfExtents = <double>[88, 92, 98, 108, 122, 138, 158, 182, 212, 252];
+    const segPerSide = 44;
+    const colsPerSide = segPerSide + 1;
+
+    double outerCoastX(double z) {
+      if (z < -88.0) {
+        return minatoCoastlineX(-88) - _quintic((-88.0 - z) / 55.0) * 18.0;
+      }
+      if (z > 88.0) {
+        return minatoCoastlineX(88) - _quintic((z - 88.0) / 55.0) * 24.0;
+      }
+      return minatoCoastlineX(z);
+    }
+
+    double seaBedY(double outDist) => outDist <= 1e-6
+        ? -4.50
+        : -4.50 -
+              0.55 * _quintic(outDist / 8.0) -
+              4.45 * _quintic((outDist - 8.0) / 156.0);
+
+    ({double y, Vector4 color}) evalSample(double x, double z, double outDist) {
+      if (outDist <= 1e-6) {
+        final edgeY = sampleGroundHeight(
+          x.clamp(-88.0, 88.0),
+          z.clamp(-88.0, 88.0),
+          terraces: terraces,
+          roads: roads,
+        );
+        if (_realm == ShowcaseRealm.minatoJo) {
+          final seaward = x - minatoCoastlineX(z);
+          final seaWet = seaward >= -0.4
+              ? 1.0
+              : 1.0 - ((-0.4 - seaward) / 2.2).clamp(0.0, 1.0);
+          return (
+            y: edgeY,
+            color: Vector4(
+              0.76 * (1 - seaWet) + 0.24 * seaWet,
+              0.84 * (1 - seaWet) + 0.30 * seaWet,
+              0.66 * (1 - seaWet) + 0.34 * seaWet,
+              0.08 * (1 - seaWet) + 0.35 * seaWet,
+            ),
+          );
+        }
+        final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
+        final wetT = 1.0 - ((rivDist - 2.2) / 2.8).clamp(0.0, 1.0);
+        return (
+          y: edgeY,
+          color: Vector4(
+            0.80 * (1 - wetT) + 0.38 * wetT,
+            0.86 * (1 - wetT) + 0.44 * wetT,
+            0.72 * (1 - wetT) + 0.48 * wetT,
+            0.08 * (1 - wetT) + 0.42 * wetT,
+          ),
+        );
+      }
+
+      final xEdge = x.clamp(-88.0, 88.0);
+      final zEdge = z.clamp(-88.0, 88.0);
+      final edgeY = sampleGroundHeight(
+        xEdge,
+        zEdge,
+        terraces: terraces,
+        roads: roads,
+      );
+
+      if (_realm == ShowcaseRealm.minatoJo) {
+        final floorY = seaBedY(outDist);
+        final seaward = x - outerCoastX(z);
+        if (seaward >= 2.6) {
+          return (y: floorY, color: Vector4(0.22, 0.28, 0.32, 0.35));
+        }
+        var landH =
+            edgeY +
+            6.5 * _quintic(outDist / 38.0) +
+            1.2 *
+                math.sin(x * 0.045) *
+                math.cos(z * 0.045) *
+                _quintic(outDist / 24.0);
+        if (outDist > 42.0) {
+          final tuck = _quintic((outDist - 42.0) / 52.0);
+          final outerDrop = -8.2 - 0.015 * math.max<double>(0, outDist - 96.0);
+          landH = landH * (1.0 - tuck) + outerDrop * tuck;
+        }
+        if (seaward > 0.0) {
+          final u = _quintic(seaward / 2.6);
+          return (
+            y: landH + (floorY - landH) * u,
+            color: Vector4(
+              0.72 * (1 - u) + 0.22 * u,
+              0.82 * (1 - u) + 0.28 * u,
+              0.64 * (1 - u) + 0.32 * u,
+              0.06 * (1 - u) + 0.35 * u,
+            ),
+          );
+        }
+        return (y: landH, color: Vector4(0.72, 0.82, 0.64, 0.06));
+      }
+
+      final rivX = extendedShukubaRiverCenterX(z);
+      final rivDist = (x - rivX).abs();
+      var hillY =
+          edgeY +
+          7.0 * _quintic(outDist / 36.0) +
+          1.4 *
+              math.sin(x * 0.04 + 0.5) *
+              math.cos(z * 0.045 - 0.2) *
+              _quintic(outDist / 24.0);
+      if (outDist > 46.0) {
+        final tuck = _quintic((outDist - 46.0) / 52.0);
+        final outerDrop = -8.2 - 0.015 * math.max<double>(0, outDist - 96.0);
+        hillY = hillY * (1.0 - tuck) + outerDrop * tuck;
+      }
+
+      if (z.abs() >= 88.0 && rivDist < 34.0 && outDist < 68.0) {
+        const bedY = -1.78;
+        final bankT = _quintic((rivDist - 3.2) / 30.8);
+        final corridorY = bedY + (hillY - bedY) * bankT;
+        final fadeT = _quintic((outDist - 24.0) / 42.0);
+        final y = corridorY + (hillY - corridorY) * fadeT;
+        final wetT = (1.0 - _quintic((rivDist - 2.0) / 3.2)) * (1.0 - fadeT);
+        return (
+          y: y,
+          color: Vector4(
+            0.78 * (1 - wetT) + 0.38 * wetT,
+            0.85 * (1 - wetT) + 0.44 * wetT,
+            0.70 * (1 - wetT) + 0.48 * wetT,
+            0.06 * (1 - wetT) + 0.42 * wetT,
+          ),
+        );
+      }
+
+      return (y: hillY, color: Vector4(0.78, 0.85, 0.70, 0.06));
+    }
+
+    double evalY(double px, double pz) {
+      final outD = math.max<double>(0, math.max(px.abs(), pz.abs()) - 88.0);
+      return evalSample(px, pz, outD).y;
+    }
+
+    (double x, double z) sideRingPoint(int side, double h, double t) {
+      final span = 2.0 * h;
+      final (double sx, double sz) = switch (side) {
+        0 => (-h + span * t, -h),
+        1 => (h, -h + span * t),
+        2 => (h - span * t, h),
+        _ => (-h, h - span * t),
+      };
+      final outDist = h - 88.0;
+      if (outDist <= 1e-6) {
+        return (sx, sz);
+      }
+      final circBlend = _quintic(outDist / 70.0);
+      final len = math.sqrt(sx * sx + sz * sz);
+      final cx = sx / len * h;
+      final cz = sz / len * h;
+      return (sx + (cx - sx) * circBlend, sz + (cz - sz) * circBlend);
+    }
+
+    final earthMat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
+    final builder = GeometryBuilder();
+    for (var side = 0; side < 4; side++) {
+      final sideIndices = List<int>.filled(halfExtents.length * colsPerSide, 0);
+      var k = 0;
+      for (var r = 0; r < halfExtents.length; r++) {
+        final h = halfExtents[r];
+        final outDist = h - 88.0;
+        for (var ic = 0; ic < colsPerSide; ic++) {
+          final t = ic / segPerSide;
+          final (x, z) = sideRingPoint(side, h, t);
+          final sample = evalSample(x, z, outDist);
+          final yL = evalY(x - 1.5, z);
+          final yR = evalY(x + 1.5, z);
+          final yD = evalY(x, z - 1.5);
+          final yU = evalY(x, z + 1.5);
+          final n = Vector3(yL - yR, 3, yD - yU).normalized();
+          builder
+            ..normal(n)
+            ..color(sample.color)
+            ..texCoord(Vector2((x + 88.0) / 11.0, (z + 88.0) / 11.0));
+          sideIndices[k++] = builder.addVertex(Vector3(x, sample.y, z));
+        }
+      }
+
+      for (var r = 0; r < halfExtents.length - 1; r++) {
+        final ringA = r * colsPerSide;
+        final ringB = (r + 1) * colsPerSide;
+        for (var ic = 0; ic < segPerSide; ic++) {
+          final v00 = sideIndices[ringA + ic];
+          final v01 = sideIndices[ringA + ic + 1];
+          final v10 = sideIndices[ringB + ic];
+          final v11 = sideIndices[ringB + ic + 1];
+          // Clockwise loop + outward -> (v01-v00)x(v11-v00) = +Y up normal.
+          builder
+            ..addTriangle(v00, v01, v11)
+            ..addTriangle(v00, v11, v10);
+        }
+      }
+    }
+
+    final apronNode = Node(
+      name: 'terrain_outer_apron',
+      mesh: Mesh(builder.build(), earthMat),
+    )..shadowCastingMode = ShadowCastingMode.off;
+    return markSubtreeShadowStatic(apronNode);
+  }
+
+  Node buildMinatoHarborWaterNode(ShukubaMaterialResolver resolveMaterial) {
+    final builder = GeometryBuilder();
+
+    final xCoords = <double>[
+      -96,
+      -64,
+      -36,
+      for (var x = -18.0; x <= 92.0; x += 2.0) x,
+      118,
+      152,
+      188,
+      224,
+      264,
+    ];
+    final zCoords = <double>[
+      -264,
+      -220,
+      -176,
+      -132,
+      for (var z = -92.0; z <= 92.0; z += 2.0) z,
+      132,
+      176,
+      220,
+      264,
+    ];
+
+    final rows = zCoords.length;
+    final cols = xCoords.length;
+    for (var iz = 0; iz < rows; iz++) {
+      final z = zCoords[iz];
+      final v = (z + 92.0) / 184.0;
+      for (var ix = 0; ix < cols; ix++) {
+        final x = xCoords[ix];
+        final u = (x + 18.0) / 110.0;
+        builder
+          ..normal(Vector3(0, 1, 0))
+          ..texCoord(Vector2(u, v))
+          ..addVertex(Vector3(x, 0, z));
+      }
+    }
+
+    for (var iz = 0; iz < rows - 1; iz++) {
+      for (var ix = 0; ix < cols - 1; ix++) {
+        final v00 = iz * cols + ix;
+        final v01 = v00 + 1;
+        final v10 = v00 + cols;
+        final v11 = v10 + 1;
+        builder
+          ..addTriangle(v00, v10, v01)
+          ..addTriangle(v01, v10, v11);
+      }
+    }
+
+    final waterMat = resolveMaterial(ShukubaSurfaceRole.harborWater);
+    final node =
+        Node(name: 'minato_harbor_water', mesh: Mesh(builder.build(), waterMat))
+          ..position = Vector3(0, TerrainConfig.waterSurfaceElevation, 0)
+          ..shadowCastingMode = ShadowCastingMode.off
+          ..addComponent(PlanarReflectorComponent(clipBias: 0.02));
+    return node;
+  }
+
+  Node buildMinatoSeawallNode(ShukubaMaterialResolver resolveMaterial) {
+    final root = Node(name: 'minato_quay_seawall');
+    final stoneMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    final timberMat = resolveMaterial(ShukubaSurfaceRole.charredTimber);
+
+    final stoneBuilder = GeometryBuilder();
+    final copingBuilder = GeometryBuilder();
+    final fenderBuilder = GeometryBuilder();
+
+    const zStart = -10.5;
+    const zEnd = 31.5;
+    const segsZ = 48;
+    const yBottom = -2.40;
+    const yTop = 0.84;
+
+    // Continuous concave-battered harbor seawall matching minatoCoastlineX(z)
+    final crestFront = <Vector3>[];
+    final toeFront = <Vector3>[];
+    final crestBack = <Vector3>[];
+    for (var i = 0; i <= segsZ; i++) {
+      final z = zStart + (zEnd - zStart) * (i / segsZ);
+      final cx = minatoCoastlineX(z);
+      crestFront.add(Vector3(cx - 0.06, yTop, z));
+      toeFront.add(Vector3(cx + 0.52, yBottom, z));
+      crestBack.add(Vector3(cx - 0.92, yTop, z));
+    }
+
+    for (var i = 0; i < segsZ; i++) {
+      final cf0 = crestFront[i];
+      final cf1 = crestFront[i + 1];
+      final tf0 = toeFront[i];
+      final tf1 = toeFront[i + 1];
+      final cb0 = crestBack[i];
+      final cb1 = crestBack[i + 1];
+
+      final dz = cf1.z - cf0.z;
+      final dx = cf1.x - cf0.x;
+      final sideOutN = Vector3(dz, 0.22 * dz, -dx).normalized();
+      // Quad winding outward (+X toward bay): tf0 -> tf1 -> cf1 -> cf0
+      EdoKitBuilder.addQuadOutward(
+        stoneBuilder,
+        tf0,
+        tf1,
+        cf1,
+        cf0,
+        sideOutN,
+        uvScale: 0.36,
+        color: Vector4(0.92, 0.90, 0.87, 1),
+      );
+      EdoKitBuilder.addQuadOutward(
+        stoneBuilder,
+        cb0,
+        cf0,
+        cf1,
+        cb1,
+        Vector3(0, 1, 0),
+        uvScale: 0.36,
+        color: Vector4(0.95, 0.93, 0.90, 1),
+      );
+
+      if (i.isEven) {
+        final zMid = (cf0.z + cf1.z) * 0.5;
+        final cxMid = minatoCoastlineX(zMid);
+        EdoKitBuilder.addBox(
+          copingBuilder,
+          Vector3(cxMid - 0.88, yTop + 0.025, cf0.z + 0.02),
+          Vector3(
+            cxMid + 0.04,
+            yTop + 0.115,
+            crestFront[i + 2 <= segsZ ? i + 2 : i + 1].z - 0.02,
+          ),
+          color: Vector4(0.96, 0.94, 0.90, 1),
+        );
+      }
+    }
+
+    // End caps so the seawall terminates cleanly at north & south headlands
+    EdoKitBuilder.addQuadOutward(
+      stoneBuilder,
+      toeFront.first,
+      crestFront.first,
+      crestBack.first,
+      Vector3(crestBack.first.x, yBottom, zStart),
+      Vector3(0, 0, -1),
+      uvScale: 0.36,
+    );
+    EdoKitBuilder.addQuadOutward(
+      stoneBuilder,
+      crestBack.last,
+      crestFront.last,
+      toeFront.last,
+      Vector3(crestBack.last.x, yBottom, zEnd),
+      Vector3(0, 0, 1),
+      uvScale: 0.36,
+    );
+
+    // Timber fender pilings staggered cleanly between pier slots
+    const pierZCenters = [-5.5, 5.5, 17.5, 26.5];
+    for (var z = -9.6; z <= 30.6; z += 1.65) {
+      final nearPier = pierZCenters.any((pz) => (z - pz).abs() < 2.35);
+      if (nearPier) {
+        continue;
+      }
+      final cx = minatoCoastlineX(z);
+      EdoKitBuilder.addBox(
+        fenderBuilder,
+        Vector3(cx + 0.16, yBottom, z - 0.11),
+        Vector3(cx + 0.40, 0.96, z + 0.11),
+      );
+    }
+
+    root
+      ..add(Node(mesh: Mesh(stoneBuilder.build(), stoneMat)))
+      ..add(Node(mesh: Mesh(copingBuilder.build(), stoneMat)))
+      ..add(Node(mesh: Mesh(fenderBuilder.build(), timberMat)));
+    return markSubtreeShadowStatic(root);
   }
 
   Node buildBridgeNode(ShukubaMaterialResolver resolveMaterial) {
@@ -1918,92 +2506,6 @@ class TerrainBuilder {
       }
     }
 
-    final horizonBuilders = List.generate(4, (_) => GeometryBuilder());
-    const apronRings = [88.04, 96.0, 108.0];
-    const segsPerSide = 64;
-    const totalPerim = segsPerSide * 4;
-
-    (double, double) apronRingXZ(double r, int idx) {
-      final wrapped = idx % totalPerim;
-      final side = wrapped ~/ segsPerSide;
-      final t = (wrapped % segsPerSide) / segsPerSide;
-      return switch (side) {
-        0 => (-r + 2 * r * t, -r),
-        1 => (r, -r + 2 * r * t),
-        2 => (r - 2 * r * t, r),
-        _ => (-r, r - 2 * r * t),
-      };
-    }
-
-    double apronHeight(double x, double z, int ringIdx) {
-      final cx = x.clamp(TerrainConfig.minX, TerrainConfig.maxX);
-      final cz = z.clamp(TerrainConfig.minZ, TerrainConfig.maxZ);
-      final edgeY = sampleRawTerrain(cx, cz);
-      if (ringIdx == 0) {
-        return edgeY - 0.02;
-      }
-      if (ringIdx == 1) {
-        return edgeY - 0.65;
-      }
-      return edgeY - 2.80;
-    }
-
-    Vector4 apronColor(double x, double z, int ringIdx) {
-      final fade = (ringIdx / (apronRings.length - 1)).clamp(0.0, 1.0);
-      final patch = 0.5 + 0.5 * math.sin(x * 0.08 + z * 0.07);
-      final r = 0.58 * (1 - fade * 0.22) + 0.08 * patch;
-      final g = 0.72 * (1 - fade * 0.16) + 0.08 * patch;
-      final b = 0.44 * (1 - fade * 0.06) + 0.06 * fade;
-      return Vector4(r, g, b, 1);
-    }
-
-    for (var p = 0; p < totalPerim; p++) {
-      final sideBuilder = horizonBuilders[p ~/ segsPerSide];
-      final (x0, z0) = apronRingXZ(apronRings[0], p);
-      final (x1, z1) = apronRingXZ(apronRings[0], p + 1);
-      final y0 = apronHeight(x0, z0, 0);
-      final y1 = apronHeight(x1, z1, 0);
-      final c0 = apronColor(x0, z0, 0);
-      EdoKitBuilder.addQuadOutward(
-        sideBuilder,
-        Vector3(x0, -3.2, z0),
-        Vector3(x1, -3.2, z1),
-        Vector3(x1, y1, z1),
-        Vector3(x0, y0, z0),
-        Vector3(-0.5 * (x0 + x1), 0.1, -0.5 * (z0 + z1)),
-        color: c0,
-      );
-    }
-
-    for (var ri = 0; ri < apronRings.length - 1; ri++) {
-      final rInner = apronRings[ri];
-      final rOuter = apronRings[ri + 1];
-      for (var p = 0; p < totalPerim; p++) {
-        final sideBuilder = horizonBuilders[p ~/ segsPerSide];
-        final (ix0, iz0) = apronRingXZ(rInner, p);
-        final (ix1, iz1) = apronRingXZ(rInner, p + 1);
-        final (ox1, oz1) = apronRingXZ(rOuter, p + 1);
-        final (ox0, oz0) = apronRingXZ(rOuter, p);
-        final iy0 = apronHeight(ix0, iz0, ri);
-        final iy1 = apronHeight(ix1, iz1, ri);
-        final oy1 = apronHeight(ox1, oz1, ri + 1);
-        final oy0 = apronHeight(ox0, oz0, ri + 1);
-        EdoKitBuilder.addQuadOutward(
-          sideBuilder,
-          Vector3(ix0, iy0, iz0),
-          Vector3(ix1, iy1, iz1),
-          Vector3(ox1, oy1, oz1),
-          Vector3(ox0, oy0, oz0),
-          Vector3(0, 1, 0),
-          color: apronColor(0.5 * (ix0 + ox0), 0.5 * (iz0 + oz0), ri + 1),
-        );
-      }
-    }
-
-    final earthMat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
-    for (final hb in horizonBuilders) {
-      root.add(Node(mesh: Mesh(hb.build(), earthMat)));
-    }
     if (rockBuilder.vertexCount > 0) {
       root.add(
         Node(
@@ -4161,14 +4663,11 @@ class TerrainBuilder {
           final theta = thetaStart + (i / segsPerQuad) * thetaSpan;
           final cosT = math.cos(theta);
           final sinT = math.sin(theta);
-          final squareR =
-              TerrainConfig.maxX / math.max(cosT.abs(), sinT.abs());
+          final squareR = TerrainConfig.maxX / math.max(cosT.abs(), sinT.abs());
 
           final ridgeA = 1.0 - math.sin(theta * ring.freqA + ring.phase).abs();
           final ridgeB = math.cos(theta * ring.freqB - ring.phase * 1.3);
-          final ridgeC = math.sin(
-            theta * (ring.freqB + 6) + ring.phase * 0.7,
-          );
+          final ridgeC = math.sin(theta * (ring.freqB + 6) + ring.phase * 0.7);
           final undulate =
               (ridgeA * 0.56 + ridgeB * 0.28 + ridgeC * 0.16 + 0.16).clamp(
                 0.05,

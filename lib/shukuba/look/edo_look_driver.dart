@@ -321,6 +321,7 @@ class EdoLookDriver implements ShukubaLookDriver {
       case ShukubaSurfaceRole.groundMeadow:
       case ShukubaSurfaceRole.livingMeadow:
       case ShukubaSurfaceRole.riverWater:
+      case ShukubaSurfaceRole.harborWater:
       case ShukubaSurfaceRole.ghostPreview:
       case ShukubaSurfaceRole.riverMist:
       case ShukubaSurfaceRole.lanternHaze:
@@ -406,7 +407,9 @@ class EdoLookDriver implements ShukubaLookDriver {
       shadowMapResolution: 2048,
       shadowFilter: DirectionalShadowFilter.pcss,
       shadowAmbientStrength: 0.28,
-      contactShadows: true,
+      // Keep contact shadows disabled (default false): fp16 linear_depth ULP at
+      // 100-250 m stripes distant hills/mountains; 4-cascade 2048px PCSS +
+      // bent-cone GTAO handles grounding.
       contactShadowDistance: 0.45,
     )..shadowCascadeCount = 4;
 
@@ -700,6 +703,13 @@ class EdoLookDriver implements ShukubaLookDriver {
     _setParamFloat(ShukubaSurfaceRole.livingMeadow, 'dew_sheen', rig.dewFactor);
     _setParamFloat(ShukubaSurfaceRole.riverWater, 'gust_strength', gust);
     _setParamFloat(ShukubaSurfaceRole.riverWater, 'time_sec', elapsedSeconds);
+    _setParamFloat(ShukubaSurfaceRole.harborWater, 'gust_strength', gust);
+    _setParamFloat(ShukubaSurfaceRole.harborWater, 'time_sec', elapsedSeconds);
+    _setParamFloat(
+      ShukubaSurfaceRole.harborWater,
+      'night_mix',
+      rig.nightFactor,
+    );
     _setParamFloat(ShukubaSurfaceRole.ghostPreview, 'time_sec', elapsedSeconds);
 
     const gouacheRoles = [
@@ -902,6 +912,7 @@ class EdoLookDriver implements ShukubaLookDriver {
     ShukubaSurfaceRole.groundMeadow => 'assets/materials/foliage_canopy.fmat',
     ShukubaSurfaceRole.livingMeadow => 'assets/materials/living_meadow.fmat',
     ShukubaSurfaceRole.riverWater => 'assets/materials/river_water.fmat',
+    ShukubaSurfaceRole.harborWater => 'assets/materials/harbor_water.fmat',
     ShukubaSurfaceRole.ghostPreview => 'assets/materials/ghost_preview.fmat',
     ShukubaSurfaceRole.riverMist ||
     ShukubaSurfaceRole.lanternHaze => 'assets/materials/atmosphere_mist.fmat',
@@ -1052,6 +1063,14 @@ class EdoLookDriver implements ShukubaLookDriver {
           ..setVec4('deep_color', Vector4(0.024, 0.115, 0.145, 0.96))
           ..setVec4('foam_color', Vector4(0.90, 0.91, 0.86, 0.78))
           ..setFloat('flow_speed', 0.95);
+      case ShukubaSurfaceRole.harborWater:
+        mat.parameters
+          ..setVec4('shallow_color', Vector4(0.026, 0.088, 0.118, 0.88))
+          ..setVec4('deep_color', Vector4(0.008, 0.022, 0.052, 0.98))
+          ..setVec4('foam_color', Vector4(0.92, 0.88, 0.82, 0.92))
+          ..setFloat('gust_strength', 1)
+          ..setFloat('time_sec', 0)
+          ..setFloat('night_mix', 0);
       case ShukubaSurfaceRole.ghostPreview:
         mat.parameters
           ..setVec4('ghost_color', Vector4(0.96, 0.80, 0.42, 0.78))

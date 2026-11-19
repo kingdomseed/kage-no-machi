@@ -333,6 +333,7 @@ class HankoSealWidget extends StatelessWidget {
 class TitleMenuOverlay extends StatefulWidget {
   const new({
     required this.onEnterValley,
+    this.onEnterRealm,
     this.audioDriver,
     this.onFieldNotes,
     this.onSettings,
@@ -340,6 +341,7 @@ class TitleMenuOverlay extends StatefulWidget {
   });
 
   final VoidCallback onEnterValley;
+  final ValueChanged<ShowcaseRealm>? onEnterRealm;
   final ShukubaAudioDriver? audioDriver;
   final VoidCallback? onFieldNotes;
   final VoidCallback? onSettings;
@@ -634,6 +636,47 @@ class _TitleMenuOverlayState extends State<TitleMenuOverlay>
                                     ),
                                   ),
                                 ),
+                                if (widget.onEnterRealm != null) ...[
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: 300,
+                                    height: 46,
+                                    child: OutlinedButton(
+                                      onPressed: () => widget.onEnterRealm!(
+                                        ShowcaseRealm.minatoJo,
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xEA201A16,
+                                        ),
+                                        foregroundColor: _washiInk,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xCCE8C170),
+                                          width: 1.2,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Minato-jō (港城 · Castle Port)',
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 14),
 
                                 SizedBox(

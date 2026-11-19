@@ -111,6 +111,60 @@ extension Vector3ShukubaX on Vector3 {
   Vec3 toVec3() => Vec3(x, y, z);
 }
 
+enum ShowcaseRealm {
+  shukubaValley(
+    id: 'shukuba',
+    displayName: 'Shukuba Valley',
+    kanji: '宿場',
+    subtitle: 'Riverside Post-Town',
+  ),
+  minatoJo(
+    id: 'minato',
+    displayName: 'Minato-jō',
+    kanji: '港城',
+    subtitle: 'Castle & Harbor Port',
+  );
+
+  new({
+    required this.id,
+    required this.displayName,
+    required this.kanji,
+    required this.subtitle,
+  });
+
+  static ShowcaseRealm fromId(String raw) {
+    final normalized = raw.trim().toLowerCase();
+    if (normalized == 'minato' ||
+        normalized == 'minato_jo' ||
+        normalized == 'minato-jo') {
+      return ShowcaseRealm.minatoJo;
+    }
+    return ShowcaseRealm.shukubaValley;
+  }
+
+  final String id;
+  final String displayName;
+  final String kanji;
+  final String subtitle;
+
+  CameraPreset get defaultPreset => switch (this) {
+    ShowcaseRealm.shukubaValley => CameraPreset.duskOverview,
+    ShowcaseRealm.minatoJo => CameraPreset.minatoSunsetBoulevard,
+  };
+
+  List<CameraPreset> get hudPresets => switch (this) {
+    ShowcaseRealm.shukubaValley => const [
+      CameraPreset.duskOverview,
+      CameraPreset.nightMarket,
+      CameraPreset.riverCrossing,
+      CameraPreset.meadowCloseup,
+      CameraPreset.countrysideVista,
+      CameraPreset.horizonSunCanopy,
+    ],
+    ShowcaseRealm.minatoJo => CameraPreset.minatoVerificationPresets,
+  };
+}
+
 enum EdoInstrument { koto, shakuhachi, hyoshigi, bonsho }
 
 enum AmbientLoopKind { riverMurmur, bambooWind, nightCrickets }
@@ -2404,6 +2458,81 @@ class CameraPreset {
     countrysideVista,
   ];
 
+  static const CameraPreset minatoSunsetBoulevard = CameraPreset(
+    id: 'minato_sunset_boulevard',
+    label: 'Sunset Boulevard',
+    eye: Vec3(-39, 15.5, 19),
+    target: Vec3(10, 12.2, -10.5),
+    timeOfDay: TimeOfDayRig(0.24),
+    verticalFovDegrees: 34,
+    nearMeters: 2,
+    farMeters: 540,
+  );
+
+  static const CameraPreset minatoCitadelOverview = CameraPreset(
+    id: 'minato_citadel_overview',
+    label: 'Citadel Overview',
+    eye: Vec3(-54, 48, 58),
+    target: Vec3(6, 9.5, -13),
+    timeOfDay: TimeOfDayRig.goldenDusk,
+    verticalFovDegrees: 28,
+    nearMeters: 4,
+    farMeters: 540,
+  );
+
+  static const CameraPreset minatoHarborFleet = CameraPreset(
+    id: 'minato_harbor_fleet',
+    label: 'Harbor Fleet',
+    eye: Vec3(54, 18, 44),
+    target: Vec3(6, 10.5, -13),
+    timeOfDay: TimeOfDayRig(0.18),
+    verticalFovDegrees: 30,
+    nearMeters: 3,
+    farMeters: 540,
+  );
+
+  static const CameraPreset minatoBlueHourPort = CameraPreset(
+    id: 'minato_blue_hour_port',
+    label: 'Blue-Hour Port',
+    eye: Vec3(-38, 28, 44),
+    target: Vec3(6, 10.5, -11),
+    timeOfDay: TimeOfDayRig.blueHourNight,
+    verticalFovDegrees: 31,
+    nearMeters: 3,
+    farMeters: 540,
+  );
+
+  static const CameraPreset minatoOtemonApproach = CameraPreset(
+    id: 'minato_otemon_approach',
+    label: 'Ōtemon Approach',
+    eye: Vec3(-38, 17, 2),
+    target: Vec3(6, 14.5, -24.5),
+    timeOfDay: TimeOfDayRig.goldenDusk,
+    verticalFovDegrees: 34,
+    nearMeters: 2.5,
+    farMeters: 540,
+  );
+
+  static const CameraPreset minatoBayHorizon = CameraPreset(
+    id: 'minato_bay_horizon',
+    label: 'Bay Horizon',
+    eye: Vec3(-30, 21, 42),
+    target: Vec3(20, 10.5, -14),
+    timeOfDay: TimeOfDayRig(0.28),
+    verticalFovDegrees: 32,
+    nearMeters: 3,
+    farMeters: 540,
+  );
+
+  static const List<CameraPreset> minatoVerificationPresets = [
+    minatoSunsetBoulevard,
+    minatoCitadelOverview,
+    minatoHarborFleet,
+    minatoBlueHourPort,
+    minatoOtemonApproach,
+    minatoBayHorizon,
+  ];
+
   final String id;
   final String label;
   final Vec3 eye;
@@ -2556,6 +2685,11 @@ enum ShukubaSurfaceRole {
     depthLayer: 1,
     defaultRoughness: 0.14,
     previewColor: Color(0xFF285864),
+  ),
+  harborWater(
+    depthLayer: 1,
+    defaultRoughness: 0.08,
+    previewColor: Color(0xFF1D495C),
   ),
   riverMist(
     depthLayer: 3,

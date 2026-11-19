@@ -317,7 +317,7 @@ void main() {
       expect(key.shadowCascadeSplitLambda, closeTo(0.65, 1e-6));
       expect(key.shadowMapResolution, 2048);
       expect(key.shadowFilter, DirectionalShadowFilter.pcss);
-      expect(key.contactShadows, isTrue);
+      expect(key.contactShadows, isFalse);
       expect(key.contactShadowDistance, closeTo(0.45, 1e-6));
       expect(
         key.shadowAmbientStrength,

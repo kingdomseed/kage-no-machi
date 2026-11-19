@@ -466,7 +466,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('bamboo_east_tanada'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(37.2, wardY(37.2, 11.4), 11.4),
+      position: Vec3(36.6, wardY(36.6, 11.2) + 0.04, 11.2),
       yawRadians: -0.40,
     ),
     PlacedStructure(
@@ -502,7 +502,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('willow_south_bend'),
       kind: StructureKind.weepingWillow,
-      position: Vec3(5.6, wardY(5.6, -34.5), -34.5),
+      position: Vec3(6.1, wardY(6.1, -34.5) + 0.12, -34.5),
       yawRadians: -2.20,
     ),
     PlacedStructure(

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Directory, File, exit, stderr;
+import 'dart:io' show Directory, File, exit, stderr, stdout;
 import 'dart:ui' as ui show FrameTiming, ImageByteFormat;
 
 import 'package:flutter/gestures.dart'
@@ -46,7 +46,8 @@ class _ShukubaPageState extends State<ShukubaPage> {
   final GlobalKey _repaintBoundaryKey = GlobalKey();
   final GlobalKey _uiRepaintBoundaryKey = GlobalKey();
   final FocusNode _focusNode = FocusNode();
-  final TacticalCameraRig _cameraRig = TacticalCameraRig();
+  late final TacticalCameraRig _cameraRig;
+  late ShowcaseRealm _activeRealm;
 
   Scene? _scene;
   late final ShukubaController _controller;
@@ -68,10 +69,13 @@ class _ShukubaPageState extends State<ShukubaPage> {
   @override
   void initState() {
     super.initState();
+    _activeRealm = ShowcaseRealm.fromId(kShukubaRealm);
+    _cameraRig = TacticalCameraRig(initialPreset: _activeRealm.defaultPreset);
     _controller = ShukubaController(
       look: widget.lookDriver ?? EdoLookDriver(),
-      world: widget.worldDriver ?? EdoWorldDriver(),
+      world: widget.worldDriver ?? EdoWorldDriver(initialRealm: _activeRealm),
       audio: widget.audioDriver ?? EdoAudioDriver(),
+      initialTimeOfDay: _activeRealm.defaultPreset.timeOfDay,
     );
 
     final defaultMode =
@@ -109,6 +113,34 @@ class _ShukubaPageState extends State<ShukubaPage> {
       _activeBootStage = BootStageId.lookAndShaders;
     });
     unawaited(_bootSceneStaged());
+  }
+
+  Future<void> _enterRealm(ShowcaseRealm realm) async {
+    if (realm != _activeRealm) {
+      _activeRealm = realm;
+      _cameraRig.applyPreset(realm.defaultPreset);
+      await _controller.switchRealm(realm);
+      _controller.applyCameraPresetState(realm.defaultPreset);
+    }
+    if (!mounted) {
+      return;
+    }
+    _enterValley();
+  }
+
+  Future<void> _switchRealm(ShowcaseRealm nextRealm) async {
+    if (nextRealm == _activeRealm) {
+      return;
+    }
+    setState(() {
+      _activeRealm = nextRealm;
+    });
+    _cameraRig.applyPreset(nextRealm.defaultPreset);
+    await _controller.switchRealm(nextRealm);
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   Future<void> _bootSceneStaged() async {
@@ -258,9 +290,23 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   Future<void> _executeCaptureSuite(ShukubaFrameHarness harness) async {
     try {
+      stdout.writeln(
+        'SHUKUBA_REALM:raw="$kShukubaRealm" active=${_activeRealm.id}',
+      );
+      final presets = kShukubaAudit360
+          ? ShukubaFrameHarness.buildAudit360Presets(_activeRealm)
+          : (_activeRealm == ShowcaseRealm.minatoJo
+                ? CameraPreset.minatoVerificationPresets
+                : CameraPreset.verificationPresets);
+      final horizonPresets =
+          kShukubaAudit360 || _activeRealm == ShowcaseRealm.minatoJo
+          ? const <CameraPreset>[]
+          : ShukubaFrameHarness.atmospherePresets;
       await harness.runCaptureSuite(
         outputDir: kShukubaCaptureDir,
         autoExit: kShukubaAutoExit,
+        presets: presets,
+        horizonPresets: horizonPresets,
       );
     } on Object catch (error, stack) {
       stderr.writeln('SHUKUBA_CAPTURE_ERROR:$error\n$stack');
@@ -395,28 +441,36 @@ class _ShukubaPageState extends State<ShukubaPage> {
       _controller.commitActiveStroke();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.digit1) {
-      _selectPreset(CameraPreset.duskOverview);
+    if (key == LogicalKeyboardKey.keyM) {
+      final nextRealm = _activeRealm == ShowcaseRealm.shukubaValley
+          ? ShowcaseRealm.minatoJo
+          : ShowcaseRealm.shukubaValley;
+      unawaited(_switchRealm(nextRealm));
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.digit2) {
-      _selectPreset(CameraPreset.nightMarket);
+    final presets = _activeRealm.hudPresets;
+    if (key == LogicalKeyboardKey.digit1 && presets.isNotEmpty) {
+      _selectPreset(presets[0]);
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.digit3) {
-      _selectPreset(CameraPreset.riverCrossing);
+    if (key == LogicalKeyboardKey.digit2 && presets.length > 1) {
+      _selectPreset(presets[1]);
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.digit4) {
-      _selectPreset(CameraPreset.meadowCloseup);
+    if (key == LogicalKeyboardKey.digit3 && presets.length > 2) {
+      _selectPreset(presets[2]);
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.digit5) {
-      _selectPreset(CameraPreset.countrysideVista);
+    if (key == LogicalKeyboardKey.digit4 && presets.length > 3) {
+      _selectPreset(presets[3]);
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.digit6) {
-      _selectPreset(CameraPreset.horizonSunCanopy);
+    if (key == LogicalKeyboardKey.digit5 && presets.length > 4) {
+      _selectPreset(presets[4]);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.digit6 && presets.length > 5) {
+      _selectPreset(presets[5]);
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -594,6 +648,8 @@ class _ShukubaPageState extends State<ShukubaPage> {
                     ShukubaHud(
                       controller: _controller,
                       onSelectPreset: _selectPreset,
+                      onSwitchRealm: (nextRealm) =>
+                          unawaited(_switchRealm(nextRealm)),
                       onOpenMenu: () => setState(
                         () => _shellMode = ShukubaShellMode.pauseMenu,
                       ),
@@ -601,6 +657,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
                   if (_shellMode == ShukubaShellMode.titleMenu)
                     TitleMenuOverlay(
                       onEnterValley: _enterValley,
+                      onEnterRealm: (realm) => unawaited(_enterRealm(realm)),
                       audioDriver: _controller.audio,
                     ),
                   if (_shellMode == ShukubaShellMode.loadingValley)

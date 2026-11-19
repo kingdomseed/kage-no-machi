@@ -35,6 +35,10 @@ class ShukubaController extends ChangeNotifier {
 
   bool get isReady => _isReady;
 
+  ShowcaseRealm get activeRealm => world is EdoWorldDriver
+      ? (world as EdoWorldDriver).realm
+      : ShowcaseRealm.shukubaValley;
+
   TimeOfDayRig get timeOfDay => _timeOfDay;
 
   PlacementTool get activeTool => _activeTool;
@@ -161,6 +165,28 @@ class ShukubaController extends ChangeNotifier {
     _isReady = true;
     notifyListeners();
     return report;
+  }
+
+  Future<void> switchRealm(ShowcaseRealm nextRealm) async {
+    if (world is! EdoWorldDriver) {
+      return;
+    }
+    final edoWorld = world as EdoWorldDriver;
+    if (edoWorld.realm == nextRealm) {
+      return;
+    }
+    _undoStack.clear();
+    _strokePoints.clear();
+    _hoverPoint = null;
+    await edoWorld.switchRealm(nextRealm);
+    _timeOfDay = nextRealm.defaultPreset.timeOfDay;
+    _refreshPreview();
+    _syncLookImmediate();
+    audio.syncAtmosphere(
+      rig: _timeOfDay,
+      loopAnchors: world.ambientLoopAnchors,
+    );
+    notifyListeners();
   }
 
   void setTimeOfDay(double rawValue) {

@@ -15,6 +15,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         GroundHeightSampler,
         PlacedStructure,
         RoadStyle,
+        ShowcaseRealm,
         ShukubaGraph,
         ShukubaMaterialResolver,
         ShukubaSurfaceRole,
@@ -139,7 +140,11 @@ class _NaturalAnchor {
 }
 
 class _FloraExclusionIndex {
-  factory fromGraph(ShukubaGraph graph) {
+  factory fromGraph(
+    ShukubaGraph graph, {
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
+    GroundHeightSampler? sampleGroundY,
+  }) {
     final roadSegs = <_SegBox>[];
     for (final road in graph.roads) {
       final halfW = road.widthMeters * 0.5;
@@ -225,6 +230,8 @@ class _FloraExclusionIndex {
     }
 
     return _FloraExclusionIndex._(
+      realm: realm,
+      sampleGroundY: sampleGroundY,
       roadSegs: roadSegs,
       wallSegs: wallSegs,
       terraceSegs: terraceSegs,
@@ -234,6 +241,8 @@ class _FloraExclusionIndex {
   }
 
   const new _({
+    required this.realm,
+    required this.sampleGroundY,
     required this.roadSegs,
     required this.wallSegs,
     required this.terraceSegs,
@@ -241,6 +250,8 @@ class _FloraExclusionIndex {
     required this.naturalAnchors,
   });
 
+  final ShowcaseRealm realm;
+  final GroundHeightSampler? sampleGroundY;
   final List<_SegBox> roadSegs;
   final List<_SegBox> wallSegs;
   final List<_SegBox> terraceSegs;
@@ -288,23 +299,39 @@ class _FloraExclusionIndex {
       return false;
     }
 
-    if ((x - TerrainConfig.riverCenterX(z)).abs() < minRiverDist) {
-      return false;
-    }
+    if (realm == ShowcaseRealm.minatoJo) {
+      final coastX = TerrainBuilder.minatoCoastlineX(z);
+      if (x > coastX - 1.2) {
+        return false;
+      }
+      if (sampleGroundY != null && sampleGroundY!(x, z) < 0.25) {
+        return false;
+      }
+      if (x >= -1.5 && x <= coastX + 1.0 && z >= -11.5 && z <= 32.0) {
+        return false;
+      }
+      if (x >= -6.0 && x <= 29.0 && z >= -46.5 && z <= -10.5) {
+        return false;
+      }
+    } else {
+      if ((x - TerrainConfig.riverCenterX(z)).abs() < minRiverDist) {
+        return false;
+      }
 
-    if (TerrainBuilder.isInsideTanadaFloodedBasin(x, z)) {
-      return false;
-    }
+      if (TerrainBuilder.isInsideTanadaFloodedBasin(x, z)) {
+        return false;
+      }
 
-    if (x >= TerrainConfig.bridgeMinX - 0.85 &&
-        x <= TerrainConfig.bridgeMaxX + 0.85 &&
-        z >= TerrainConfig.bridgeMinZ - 0.72 &&
-        z <= TerrainConfig.bridgeMaxZ + 0.72) {
-      return false;
-    }
+      if (x >= TerrainConfig.bridgeMinX - 0.85 &&
+          x <= TerrainConfig.bridgeMaxX + 0.85 &&
+          z >= TerrainConfig.bridgeMinZ - 0.72 &&
+          z <= TerrainConfig.bridgeMaxZ + 0.72) {
+        return false;
+      }
 
-    if ((x.abs() - 66.0).abs() < 3.6 && z.abs() < 6.9) {
-      return false;
+      if ((x.abs() - 66.0).abs() < 3.6 && z.abs() < 6.9) {
+        return false;
+      }
     }
 
     if (isNearRoad(x, z, roadMargin)) {
@@ -394,9 +421,16 @@ class _FloraExclusionIndex {
         ? math.exp(-math.pow((wallDist - 1.15) / 1.15, 2)) * 0.94
         : 0.0;
 
-    final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
-    final bankPocket = rivDist < 7.2
-        ? math.exp(-math.pow((rivDist - 3.55) / 1.95, 2)) * 0.92
+    final bankPocket =
+        realm == ShowcaseRealm.shukubaValley &&
+            (x - TerrainConfig.riverCenterX(z)).abs() < 7.2
+        ? math.exp(
+                -math.pow(
+                  ((x - TerrainConfig.riverCenterX(z)).abs() - 3.55) / 1.95,
+                  2,
+                ),
+              ) *
+              0.92
         : 0.0;
 
     final roadEdge = minRoadEdgeDistance(x, z);
@@ -434,7 +468,9 @@ class _FloraExclusionIndex {
     final radialOut = math.sqrt(x * x + z * z);
     final countryMargin = ((radialOut - 13.5) / 12.5).clamp(0.0, 1.0);
     final outerClump = (0.36 + 0.62 * organicDrift) * countryMargin;
-    final tanadaPocket = TerrainBuilder.sampleTanadaMossAffinity(x, z) * 0.94;
+    final tanadaPocket = realm == ShowcaseRealm.shukubaValley
+        ? TerrainBuilder.sampleTanadaMossAffinity(x, z) * 0.94
+        : 0.0;
 
     final primary = math.max(
       math.max(
@@ -599,17 +635,24 @@ class FloraScatterBuilder {
     ShukubaGraph graph, {
     double roadMargin = 0.42,
     double footprintMargin = 0.34,
-  }) => _FloraExclusionIndex.fromGraph(graph)
-      .isClear(x, z, roadMargin: roadMargin, footprintMargin: footprintMargin);
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
+    GroundHeightSampler? sampleGroundY,
+  }) => _FloraExclusionIndex.fromGraph(
+    graph,
+    realm: realm,
+    sampleGroundY: sampleGroundY,
+  ).isClear(x, z, roadMargin: roadMargin, footprintMargin: footprintMargin);
 
   Map<int, FloraChunkSummary> computeChunkSummaries({
     required ShukubaGraph graph,
     required GroundHeightSampler sampleGroundY,
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
     Set<int>? onlyChunks,
   }) {
     final buckets = _generateChunkBuckets(
       graph: graph,
       sampleGroundY: sampleGroundY,
+      realm: realm,
       onlyChunks: onlyChunks,
     );
     return {
@@ -622,11 +665,13 @@ class FloraScatterBuilder {
     required ShukubaGraph graph,
     required ShukubaMaterialResolver resolveMaterial,
     required GroundHeightSampler sampleGroundY,
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
     Set<int>? onlyChunks,
   }) {
     final buckets = _generateChunkBuckets(
       graph: graph,
       sampleGroundY: sampleGroundY,
+      realm: realm,
       onlyChunks: onlyChunks,
     );
 
@@ -757,12 +802,14 @@ class FloraScatterBuilder {
     required ShukubaGraph graph,
     required ShukubaMaterialResolver resolveMaterial,
     required GroundHeightSampler sampleGroundY,
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
   }) {
     final root = Node(name: 'flora_scatter_root');
     final chunkNodes = buildFloraChunkNodes(
       graph: graph,
       resolveMaterial: resolveMaterial,
       sampleGroundY: sampleGroundY,
+      realm: realm,
     );
     for (var chunkIdx = 0; chunkIdx < TerrainConfig.chunkCount; chunkIdx++) {
       final tileNode = chunkNodes[chunkIdx];
@@ -776,6 +823,7 @@ class FloraScatterBuilder {
   Map<int, _ChunkFloraBucket> _generateChunkBuckets({
     required ShukubaGraph graph,
     required GroundHeightSampler sampleGroundY,
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
     Set<int>? onlyChunks,
   }) {
     final buckets = <int, _ChunkFloraBucket>{
@@ -789,7 +837,11 @@ class FloraScatterBuilder {
       return buckets;
     }
 
-    final index = _FloraExclusionIndex.fromGraph(graph);
+    final index = _FloraExclusionIndex.fromGraph(
+      graph,
+      realm: realm,
+      sampleGroundY: sampleGroundY,
+    );
     final xform = Matrix4.identity();
 
     bool addAlignedInstance(
@@ -1111,9 +1163,14 @@ class FloraScatterBuilder {
 
       final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
       final wallDist = index.minWallOrTerraceDistance(x, z);
-      final nearBank = rivDist >= 2.55 && rivDist <= 4.8;
+      final nearBank =
+          realm == ShowcaseRealm.shukubaValley &&
+          rivDist >= 2.55 &&
+          rivDist <= 4.8;
       final nearStone = wallDist >= 0.86 && wallDist <= 2.25;
-      final nearTanada = TerrainBuilder.sampleTanadaMossAffinity(x, z) > 0.40;
+      final nearTanada =
+          realm == ShowcaseRealm.shukubaValley &&
+          TerrainBuilder.sampleTanadaMossAffinity(x, z) > 0.40;
       if (!nearBank && !nearStone && !nearTanada) {
         continue;
       }
@@ -1141,62 +1198,64 @@ class FloraScatterBuilder {
       );
     }
 
-    const reedCandidates = 520;
-    final placedReeds = <Vector2>[];
-    for (var i = 0; i < reedCandidates; i++) {
-      final side = i.isEven ? -1.0 : 1.0;
-      final u = ((i + 1) * 0.6180339887498949) % 1.0;
-      final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.92;
-      if (math.sin(z * 0.55 + side * 1.4) <= 0.15) {
-        continue;
-      }
-      final goldenMix = (i * 0.38196601125) % 1.0;
-      final bankDist = 2.42 + 2.05 * goldenMix;
-      final x = TerrainConfig.riverCenterX(z) + side * bankDist;
-      if (!index.isClear(x, z, roadMargin: 0.44, minRiverDist: 2.34)) {
-        continue;
-      }
-      var tooCloseReed = false;
-      for (var rIdx = placedReeds.length - 1; rIdx >= 0; rIdx--) {
-        final prev = placedReeds[rIdx];
-        if ((z - prev.y).abs() > 1.4) {
-          break;
+    if (realm == ShowcaseRealm.shukubaValley) {
+      const reedCandidates = 520;
+      final placedReeds = <Vector2>[];
+      for (var i = 0; i < reedCandidates; i++) {
+        final side = i.isEven ? -1.0 : 1.0;
+        final u = ((i + 1) * 0.6180339887498949) % 1.0;
+        final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.92;
+        if (math.sin(z * 0.55 + side * 1.4) <= 0.15) {
+          continue;
         }
-        final dx = x - prev.x;
-        final dz = z - prev.y;
-        if (dx * dx + dz * dz < 0.58) {
-          tooCloseReed = true;
-          break;
+        final goldenMix = (i * 0.38196601125) % 1.0;
+        final bankDist = 2.42 + 2.05 * goldenMix;
+        final x = TerrainConfig.riverCenterX(z) + side * bankDist;
+        if (!index.isClear(x, z, roadMargin: 0.44, minRiverDist: 2.34)) {
+          continue;
         }
-      }
-      if (tooCloseReed) {
-        continue;
-      }
-      placedReeds.add(Vector2(x, z));
-      if (!buckets.containsKey(chunkIndexFor(x, z))) {
-        continue;
-      }
+        var tooCloseReed = false;
+        for (var rIdx = placedReeds.length - 1; rIdx >= 0; rIdx--) {
+          final prev = placedReeds[rIdx];
+          if ((z - prev.y).abs() > 1.4) {
+            break;
+          }
+          final dx = x - prev.x;
+          final dz = z - prev.y;
+          if (dx * dx + dz * dz < 0.58) {
+            tooCloseReed = true;
+            break;
+          }
+        }
+        if (tooCloseReed) {
+          continue;
+        }
+        placedReeds.add(Vector2(x, z));
+        if (!buckets.containsKey(chunkIndexFor(x, z))) {
+          continue;
+        }
 
-      final hSeed = (math.sin(i * 7.73 + 1.9) * 917.3).abs() % 1.0;
-      final r = 0.24 + 0.14 * (1 - goldenMix * 0.45) + 0.05 * hSeed;
-      final g = 0.34 + 0.10 * hSeed;
-      final b = 0.16 + 0.05 * hSeed;
+        final hSeed = (math.sin(i * 7.73 + 1.9) * 917.3).abs() % 1.0;
+        final r = 0.24 + 0.14 * (1 - goldenMix * 0.45) + 0.05 * hSeed;
+        final g = 0.34 + 0.10 * hSeed;
+        final b = 0.16 + 0.05 * hSeed;
 
-      final width = 0.62 + 0.30 * hSeed;
-      final height =
-          0.46 + 0.32 * (1 - goldenMix * 0.35) * (0.75 + 0.35 * hSeed);
-      addAlignedInstance(
-        _FloraBatchKind.reeds,
-        x: x,
-        z: z,
-        yaw: (i * 2.39996323) % (math.pi * 2),
-        sx: width,
-        sy: height,
-        sz: width,
-        color: Vector4(r, g, b, 1),
-        yLift: -0.03,
-        slopeFollow: 0.20,
-      );
+        final width = 0.62 + 0.30 * hSeed;
+        final height =
+            0.46 + 0.32 * (1 - goldenMix * 0.35) * (0.75 + 0.35 * hSeed);
+        addAlignedInstance(
+          _FloraBatchKind.reeds,
+          x: x,
+          z: z,
+          yaw: (i * 2.39996323) % (math.pi * 2),
+          sx: width,
+          sy: height,
+          sz: width,
+          color: Vector4(r, g, b, 1),
+          yLift: -0.03,
+          slopeFollow: 0.20,
+        );
+      }
     }
 
     const shrubCandidates = 3800;
@@ -1251,7 +1310,9 @@ class FloraScatterBuilder {
         final radius = 0.56 + (3.10 + downwindBias * 2.0) * math.sqrt(frac);
         final x = s.position.x + math.cos(ang) * radius;
         final z = s.position.z + math.sin(ang) * radius;
-        if (((x.abs() - 66.0).abs() < 6.4 && z.abs() < 9.5) ||
+        if ((realm == ShowcaseRealm.shukubaValley &&
+                (x.abs() - 66.0).abs() < 6.4 &&
+                z.abs() < 9.5) ||
             !index.isClear(x, z, roadMargin: 0.28, footprintMargin: 0.28)) {
           continue;
         }
@@ -1327,54 +1388,56 @@ class FloraScatterBuilder {
       }
     }
 
-    const riverLeafCount = 72;
-    for (var i = 0; i < riverLeafCount; i++) {
-      final z = -80.0 + (i / riverLeafCount) * 160.0;
-      if (z >= TerrainConfig.bridgeMinZ - 0.9 &&
-          z <= TerrainConfig.bridgeMaxZ + 0.9) {
-        continue;
+    if (realm == ShowcaseRealm.shukubaValley) {
+      const riverLeafCount = 72;
+      for (var i = 0; i < riverLeafCount; i++) {
+        final z = -80.0 + (i / riverLeafCount) * 160.0;
+        if (z >= TerrainConfig.bridgeMinZ - 0.9 &&
+            z <= TerrainConfig.bridgeMaxZ + 0.9) {
+          continue;
+        }
+        final h = (math.sin(i * 14.3 + 0.8) * 4913.7).abs() % 1.0;
+        final offset = (h - 0.5) * 3.0;
+        final x = TerrainConfig.riverCenterX(z) + offset;
+        final bucket = buckets[chunkIndexFor(x, z)];
+        if (bucket == null) {
+          continue;
+        }
+        final patchSize = 0.30 + 0.14 * h;
+        final yaw = h * math.pi * 2;
+        final cy = math.cos(yaw) * patchSize;
+        final sy = math.sin(yaw) * patchSize;
+        const yPos = TerrainConfig.waterSurfaceElevation + 0.036;
+        xform.setValues(
+          cy,
+          0,
+          -sy,
+          0,
+          0,
+          patchSize,
+          0,
+          0,
+          sy,
+          0,
+          cy,
+          0,
+          x,
+          yPos,
+          z,
+          1,
+        );
+        final warm = (i * 0.43) % 1.0;
+        bucket.addInstance(
+          _FloraBatchKind.fallenMomiji,
+          transform: xform,
+          color: Vector4(0.76 + 0.20 * warm, 0.10 + 0.24 * warm, 0.035, 1),
+          x: x,
+          y: yPos,
+          z: z,
+          scaleXZ: patchSize,
+          scaleY: patchSize,
+        );
       }
-      final h = (math.sin(i * 14.3 + 0.8) * 4913.7).abs() % 1.0;
-      final offset = (h - 0.5) * 3.0;
-      final x = TerrainConfig.riverCenterX(z) + offset;
-      final bucket = buckets[chunkIndexFor(x, z)];
-      if (bucket == null) {
-        continue;
-      }
-      final patchSize = 0.30 + 0.14 * h;
-      final yaw = h * math.pi * 2;
-      final cy = math.cos(yaw) * patchSize;
-      final sy = math.sin(yaw) * patchSize;
-      const yPos = TerrainConfig.waterSurfaceElevation + 0.036;
-      xform.setValues(
-        cy,
-        0,
-        -sy,
-        0,
-        0,
-        patchSize,
-        0,
-        0,
-        sy,
-        0,
-        cy,
-        0,
-        x,
-        yPos,
-        z,
-        1,
-      );
-      final warm = (i * 0.43) % 1.0;
-      bucket.addInstance(
-        _FloraBatchKind.fallenMomiji,
-        transform: xform,
-        color: Vector4(0.76 + 0.20 * warm, 0.10 + 0.24 * warm, 0.035, 1),
-        x: x,
-        y: yPos,
-        z: z,
-        scaleXZ: patchSize,
-        scaleY: patchSize,
-      );
     }
 
     _populateRoadsideCobbles(
@@ -1382,6 +1445,7 @@ class FloraScatterBuilder {
       graph: graph,
       index: index,
       sampleGroundY: sampleGroundY,
+      realm: realm,
     );
 
     return buckets;
@@ -1466,6 +1530,7 @@ class FloraScatterBuilder {
     required ShukubaGraph graph,
     required _FloraExclusionIndex index,
     required GroundHeightSampler sampleGroundY,
+    ShowcaseRealm realm = ShowcaseRealm.shukubaValley,
   }) {
     var seedIdx = 0;
 
@@ -1500,7 +1565,8 @@ class FloraScatterBuilder {
         if (bucket == null) {
           continue;
         }
-        if ((px - TerrainConfig.riverCenterX(pz)).abs() < 7.4) {
+        if (realm == ShowcaseRealm.shukubaValley &&
+            (px - TerrainConfig.riverCenterX(pz)).abs() < 7.4) {
           continue;
         }
         if (!index.isClear(px, pz, roadMargin: 0.65, footprintMargin: 0.90)) {

@@ -8,12 +8,14 @@ class ShukubaHud extends StatelessWidget {
   const new({
     required this.controller,
     required this.onSelectPreset,
+    this.onSwitchRealm,
     this.onOpenMenu,
     super.key,
   });
 
   final ShukubaController controller;
   final ValueChanged<CameraPreset> onSelectPreset;
+  final ValueChanged<ShowcaseRealm>? onSwitchRealm;
   final VoidCallback? onOpenMenu;
 
   static const Color _washiInk = Color(0xFFF6ECD8);
@@ -72,6 +74,8 @@ class ShukubaHud extends StatelessWidget {
                       children: [
                         _WardPlaque(
                           structureCount: graph.structures.length,
+                          activeRealm: controller.activeRealm,
+                          onSwitchRealm: onSwitchRealm,
                           onSelectPreset: onSelectPreset,
                           onOpenMenu: onOpenMenu,
                         ),
@@ -126,10 +130,14 @@ class _WardPlaque extends StatefulWidget {
   const new({
     required this.structureCount,
     required this.onSelectPreset,
+    this.activeRealm = ShowcaseRealm.shukubaValley,
+    this.onSwitchRealm,
     this.onOpenMenu,
   });
 
   final int structureCount;
+  final ShowcaseRealm activeRealm;
+  final ValueChanged<ShowcaseRealm>? onSwitchRealm;
   final ValueChanged<CameraPreset> onSelectPreset;
   final VoidCallback? onOpenMenu;
 
@@ -140,17 +148,27 @@ class _WardPlaque extends StatefulWidget {
 class _WardPlaqueState extends State<_WardPlaque> {
   bool _viewsOpen = false;
 
-  static const List<(String, String, CameraPreset)> _presets = [
-    ('Golden Dusk', 'Shortcut: 1', CameraPreset.duskOverview),
-    ('Night Market', 'Shortcut: 2', CameraPreset.nightMarket),
-    ('Gorge Crossing', 'Shortcut: 3', CameraPreset.riverCrossing),
-    ('Gorge & Garden', 'Shortcut: 4', CameraPreset.meadowCloseup),
-    ('Valley Vista', 'Shortcut: 5', CameraPreset.countrysideVista),
-    ('Canopy Sun', 'Shortcut: 6', CameraPreset.horizonSunCanopy),
+  static const List<String> _shukubaViewLabels = [
+    'Golden Dusk',
+    'Night Market',
+    'Gorge Crossing',
+    'Gorge & Garden',
+    'Valley Vista',
+    'Canopy Sun',
   ];
 
   @override
   Widget build(BuildContext context) {
+    final presets = widget.activeRealm.hudPresets;
+    final viewLabels = widget.activeRealm == ShowcaseRealm.shukubaValley
+        ? _shukubaViewLabels
+        : [for (final p in presets) p.label];
+    final nextRealm = widget.activeRealm == ShowcaseRealm.shukubaValley
+        ? ShowcaseRealm.minatoJo
+        : ShowcaseRealm.shukubaValley;
+    final realmButtonLabel = widget.activeRealm == ShowcaseRealm.minatoJo
+        ? 'Minato-jō 港城'
+        : 'Shukuba 宿場';
     return DecoratedBox(
       decoration: ShukubaHud._urushiBoxDecoration(),
       child: CustomPaint(
@@ -221,6 +239,19 @@ class _WardPlaqueState extends State<_WardPlaque> {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    if (widget.onSwitchRealm != null) ...[
+                      _HudButton(
+                        label: realmButtonLabel,
+                        tooltip: 'Switch realm to ${nextRealm.displayName} (M)',
+                        active: widget.activeRealm == ShowcaseRealm.minatoJo,
+                        accent: ShukubaHud._brassBright,
+                        onTap: () {
+                          setState(() => _viewsOpen = false);
+                          widget.onSwitchRealm!(nextRealm);
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                     _HudButton(
                       label: 'Views',
                       tooltip: 'Camera views (1–6)',
@@ -256,15 +287,15 @@ class _WardPlaqueState extends State<_WardPlaque> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    for (final (label, tip, preset) in _presets)
+                    for (var i = 0; i < presets.length; i++)
                       _HudButton(
-                        label: label,
-                        tooltip: tip,
+                        label: viewLabels[i],
+                        tooltip: 'Shortcut: ${i + 1}',
                         active: false,
                         accent: ShukubaHud._amberAccent,
                         onTap: () {
                           setState(() => _viewsOpen = false);
-                          widget.onSelectPreset(preset);
+                          widget.onSelectPreset(presets[i]);
                         },
                       ),
                   ],

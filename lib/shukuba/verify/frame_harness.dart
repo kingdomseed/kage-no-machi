@@ -37,6 +37,10 @@ const String kShukubaCaptureFilter = String.fromEnvironment(
 
 const bool kShukubaCaptureReel = bool.fromEnvironment('SHUKUBA_CAPTURE_REEL');
 
+const bool kShukubaAudit360 = bool.fromEnvironment('SHUKUBA_AUDIT_360');
+
+const String kShukubaRealm = String.fromEnvironment('SHUKUBA_REALM');
+
 @immutable
 class FramePixelStats {
   const new({
@@ -368,6 +372,70 @@ class ShukubaFrameHarness {
     ),
   ];
 
+  /// Returns 10 diagnostic presets sweeping all 8 compass azimuths plus aerial
+  /// and low-western checks to catch back-face gaps, missing back walls, or
+  /// mountain-skirt voids from every orbital angle.
+  static List<CameraPreset> buildAudit360Presets(ShowcaseRealm realm) {
+    final isMinato = realm == ShowcaseRealm.minatoJo;
+    final target = isMinato ? const Vec3(6, 9.5, -13) : const Vec3(0, 3.5, 0);
+    const radius = 72.0;
+    const orbitY = 32.0;
+    const labels = <(String, String)>[
+      ('n', 'North'),
+      ('ne', 'Northeast'),
+      ('e', 'East'),
+      ('se', 'Southeast'),
+      ('s', 'South'),
+      ('sw', 'Southwest'),
+      ('w', 'West'),
+      ('nw', 'Northwest'),
+    ];
+    final presets = <CameraPreset>[];
+    for (var i = 0; i < labels.length; i++) {
+      final (code, name) = labels[i];
+      final angle = i * (math.pi / 4);
+      presets.add(
+        CameraPreset(
+          id: 'audit_${(i + 1).toString().padLeft(2, '0')}_$code',
+          label: '360° Audit — $name',
+          eye: Vec3(
+            target.x + math.sin(angle) * radius,
+            orbitY,
+            target.z - math.cos(angle) * radius,
+          ),
+          target: target,
+          timeOfDay: const TimeOfDayRig(0.28),
+          verticalFovDegrees: 34,
+          nearMeters: 3,
+          farMeters: 580,
+        ),
+      );
+    }
+    presets.addAll([
+      CameraPreset(
+        id: 'audit_09_high_aerial',
+        label: '360° Audit — High Aerial',
+        eye: Vec3(target.x - 16, 92, target.z + 32),
+        target: target,
+        timeOfDay: const TimeOfDayRig(0.28),
+        verticalFovDegrees: 38,
+        nearMeters: 4,
+        farMeters: 600,
+      ),
+      CameraPreset(
+        id: 'audit_10_low_west',
+        label: '360° Audit — Low West',
+        eye: isMinato ? const Vec3(-52, 16.5, -8) : const Vec3(-52, 15, 6),
+        target: isMinato ? const Vec3(8, 9.5, -18) : const Vec3(0, 3.5, 0),
+        timeOfDay: const TimeOfDayRig(0.28),
+        verticalFovDegrees: 34,
+        nearMeters: 2.5,
+        farMeters: 560,
+      ),
+    ]);
+    return presets;
+  }
+
   static const List<StructureKind> turntableStructureKinds = [
     StructureKind.minka,
     StructureKind.machiya,
@@ -663,6 +731,7 @@ class ShukubaFrameHarness {
     required bool autoExit,
     bool includeAtlas = kShukubaCaptureAtlas,
     List<CameraPreset> presets = CameraPreset.verificationPresets,
+    List<CameraPreset> horizonPresets = atmospherePresets,
     String captureFilter = kShukubaCaptureFilter,
     bool captureReel = kShukubaCaptureReel,
   }) async {
@@ -695,8 +764,8 @@ class ShukubaFrameHarness {
         if (filter.matchesPreset(category: 'valley', presetId: preset.id))
           preset,
     ];
-    final horizonPresets = [
-      for (final preset in atmospherePresets)
+    final filteredHorizonPresets = [
+      for (final preset in horizonPresets)
         if (filter.matchesPreset(category: 'horizon', presetId: preset.id))
           preset,
     ];
@@ -717,7 +786,7 @@ class ShukubaFrameHarness {
 
     final totalShots =
         valleyPresets.length +
-        horizonPresets.length +
+        filteredHorizonPresets.length +
         seamPresets.length +
         specimenPlans.fold<int>(0, (sum, plan) => sum + plan.angles.length);
 
@@ -783,8 +852,8 @@ class ShukubaFrameHarness {
         await recordShot(shot);
       }
 
-      for (var i = 0; i < horizonPresets.length; i++) {
-        final horizonPreset = horizonPresets[i];
+      for (var i = 0; i < filteredHorizonPresets.length; i++) {
+        final horizonPreset = filteredHorizonPresets[i];
         final shot = await _capturePresetFrame(
           preset: horizonPreset,
           outputPath: '${directory.path}/${horizonPreset.id}.png',
@@ -889,10 +958,15 @@ class ShukubaFrameHarness {
       }
 
       if (filter.matchesHoverPreview) {
-        applyPreset(CameraPreset.duskOverview);
+        final hoverPreset = presets.isNotEmpty
+            ? presets.first
+            : CameraPreset.duskOverview;
+        applyPreset(hoverPreset);
         final snappedHover = world.graph.snapStructure(
           kind: StructureKind.machiya,
-          rawPoint: const Vec3(19.6, 0, -2.5),
+          rawPoint: horizonPresets.isEmpty
+              ? const Vec3(-18, 0, 7.5)
+              : const Vec3(19.6, 0, -2.5),
           sampleGroundY: world.sampleGroundHeight,
         );
         final candidate = PlacedStructure(
@@ -910,13 +984,13 @@ class ShukubaFrameHarness {
           ),
         );
         look.syncFrame(
-          rig: CameraPreset.duskOverview.timeOfDay,
+          rig: hoverPreset.timeOfDay,
           vision: MagistrateVisionState.hidden,
           sightcones: world.activeSightcones,
           lanternOrigins: world.activeLanternOrigins,
           elapsedSeconds: elapsedSeconds,
         );
-        final hoverPumps = resolvePumpCount(CameraPreset.duskOverview);
+        final hoverPumps = resolvePumpCount(hoverPreset);
         for (var i = 0; i < hoverPumps; i++) {
           await pumpFrame();
         }
