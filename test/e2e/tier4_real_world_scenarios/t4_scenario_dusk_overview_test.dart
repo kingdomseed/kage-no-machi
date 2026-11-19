@@ -75,7 +75,7 @@ void main() {
             .readAsStringSync();
         expect(lookSrc.contains('PhysicalSkySource('), isTrue);
         expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-        expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
 
         final floraSummaries = const FloraScatterBuilder()
             .computeChunkSummaries(

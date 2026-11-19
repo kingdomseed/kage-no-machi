@@ -456,192 +456,274 @@ class _TitleMenuOverlayState extends State<TitleMenuOverlay>
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.1),
-            radius: 1.2,
-            colors: [_urushiDark, _urushiBlack],
-          ),
-        ),
-        child: CustomPaint(
-          painter: const KinpakuPainter(),
-          child: AnimatedBuilder(
-            animation: _leafController,
-            builder: (context, child) {
-              return CustomPaint(
-                painter: AutumnLeavesPainter(
-                  progress: _leafController.value,
-                  repaint: _leafController,
-                ),
-                child: child,
-              );
-            },
-            child: SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0, -0.1),
+                radius: 1.2,
+                colors: [_urushiDark, _urushiBlack],
+              ),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 0.8,
+                    child: Image.asset(
+                      'assets/ui/title_backdrop.jpg',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const HankoSealWidget(size: 52),
-                        const SizedBox(height: 18),
-
-                        Text(
-                          '影の町',
-                          style: TextStyle(
-                            color: _washiInk,
-                            fontSize: 56,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'serif',
-                            letterSpacing: 8,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.8),
-                                offset: const Offset(2, 4),
-                                blurRadius: 8,
+                  ),
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0, -0.05),
+                      radius: 1.05,
+                      colors: [Color(0x260B0B10), Color(0xA808080D)],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CustomPaint(
+            painter: const KinpakuPainter(),
+            child: AnimatedBuilder(
+              animation: _leafController,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: AutumnLeavesPainter(
+                    progress: _leafController.value,
+                    repaint: _leafController,
+                  ),
+                  child: child,
+                );
+              },
+              child: SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 28,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 440),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0xEA1A171E), Color(0xF20C0C11)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xA8C89B4C),
+                              width: 1.3,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x99000000),
+                                blurRadius: 24,
+                                offset: Offset(0, 10),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 28,
+                              vertical: 28,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Image.asset(
+                                      'assets/ui/urushi_crest.png',
+                                      width: 64,
+                                      height: 64,
+                                      errorBuilder: (_, _, _) =>
+                                          const SizedBox.shrink(),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    const HankoSealWidget(size: 46),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
 
-                        const Text(
-                          'KAGE NO MACHI',
-                          style: TextStyle(
-                            color: _goldAccent,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 4.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Edo Post-Town Diorama Builder',
-                          style: TextStyle(
-                            color: _mutedSand.withValues(alpha: 0.78),
-                            fontSize: 11.5,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 48),
+                                Text(
+                                  '影の町',
+                                  style: TextStyle(
+                                    color: _washiInk,
+                                    fontSize: 52,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'serif',
+                                    letterSpacing: 8,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                        offset: const Offset(2, 4),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
 
-                        SizedBox(
-                          width: 300,
-                          height: 46,
-                          child: ElevatedButton(
-                            onPressed: widget.onEnterValley,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _cinnabarRed,
-                              foregroundColor: _washiInk,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              elevation: 4,
-                            ),
-                            child: const Text(
-                              'Enter Valley (渓谷へ入る)',
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+                                const Text(
+                                  'KAGE NO MACHI',
+                                  style: TextStyle(
+                                    color: _goldAccent,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 4.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Edo Post-Town Diorama Builder',
+                                  style: TextStyle(
+                                    color: _mutedSand.withValues(alpha: 0.82),
+                                    fontSize: 11.5,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 36),
 
-                        SizedBox(
-                          width: 300,
-                          height: 46,
-                          child: OutlinedButton(
-                            onPressed: () {
-                              if (widget.onFieldNotes != null) {
-                                widget.onFieldNotes!();
-                              } else {
-                                _showFieldNotesDialog(context);
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: const Color(0xDE131720),
-                              foregroundColor: _washiInk,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              side: const BorderSide(color: _borderStroke),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                            child: const Text(
-                              'Field Notes (野帳)',
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+                                SizedBox(
+                                  width: 300,
+                                  height: 46,
+                                  child: ElevatedButton(
+                                    onPressed: widget.onEnterValley,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFB83A28),
+                                      foregroundColor: _washiInk,
+                                      side: const BorderSide(
+                                        color: Color(0xCCE8C170),
+                                        width: 1.2,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      elevation: 6,
+                                    ),
+                                    child: const Text(
+                                      'Enter Valley (渓谷へ入る)',
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
 
-                        SizedBox(
-                          width: 300,
-                          height: 46,
-                          child: OutlinedButton(
-                            onPressed: () {
-                              if (widget.onSettings != null) {
-                                widget.onSettings!();
-                              } else {
-                                _showSettingsDialog(context);
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: const Color(0xDE131720),
-                              foregroundColor: _mutedSand,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              side: const BorderSide(color: _borderStroke),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                            child: const Text(
-                              'Settings (設定)',
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.5,
-                              ),
+                                SizedBox(
+                                  width: 300,
+                                  height: 46,
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      if (widget.onFieldNotes != null) {
+                                        widget.onFieldNotes!();
+                                      } else {
+                                        _showFieldNotesDialog(context);
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: const Color(0xE816141B),
+                                      foregroundColor: _washiInk,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      side: const BorderSide(
+                                        color: Color(0x99C89B4C),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Field Notes (野帳)',
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+
+                                SizedBox(
+                                  width: 300,
+                                  height: 46,
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      if (widget.onSettings != null) {
+                                        widget.onSettings!();
+                                      } else {
+                                        _showSettingsDialog(context);
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: const Color(0xE816141B),
+                                      foregroundColor: _mutedSand,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      side: const BorderSide(
+                                        color: Color(0x99C89B4C),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Settings (設定)',
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -667,67 +749,86 @@ class LoadingCurtainOverlay extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: DecoratedBox(
-        decoration: const BoxDecoration(color: Color(0xF20E1015)),
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            radius: 1.15,
+            colors: [Color(0xF217141C), Color(0xF60A090E)],
+          ),
+        ),
         child: Center(
           child: SingleChildScrollView(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Row(
-                      children: [
-                        HankoSealWidget(text: '組', size: 34),
-                        SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Preparing Shukuba Valley',
-                                style: TextStyle(
-                                  color: _washiInk,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.8,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xEE1A171E), Color(0xF40E0D12)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0x99C89B4C),
+                    width: 1.2,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Row(
+                        children: [
+                          HankoSealWidget(text: '組', size: 34),
+                          SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Preparing Shukuba Valley',
+                                  style: TextStyle(
+                                    color: _washiInk,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.8,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '宿場町の構築 (Staged Warmup)',
-                                style: TextStyle(
-                                  color: _goldAccent,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
+                                Text(
+                                  '宿場町の構築 (Staged Warmup)',
+                                  style: TextStyle(
+                                    color: _goldAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      for (final stage in BootStageId.values) ...[
+                        _buildStageRow(stage, timingsByStage[stage]),
+                        const SizedBox(height: 10),
                       ],
-                    ),
-                    const SizedBox(height: 24),
-                    for (final stage in BootStageId.values) ...[
-                      _buildStageRow(stage, timingsByStage[stage]),
-                      const SizedBox(height: 10),
-                    ],
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: SizedBox(
-                        height: 4,
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: const Color(0x33DECBAE),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            _goldAccent,
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: SizedBox(
+                          height: 4,
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: const Color(0x33DECBAE),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              _goldAccent,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -857,14 +958,21 @@ class _PauseMenuOverlayState extends State<PauseMenuOverlay> {
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: _urushiDark,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xF01A171E), Color(0xF50D0C11)],
+                    ),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderStroke),
+                    border: Border.all(
+                      color: const Color(0x99C89B4C),
+                      width: 1.2,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                        color: Colors.black.withValues(alpha: 0.65),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
@@ -874,11 +982,19 @@ class _PauseMenuOverlayState extends State<PauseMenuOverlay> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            HankoSealWidget(text: '休', size: 32),
-                            SizedBox(width: 12),
-                            Text(
+                            Image.asset(
+                              'assets/ui/urushi_crest.png',
+                              width: 36,
+                              height: 36,
+                              errorBuilder: (_, _, _) =>
+                                  const SizedBox.shrink(),
+                            ),
+                            const SizedBox(width: 10),
+                            const HankoSealWidget(text: '休', size: 32),
+                            const SizedBox(width: 12),
+                            const Text(
                               'PAUSE — 一服 (Ippuku)',
                               style: TextStyle(
                                 color: _washiInk,
@@ -1040,9 +1156,9 @@ class _PauseMenuOverlayState extends State<PauseMenuOverlay> {
                                 child: OutlinedButton(
                                   onPressed: widget.onReturnToTitle,
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: _mutedSand,
+                                    foregroundColor: _washiInk,
                                     side: const BorderSide(
-                                      color: _borderStroke,
+                                      color: Color(0x99C89B4C),
                                     ),
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -1067,8 +1183,12 @@ class _PauseMenuOverlayState extends State<PauseMenuOverlay> {
                                 child: ElevatedButton(
                                   onPressed: widget.onResume,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: _cinnabarRed,
+                                    backgroundColor: const Color(0xFFB83A28),
                                     foregroundColor: _washiInk,
+                                    side: const BorderSide(
+                                      color: Color(0xCCE8C170),
+                                      width: 1.1,
+                                    ),
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
                                     ),

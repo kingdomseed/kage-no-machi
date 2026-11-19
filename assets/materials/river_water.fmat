@@ -103,7 +103,7 @@ fragment {
         riverMask;
     float ringNoise = NoiseSimplex2(wp.xz * 2.2 - vec2(0.0, t * 0.75), 202);
     float ringPhase = preThickness * 32.0 - t * 3.4 + ringNoise * 2.0;
-    float ringSlope = cos(ringPhase) * ringEnvelope * 0.065 * mipFade;
+    float ringSlope = cos(ringPhase) * ringEnvelope * 0.042 * mipFade;
 
     vec3 rippledNormal = normalize(
       geomNormal + vec3(waveGrad.x + ringSlope, 0.0, waveGrad.y + ringSlope * 0.75)
@@ -153,28 +153,28 @@ fragment {
     vec3 sunTint = frag_info.has_directional_light > 0.5
         ? clamp(frag_info.directional_light_color.rgb * 0.28, vec3(0.04), vec3(1.32, 1.00, 0.54))
         : vec3(0.95, 0.74, 0.38);
-    vec3 causticRadiance = sunTint * (causticPattern * causticAtten * 0.62);
+    vec3 causticRadiance = sunTint * (causticPattern * causticAtten * 0.42);
 
     vec3 transmittance = exp(-vec3(2.6, 0.95, 0.78) * thickness);
     float depthT = clamp(1.0 - exp(-thickness * 1.38), 0.0, 1.0);
 
-    vec3 shallowStoneTint = vec3(0.115, 0.145, 0.110);
-    vec3 jadeMid = mix(material_params.shallow_color.rgb, vec3(0.028, 0.172, 0.148), 0.58);
-    vec3 prussianThalweg = mix(material_params.deep_color.rgb, vec3(0.010, 0.036, 0.084), 0.68);
-    vec3 volumeColor = mix(shallowStoneTint, jadeMid, smoothstep(0.12, 0.55, thickness));
-    volumeColor = mix(volumeColor, prussianThalweg, smoothstep(0.58, 1.12, thickness));
+    vec3 shallowStoneTint = vec3(0.145, 0.185, 0.138);
+    vec3 jadeMid = mix(material_params.shallow_color.rgb, vec3(0.042, 0.225, 0.215), 0.68);
+    vec3 prussianThalweg = mix(material_params.deep_color.rgb, vec3(0.014, 0.052, 0.105), 0.64);
+    vec3 volumeColor = mix(shallowStoneTint, jadeMid, smoothstep(0.10, 0.52, thickness));
+    volumeColor = mix(volumeColor, prussianThalweg, smoothstep(0.56, 1.15, thickness));
 
-    vec3 calmPaddyBody = vec3(0.068, 0.155, 0.118);
+    vec3 calmPaddyBody = vec3(0.088, 0.195, 0.145);
     vec3 waterBodyColor = mix(calmPaddyBody, volumeColor, riverMask);
 
-    float shallowWakeEnv = (1.0 - smoothstep(0.055, 0.275, thickness)) *
-        smoothstep(0.006, 0.032, thickness) *
+    float shallowWakeEnv = (1.0 - smoothstep(0.075, 0.30, thickness)) *
+        smoothstep(0.012, 0.045, thickness) *
         riverMask;
-    float midStreamObstacle = mix(0.16, 1.0, smoothstep(0.05, 0.22, bankDist));
+    float midStreamObstacle = mix(0.0, 1.0, smoothstep(0.24, 0.56, bankDist));
     float foamCellA = max(
       0.0,
       NoiseCellular2(
-        vec2(wp.x * 5.6, wp.z * 3.8 - t * 1.45 * material_params.flow_speed),
+        vec2(wp.x * 3.8, wp.z * 2.6 - t * 1.15 * material_params.flow_speed),
         503,
         kNoiseCellularEuclidean,
         kNoiseCellularDistance2Sub,
@@ -184,31 +184,32 @@ fragment {
     float foamCellB = max(
       0.0,
       NoiseCellular2(
-        vec2(wp.x * 11.2 + 1.9, wp.z * 7.4 - t * 2.05 * material_params.flow_speed),
+        vec2(wp.x * 7.2 + 1.9, wp.z * 5.0 - t * 1.55 * material_params.flow_speed),
         521,
         kNoiseCellularEuclidean,
         kNoiseCellularDistance,
         0.85
       ) + 1.0
     );
-    float bubbleLace = (1.0 - smoothstep(0.02, 0.18, foamCellA)) * 0.72 +
-        (1.0 - smoothstep(0.08, 0.28, foamCellB)) * 0.38 * mipFade;
+    float bubbleLace = (1.0 - smoothstep(0.04, 0.28, foamCellA)) * 0.65 +
+        (1.0 - smoothstep(0.12, 0.38, foamCellB)) * 0.35 * mipFade;
     float wakePatch = smoothstep(
-      0.34,
-      0.78,
-      NoiseSimplex2(vec2(wp.x * 2.4, wp.z * 1.5 - t * 0.88), 541) * 0.5 + 0.5
+      0.30,
+      0.80,
+      NoiseSimplex2(vec2(wp.x * 1.9, wp.z * 1.2 - t * 0.72), 541) * 0.5 + 0.5
     );
     float foamStrength = clamp(
       shallowWakeEnv *
           midStreamObstacle *
-          smoothstep(0.34, 0.82, bubbleLace * (0.52 + 0.66 * wakePatch)) *
-          0.74,
+          smoothstep(0.32, 0.86, bubbleLace * (0.48 + 0.64 * wakePatch)) *
+          0.46,
       0.0,
-      0.70
+      0.42
     );
 
     float nDotV = clamp(dot(rippledNormal, viewDir), 0.0, 1.0);
     float fresnel = 0.02 + 0.98 * pow(1.0 - nDotV, 5.0);
+    vec3 skySheen = sunTint * (pow(1.0 - nDotV, 4.0) * 0.18 * riverMask);
 
     vec3 outBaseRgb;
     vec3 outEmissive;
@@ -216,7 +217,7 @@ fragment {
 
     if (frag_info.scene_inputs.x > 0.5) {
       vec3 sceneBedColor = GetSceneColor(refractUvOffset);
-      vec3 warmShallowWash = mix(vec3(1.0), vec3(1.10, 1.03, 0.90), smoothstep(0.32, 0.0, thickness) * riverMask);
+      vec3 warmShallowWash = mix(vec3(1.0), vec3(1.12, 1.05, 0.92), smoothstep(0.32, 0.0, thickness) * riverMask);
       vec3 paddyTransmittance = exp(-vec3(1.65, 0.92, 0.88) * thickness);
       vec3 activeTransmittance = mix(paddyTransmittance * 0.62, transmittance, riverMask);
 
@@ -229,12 +230,12 @@ fragment {
       outBaseRgb = mix(inScatteredBody, material_params.foam_color.rgb * 0.88, foamStrength);
       outAlpha = clamp(mix(max(0.86, fresnel), 0.98, depthT), 0.0, 1.0);
       outAlpha = mix(outAlpha, max(outAlpha, 0.94), foamStrength);
-      outEmissive = transmittedBed * mix(0.86, 1.0, depthT);
+      outEmissive = transmittedBed * mix(0.86, 1.0, depthT) + skySheen;
     } else {
       outBaseRgb = mix(waterBodyColor, material_params.foam_color.rgb * 0.88, foamStrength);
       outAlpha = clamp(mix(max(0.48, fresnel), 0.96, depthT), 0.0, 1.0);
       outAlpha = mix(outAlpha, max(outAlpha, 0.92), foamStrength);
-      outEmissive = causticRadiance * transmittance * (1.0 - foamStrength) * 0.45;
+      outEmissive = causticRadiance * transmittance * (1.0 - foamStrength) * 0.45 + skySheen;
     }
 
     material.base_color = vec4(outBaseRgb, outAlpha);

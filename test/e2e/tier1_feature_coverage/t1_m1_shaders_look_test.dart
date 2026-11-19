@@ -175,17 +175,17 @@ void main() {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-        expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.46'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.62'), isTrue);
       },
     );
 
     test(
-      'EnvironmentSettings ambientOcclusionIntensity is 1.68 and river water '
+      'EnvironmentSettings ambientOcclusionIntensity is 0.92 and river water '
       'declares scene_color + scene_depth caustics',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
 
         final waterSrc = File('assets/materials/river_water.fmat')
             .readAsStringSync();

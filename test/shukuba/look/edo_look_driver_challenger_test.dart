@@ -211,38 +211,38 @@ void main() {
             env.ambientOcclusionSpecularMode,
             SpecularAmbientOcclusionMode.bentCone,
           );
-          expect(env.ambientOcclusionIntensity, closeTo(1.68, 1e-5));
+          expect(env.ambientOcclusionIntensity, closeTo(0.92, 1e-5));
           expect(env.ambientOcclusionRadius, closeTo(1.05, 1e-5));
-          expect(env.ambientOcclusionPower, closeTo(1.85, 1e-5));
-          expect(env.ambientOcclusionMultiBounce, closeTo(0.46, 1e-5));
-          expect(env.ambientOcclusionDirectLightAffect, closeTo(0.30, 1e-5));
-          expect(env.exposure, inInclusiveRange(0.84 - 1e-5, 0.95 + 1e-5));
+          expect(env.ambientOcclusionPower, closeTo(1.35, 1e-5));
+          expect(env.ambientOcclusionMultiBounce, closeTo(0.62, 1e-5));
+          expect(env.ambientOcclusionDirectLightAffect, closeTo(0.08, 1e-5));
+          expect(env.exposure, inInclusiveRange(0.98 - 1e-5, 1.00 + 1e-5));
           expect(
             env.environmentIntensity,
-            inInclusiveRange(0.68 - 1e-5, 7.20 + 1e-5),
+            inInclusiveRange(1.45 - 1e-5, 4.40 + 1e-5),
           );
           expect(env.fogEnabled, isTrue);
           expect(env.fogMode, FogMode.exponential);
           expect(env.fogStart, inInclusiveRange(18 - 1e-5, 22 + 1e-5));
           expect(
             env.fogDensity,
-            inInclusiveRange(0.0046 - 1e-6, 0.0052 + 1e-6),
+            inInclusiveRange(0.0036 - 1e-6, 0.0048 + 1e-6),
           );
-          expect(env.fogMaxOpacity, inInclusiveRange(0.44 - 1e-5, 0.48 + 1e-5));
+          expect(env.fogMaxOpacity, inInclusiveRange(0.42 - 1e-5, 0.44 + 1e-5));
           expect(env.fogHeight, closeTo(1.4, 1e-5));
           expect(env.fogHeightFalloff, closeTo(0.34, 1e-5));
           expect(
             env.fogSunInScatter,
-            inInclusiveRange(0.02 - 1e-5, 0.07 + 1e-5),
+            inInclusiveRange(0.04 - 1e-5, 0.12 + 1e-5),
           );
           expect(
             env.fogSkyColorInfluence,
-            inInclusiveRange(0.16 - 1e-5, 0.24 + 1e-5),
+            inInclusiveRange(0.26 - 1e-5, 0.28 + 1e-5),
           );
           expect(env.godRaysEnabled, isTrue);
           expect(
             env.godRaysIntensity,
-            inInclusiveRange(0.06 - 1e-5, 0.64 + 1e-5),
+            inInclusiveRange(0.08 - 1e-5, 0.52 + 1e-5),
           );
           expect(
             env.godRaysDensity,
@@ -275,9 +275,9 @@ void main() {
         source,
         contains('shadowAmbientStrength = 0.28 + 0.08 * rig.nightFactor'),
       );
-      expect(source, contains('ambientOcclusionIntensity: 1.68'));
+      expect(source, contains('ambientOcclusionIntensity: 0.92'));
       expect(source, contains('ambientOcclusionRadius: 1.05'));
-      expect(source, contains('ambientOcclusionMultiBounce: 0.46'));
+      expect(source, contains('ambientOcclusionMultiBounce: 0.62'));
       expect(source, contains('EnvironmentSettings.lerp('));
     });
 

@@ -332,11 +332,11 @@ void main() {
         expect(env.toneMapping, ToneMappingMode.aces);
         expect(
           env.environmentIntensity,
-          closeTo(7.20 * (1 - duskNf) + 0.68 * duskNf, 1e-5),
+          closeTo(4.40 * (1 - duskNf) + 1.45 * duskNf, 1e-5),
         );
         expect(
           env.exposure,
-          closeTo(0.95 * (1 - duskNf) + 0.84 * duskNf, 1e-5),
+          closeTo(1.00 * (1 - duskNf) + 0.98 * duskNf, 1e-5),
         );
         expect(env.ambientOcclusionEnabled, isTrue);
         expect(env.ambientOcclusionMethod, AmbientOcclusionMethod.groundTruth);
@@ -345,36 +345,36 @@ void main() {
           env.ambientOcclusionSpecularMode,
           SpecularAmbientOcclusionMode.bentCone,
         );
-        expect(env.ambientOcclusionIntensity, closeTo(1.68, 1e-5));
+        expect(env.ambientOcclusionIntensity, closeTo(0.92, 1e-5));
         expect(env.ambientOcclusionRadius, closeTo(1.05, 1e-5));
-        expect(env.ambientOcclusionPower, closeTo(1.85, 1e-5));
-        expect(env.ambientOcclusionMultiBounce, closeTo(0.46, 1e-5));
-        expect(env.ambientOcclusionDirectLightAffect, closeTo(0.30, 1e-5));
+        expect(env.ambientOcclusionPower, closeTo(1.35, 1e-5));
+        expect(env.ambientOcclusionMultiBounce, closeTo(0.62, 1e-5));
+        expect(env.ambientOcclusionDirectLightAffect, closeTo(0.08, 1e-5));
         expect(env.fogEnabled, isTrue);
         expect(env.fogMode, FogMode.exponential);
         expect(env.fogStart, closeTo(18 * (1 - duskNf) + 22 * duskNf, 1e-5));
         expect(
           env.fogDensity,
-          closeTo(0.0046 * (1 - duskNf) + 0.0052 * duskNf, 1e-6),
+          closeTo(0.0036 * (1 - duskNf) + 0.0048 * duskNf, 1e-6),
         );
         expect(
           env.fogMaxOpacity,
-          closeTo(0.48 * (1 - duskNf) + 0.44 * duskNf, 1e-5),
+          closeTo(0.42 * (1 - duskNf) + 0.44 * duskNf, 1e-5),
         );
         expect(
           env.fogSunInScatter,
-          closeTo(0.07 * (1 - duskNf) + 0.02 * duskNf, 1e-5),
+          closeTo(0.12 * (1 - duskNf) + 0.04 * duskNf, 1e-5),
         );
         expect(
           env.fogSkyColorInfluence,
-          closeTo(0.24 * (1 - duskNf) + 0.16 * duskNf, 1e-5),
+          closeTo(0.28 * (1 - duskNf) + 0.26 * duskNf, 1e-5),
         );
         expect(env.fogHeight, closeTo(1.4, 1e-5));
         expect(env.fogHeightFalloff, closeTo(0.34, 1e-5));
         expect(env.godRaysEnabled, isTrue);
         expect(
           env.godRaysIntensity,
-          closeTo(0.64 * (1 - duskNf) + 0.06 * duskNf, 1e-5),
+          closeTo(0.52 * (1 - duskNf) + 0.08 * duskNf, 1e-5),
         );
         expect(
           env.godRaysDensity,
@@ -408,23 +408,23 @@ void main() {
         final nightEnv = scene.environmentSettings;
         expect(
           nightEnv.environmentIntensity,
-          closeTo(7.20 * (1 - nightNf) + 0.68 * nightNf, 1e-5),
+          closeTo(4.40 * (1 - nightNf) + 1.45 * nightNf, 1e-5),
         );
         expect(
           nightEnv.exposure,
-          closeTo(0.95 * (1 - nightNf) + 0.84 * nightNf, 1e-5),
+          closeTo(1.00 * (1 - nightNf) + 0.98 * nightNf, 1e-5),
         );
         expect(
           nightEnv.bloomThreshold,
-          closeTo(0.96 * (1 - nightNf) + 0.88 * nightNf, 1e-5),
+          closeTo(0.82 * (1 - nightNf) + 0.78 * nightNf, 1e-5),
         );
         expect(
           nightEnv.bloomIntensity,
-          closeTo(0.24 * (1 - nightNf) + 0.28 * nightNf, 1e-5),
+          closeTo(0.30 * (1 - nightNf) + 0.34 * nightNf, 1e-5),
         );
         expect(
           nightEnv.bloomScatter,
-          closeTo(0.74 * (1 - nightNf) + 0.72 * nightNf, 1e-5),
+          closeTo(0.78 * (1 - nightNf) + 0.76 * nightNf, 1e-5),
         );
       }
 

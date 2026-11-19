@@ -258,12 +258,12 @@ void main() {
       expect(fmatSrc.contains('material.occlusion = finalOcclusion;'), isTrue);
     });
 
-    test('10. F6 x F10: Wide GTAO (radius: 1.05, intensity: 1.68), <= 12 '
+    test('10. F6 x F10: Wide GTAO (radius: 1.05, intensity: 0.92), <= 12 '
         'lanterns, 4x4 flora_tile_* chunks, and river caustics', () {
       final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
           .readAsStringSync();
       expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-      expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
+      expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
       expect(lookSrc.contains('ambientOcclusionBentNormals: true'), isTrue);
 
       final world = EdoWorldDriver()..initSimulation();

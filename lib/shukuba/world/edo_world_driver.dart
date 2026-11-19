@@ -1,8 +1,10 @@
+import 'dart:async' show unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_scene/kit.dart' show Steering;
-import 'package:flutter_scene/scene.dart' show Node, Scene;
+import 'package:flutter_scene/scene.dart'
+    show GeometryBuilder, Mesh, Node, Scene, loadScene, releaseScene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         AmbientLoopKind,
@@ -16,6 +18,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         RoadSpline,
         ShukubaGraph,
         ShukubaMaterialResolver,
+        ShukubaSurfaceRole,
         ShukubaWorldDriver,
         StreetAgentRole,
         StreetAgentSnapshot,
@@ -84,6 +87,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
   Node? _worldRoot;
   late final Node _terrainContainerNode = Node(name: 'terrain_tiled_root');
+  late Node _horizonRidgesNode;
   late Node _waterNode;
   late final Node _gorgeDressingNode = Node(name: 'gorge_dressing_container');
   late Node _bridgeNode;
@@ -97,6 +101,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final Node _atmosphereNode = Node(name: 'atmosphere_root');
   late final Node _atmosphereMistNode = Node(name: 'atmosphere_mist_ribbons');
   late final Node _previewNode = Node(name: 'preview_root');
+  late final Node _heroPropsNode = Node(name: 'hero_glb_props');
+  final List<String> _loadedScenePaths = <String>[];
 
   final Set<int> _dirtyFloraChunkIndices = <int>{
     for (var i = 0; i < TerrainConfig.chunkCount; i++) i,
@@ -195,6 +201,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _resolveMaterial = resolveMaterial;
 
     _worldRoot = Node();
+    _horizonRidgesNode = _terrainBuilder.buildHorizonMountainRidgesNode(
+      _resolveMaterial,
+    );
     _waterNode = markSubtreeShadowStatic(
       _terrainBuilder.buildWaterNode(_resolveMaterial),
     );
@@ -204,6 +213,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     _worldRoot!
       ..add(_terrainContainerNode)
+      ..add(_horizonRidgesNode)
       ..add(_waterNode)
       ..add(_gorgeDressingNode)
       ..add(_bridgeNode)
@@ -212,6 +222,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       ..add(_terracesNode)
       ..add(_wallsNode)
       ..add(_structuresNode)
+      ..add(_heroPropsNode)
       ..add(_lanternSpansNode)
       ..add(_agentsNode)
       ..add(_atmosphereNode)
@@ -222,6 +233,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     initSimulation(initialGraph: initialGraph);
     _rebuildGraphNodes();
     _rebuildPreviewNode();
+    await _attachHeroGlbModels();
   }
 
   Future<void> attachStaged(
@@ -236,6 +248,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     final stopwatch = Stopwatch()..start();
 
     _worldRoot = Node();
+    _horizonRidgesNode = _terrainBuilder.buildHorizonMountainRidgesNode(
+      _resolveMaterial,
+    );
     _waterNode = markSubtreeShadowStatic(
       _terrainBuilder.buildWaterNode(_resolveMaterial),
     );
@@ -245,6 +260,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     _worldRoot!
       ..add(_terrainContainerNode)
+      ..add(_horizonRidgesNode)
       ..add(_waterNode)
       ..add(_gorgeDressingNode)
       ..add(_bridgeNode)
@@ -253,6 +269,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       ..add(_terracesNode)
       ..add(_wallsNode)
       ..add(_structuresNode)
+      ..add(_heroPropsNode)
       ..add(_lanternSpansNode)
       ..add(_agentsNode)
       ..add(_atmosphereNode)
@@ -289,6 +306,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         stopwatch.elapsedMicroseconds / 1000.0,
       );
     }
+    await _attachHeroGlbModels();
   }
 
   void initSimulation({
@@ -313,6 +331,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _terracesNode.removeAll();
     _wallsNode.removeAll();
     _structuresNode.removeAll();
+    _heroPropsNode.removeAll();
     _structureNodes.clear();
     _lanternSpansNode.removeAll();
     _builtRoads = null;
@@ -997,6 +1016,197 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
+  Future<Node?> _tryLoadHeroScene(String assetPath) async {
+    try {
+      final loaded = await loadScene(assetPath);
+      if (_scene == null || _worldRoot == null) {
+        unawaited(releaseScene(assetPath).then((_) {}, onError: (_) {}));
+        return null;
+      }
+      _loadedScenePaths.add(assetPath);
+      return loaded;
+    } on Object catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _attachHeroGlbModels() async {
+    if (_scene == null || _worldRoot == null) {
+      return;
+    }
+
+    final heroBridge = await _tryLoadHeroScene(
+      'assets/models/edo_arched_bridge.glb',
+    );
+    if (heroBridge != null && _worldRoot != null) {
+      _worldRoot!.remove(_bridgeNode);
+      _bridgeNode = markSubtreeShadowStatic(heroBridge);
+      _worldRoot!.add(_bridgeNode);
+    }
+
+    for (final structure in _graph.structures.values) {
+      if (structure.kind != StructureKind.toriiGate) {
+        continue;
+      }
+      final heroTorii = await _tryLoadHeroScene(
+        'assets/models/edo_torii_gate.glb',
+      );
+      if (heroTorii == null || _scene == null) {
+        continue;
+      }
+      final lanternBuilder = GeometryBuilder();
+      final hookBuilder = GeometryBuilder();
+      EdoKitBuilder.addLanternBody(
+        lanternBuilder,
+        hookBuilder,
+        Vector3(-1.38, 3.38, 0),
+        radius: 0.18,
+        height: 0.42,
+      );
+      EdoKitBuilder.addLanternBody(
+        lanternBuilder,
+        hookBuilder,
+        Vector3(1.38, 3.38, 0),
+        radius: 0.18,
+        height: 0.42,
+      );
+      final wrapper = Node(name: 'hero_torii_${structure.id.value}')
+        ..position = structure.position.toVector3()
+        ..rotation = Quaternion.axisAngle(
+          Vector3(0, 1, 0),
+          structure.yawRadians,
+        )
+        ..add(heroTorii)
+        ..add(
+          Node(
+            mesh: Mesh(
+              lanternBuilder.build(),
+              _resolveMaterial(ShukubaSurfaceRole.chochinLantern),
+            ),
+          ),
+        )
+        ..add(
+          Node(
+            mesh: Mesh(
+              hookBuilder.build(),
+              _resolveMaterial(ShukubaSurfaceRole.charredTimber),
+            ),
+          ),
+        );
+      final markedWrapper = markSubtreeShadowStatic(wrapper);
+      final existing = _structureNodes[structure.id];
+      if (existing != null) {
+        _structuresNode.remove(existing.node);
+      }
+      _structureNodes[structure.id] = (data: structure, node: markedWrapper);
+      _structuresNode.add(markedWrapper);
+    }
+
+    if (_scene == null || _worldRoot == null) {
+      return;
+    }
+
+    _heroPropsNode.removeAll();
+    const heroPlacements = <({
+      String name,
+      String assetPath,
+      double x,
+      double z,
+      double yaw,
+      double yOffset,
+    })>[
+      (
+        name: 'hero_distant_pagoda',
+        assetPath: 'assets/models/edo_distant_pagoda.glb',
+        x: 68.0,
+        z: -21.0,
+        yaw: 0.42,
+        yOffset: -0.35,
+      ),
+      (
+        name: 'hero_stone_lantern_bridge_w',
+        assetPath: 'assets/models/edo_stone_lantern.glb',
+        x: -6.35,
+        z: 2.35,
+        yaw: 0.0,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_stone_lantern_bridge_e',
+        assetPath: 'assets/models/edo_stone_lantern.glb',
+        x: 6.15,
+        z: 2.30,
+        yaw: 3.14,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_stone_lantern_torii_n',
+        assetPath: 'assets/models/edo_stone_lantern.glb',
+        x: -22.8,
+        z: 2.85,
+        yaw: 0.10,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_stone_lantern_torii_s',
+        assetPath: 'assets/models/edo_stone_lantern.glb',
+        x: -22.8,
+        z: -2.85,
+        yaw: -0.10,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_handcart_west',
+        assetPath: 'assets/models/edo_handcart.glb',
+        x: -14.8,
+        z: -2.35,
+        yaw: 0.25,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_handcart_east',
+        assetPath: 'assets/models/edo_handcart.glb',
+        x: 22.6,
+        z: 2.15,
+        yaw: -0.35,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_sake_barrels_chaya',
+        assetPath: 'assets/models/edo_sake_barrels.glb',
+        x: -8.5,
+        z: 3.35,
+        yaw: 0.40,
+        yOffset: 0.0,
+      ),
+      (
+        name: 'hero_sake_barrels_market',
+        assetPath: 'assets/models/edo_sake_barrels.glb',
+        x: 10.4,
+        z: -2.55,
+        yaw: -0.30,
+        yOffset: 0.0,
+      ),
+    ];
+
+    for (final item in heroPlacements) {
+      final model = await _tryLoadHeroScene(item.assetPath);
+      if (model == null || _scene == null || _worldRoot == null) {
+        continue;
+      }
+      final y = sampleGroundHeight(item.x, item.z) + item.yOffset;
+      final propNode = Node(name: item.name)
+        ..position = Vector3(item.x, y, item.z)
+        ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), item.yaw)
+        ..add(model);
+      _heroPropsNode.add(propNode);
+    }
+
+    if (_heroPropsNode.children.isNotEmpty) {
+      markSubtreeShadowStatic(_heroPropsNode);
+    }
+  }
+
   @override
   void dispose() {
     if (_worldRoot != null && _scene != null) {
@@ -1004,6 +1214,10 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
     _simAgents.clear();
     _clearIncrementalCaches();
+    for (final path in _loadedScenePaths) {
+      unawaited(releaseScene(path).then((_) {}, onError: (_) {}));
+    }
+    _loadedScenePaths.clear();
     _worldRoot = null;
     _scene = null;
   }

@@ -98,9 +98,9 @@ void main() {
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc, contains('ambientOcclusionIntensity: 1.68'));
+        expect(lookSrc, contains('ambientOcclusionIntensity: 0.92'));
         expect(lookSrc, contains('ambientOcclusionRadius: 1.05'));
-        expect(lookSrc, contains('ambientOcclusionMultiBounce: 0.46'));
+        expect(lookSrc, contains('ambientOcclusionMultiBounce: 0.62'));
         expect(lookSrc, contains('ambientOcclusionBentNormals: true'));
         expect(lookSrc, contains('SpecularAmbientOcclusionMode.bentCone'));
 

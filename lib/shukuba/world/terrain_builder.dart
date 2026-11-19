@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_scene/scene.dart'
-    show GeometryBuilder, Mesh, MeshGeometry, Node;
+    show GeometryBuilder, Mesh, MeshGeometry, Node, ShadowCastingMode;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         CourtyardWall,
@@ -4103,5 +4103,150 @@ class TerrainBuilder {
     }
 
     return markSubtreeShadowStatic(root);
+  }
+
+  Node buildHorizonMountainRidgesNode(ShukubaMaterialResolver resolveMaterial) {
+    final mountainMat = resolveMaterial(ShukubaSurfaceRole.ishigakiStone);
+    final root = Node(name: 'horizon_mountain_ridges')
+      ..shadowCastingMode = ShadowCastingMode.off;
+
+    const segsPerQuad = 36;
+    const rings = [
+      (
+        prefix: 'horizon_foothill',
+        innerPad: 10.0,
+        crestPad: 28.0,
+        outerPad: 50.0,
+        baseY: 9.0,
+        ampY: 6.5,
+        phase: 0.4,
+        freqA: 3,
+        freqB: 7,
+        tintBase: (0.24, 0.30, 0.32),
+        tintCrest: (0.30, 0.36, 0.42),
+      ),
+      (
+        prefix: 'horizon_midridge',
+        innerPad: 42.0,
+        crestPad: 70.0,
+        outerPad: 102.0,
+        baseY: 22.0,
+        ampY: 16.0,
+        phase: 1.7,
+        freqA: 4,
+        freqB: 9,
+        tintBase: (0.30, 0.34, 0.48),
+        tintCrest: (0.40, 0.42, 0.56),
+      ),
+      (
+        prefix: 'horizon_farpeak',
+        innerPad: 86.0,
+        crestPad: 122.0,
+        outerPad: 160.0,
+        baseY: 38.0,
+        ampY: 24.0,
+        phase: 2.9,
+        freqA: 5,
+        freqB: 11,
+        tintBase: (0.44, 0.42, 0.54),
+        tintCrest: (0.58, 0.50, 0.58),
+      ),
+    ];
+
+    for (final ring in rings) {
+      for (var q = 0; q < 4; q++) {
+        final builder = GeometryBuilder();
+        const cols = 3;
+        final thetaStart = -math.pi / 4 + q * (math.pi / 2);
+        const thetaSpan = math.pi / 2;
+
+        for (var i = 0; i <= segsPerQuad; i++) {
+          final theta = thetaStart + (i / segsPerQuad) * thetaSpan;
+          final cosT = math.cos(theta);
+          final sinT = math.sin(theta);
+          final squareR =
+              TerrainConfig.maxX / math.max(cosT.abs(), sinT.abs());
+
+          final ridgeA = 1.0 - math.sin(theta * ring.freqA + ring.phase).abs();
+          final ridgeB = math.cos(theta * ring.freqB - ring.phase * 1.3);
+          final ridgeC = math.sin(
+            theta * (ring.freqB + 6) + ring.phase * 0.7,
+          );
+          final undulate =
+              (ridgeA * 0.56 + ridgeB * 0.28 + ridgeC * 0.16 + 0.16).clamp(
+                0.05,
+                1.0,
+              );
+          final peakY = ring.baseY + ring.ampY * undulate;
+
+          final rInner = squareR + ring.innerPad;
+          final rCrest = squareR + ring.crestPad + 3.0 * math.sin(theta * 5);
+          final rOuter = squareR + ring.outerPad;
+
+          final pInner = Vector3(cosT * rInner, -5.5, sinT * rInner);
+          final pCrest = Vector3(cosT * rCrest, peakY, sinT * rCrest);
+          final pOuter = Vector3(cosT * rOuter, -8, sinT * rOuter);
+
+          final inN = Vector3(-cosT * 0.45, 0.89, -sinT * 0.45).normalized();
+          final crN = Vector3(-cosT * 0.20, 0.98, -sinT * 0.20).normalized();
+          final outN = Vector3(cosT * 0.45, 0.89, sinT * 0.45).normalized();
+
+          final uCoord = (theta / (math.pi * 2)) * 8;
+          builder
+            ..normal(inN)
+            ..color(
+              Vector4(
+                ring.tintBase.$1,
+                ring.tintBase.$2,
+                ring.tintBase.$3,
+                0.05,
+              ),
+            )
+            ..texCoord(Vector2(uCoord, 0))
+            ..addVertex(pInner)
+            ..normal(crN)
+            ..color(
+              Vector4(
+                ring.tintCrest.$1,
+                ring.tintCrest.$2,
+                ring.tintCrest.$3,
+                0.05,
+              ),
+            )
+            ..texCoord(Vector2(uCoord, 0.5))
+            ..addVertex(pCrest)
+            ..normal(outN)
+            ..color(
+              Vector4(
+                ring.tintCrest.$1,
+                ring.tintCrest.$2,
+                ring.tintCrest.$3,
+                0.05,
+              ),
+            )
+            ..texCoord(Vector2(uCoord, 1))
+            ..addVertex(pOuter);
+        }
+
+        for (var i = 0; i < segsPerQuad; i++) {
+          final r0 = i * cols;
+          final r1 = (i + 1) * cols;
+          builder
+            ..addTriangle(r0, r1, r0 + 1)
+            ..addTriangle(r0 + 1, r1, r1 + 1)
+            ..addTriangle(r0 + 1, r1 + 1, r0 + 2)
+            ..addTriangle(r0 + 2, r1 + 1, r1 + 2);
+        }
+
+        root.add(
+          Node(
+            name: '${ring.prefix}_q$q',
+            mesh: Mesh(builder.build(), mountainMat),
+          )..shadowCastingMode = ShadowCastingMode.off,
+        );
+      }
+    }
+
+    return root;
   }
 }

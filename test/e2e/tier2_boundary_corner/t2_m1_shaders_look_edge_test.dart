@@ -218,8 +218,8 @@ void main() {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-        expect(lookSrc.contains('ambientOcclusionIntensity: 1.68'), isTrue);
-        expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.46'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.62'), isTrue);
 
         final fmatSrc = File('assets/materials/gouache_lit.fmat')
             .readAsStringSync();
@@ -254,12 +254,12 @@ void main() {
         expect(lookSrc.contains('FogMode.exponential'), isTrue);
         expect(lookSrc.contains('fogStart: 18'), isTrue);
         expect(lookSrc.contains('fogStart: 22'), isTrue);
-        expect(lookSrc.contains('fogDensity: 0.0046'), isTrue);
-        expect(lookSrc.contains('fogDensity: 0.0052'), isTrue);
+        expect(lookSrc.contains('fogDensity: 0.0036'), isTrue);
+        expect(lookSrc.contains('fogDensity: 0.0048'), isTrue);
         expect(lookSrc.contains('fogHeight: 1.4'), isTrue);
         expect(lookSrc.contains('fogHeightFalloff: 0.34'), isTrue);
-        expect(lookSrc.contains('fogSkyColorInfluence: 0.24'), isTrue);
-        expect(lookSrc.contains('fogSkyColorInfluence: 0.16'), isTrue);
+        expect(lookSrc.contains('fogSkyColorInfluence: 0.28'), isTrue);
+        expect(lookSrc.contains('fogSkyColorInfluence: 0.26'), isTrue);
         expect(
           EdoLookDriver.solarSkyDirectionFor(TimeOfDayRig.blueHourNight).y,
           lessThan(0),

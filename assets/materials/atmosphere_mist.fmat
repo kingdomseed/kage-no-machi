@@ -89,19 +89,19 @@ fragment {
     vec3 flowCoord = vec3(P.x * 0.20, P.y * 0.52, P.z * 0.15 - t * 0.11);
     float warp = NoiseSimplex3(flowCoord * 1.4 + vec3(0.0, -t * 0.05, -t * 0.08), 941);
     float fbm = NoiseFbm3(flowCoord + vec3(warp * 0.45), 953, 3, 2.0, 0.5);
-    float billow = smoothstep(0.24, 0.82, fbm * 0.5 + 0.52);
+    float billow = smoothstep(0.36, 0.86, fbm * 0.5 + 0.50);
 
     float bridgeClear = 0.42 + 0.58 * smoothstep(2.2, 9.2, abs(P.z));
     vec3 duskVapor = mix(
       material_params.mist_cool.rgb,
       material_params.mist_warm.rgb,
-      clamp(0.22 + 0.38 * (fbm * 0.5 + 0.5), 0.0, 0.65)
+      clamp(0.28 + 0.44 * (fbm * 0.5 + 0.5), 0.0, 0.72)
     );
-    vec3 nightVapor = vec3(0.14, 0.26, 0.42);
+    vec3 nightVapor = vec3(0.18, 0.32, 0.52);
     vec3 mistRgb = mix(duskVapor, nightVapor, material_params.night_mix);
 
     float alpha =
-        edgeX * vColor.a * softDepth * billow * bridgeClear * material_params.mist_opacity * 0.42;
+        edgeX * vColor.a * softDepth * billow * bridgeClear * material_params.mist_opacity * 0.22;
     material.base_color = vec4(mistRgb * vColor.rgb, max(0.0, alpha));
     PrepareMaterial(material);
   }

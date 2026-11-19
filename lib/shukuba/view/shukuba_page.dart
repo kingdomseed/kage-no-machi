@@ -202,6 +202,24 @@ class _ShukubaPageState extends State<ShukubaPage> {
   Future<List<String>> _captureUiAtlas(Directory uiDir) async {
     final saved = <String>[];
     _applyPresetForCapture(CameraPreset.duskOverview);
+    if (mounted) {
+      try {
+        await Future.wait([
+          precacheImage(
+            const AssetImage('assets/ui/title_backdrop.jpg'),
+            context,
+          ),
+          precacheImage(
+            const AssetImage('assets/ui/urushi_crest.png'),
+            context,
+          ),
+          precacheImage(
+            const AssetImage('assets/ui/washi_card_bg.png'),
+            context,
+          ),
+        ]);
+      } on Object catch (_) {}
+    }
     setState(() {
       _forceRenderHudInCapture = true;
       _shellMode = ShukubaShellMode.titleMenu;
