@@ -112,7 +112,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final Node _heroPropsNode = Node(name: 'hero_glb_props');
   Node? _vistaMountainsNode;
   Node? _skyCloudDomeNode;
-  final Map<String, Node> _heroTreePrototypes = <String, Node>{};
+  final Map<String, Node> _heroStructurePrototypes = <String, Node>{};
   final List<String> _loadedScenePaths = <String>[];
 
   final Set<int> _dirtyFloraChunkIndices = <int>{
@@ -777,7 +777,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       if (_structureNodes.containsKey(entry.key)) {
         continue;
       }
-      final built = _buildStructureOrHeroTreeNode(entry.value);
+      final built = _buildStructureOrHeroNode(entry.value);
       _structureNodes[entry.key] = (data: entry.value, node: built);
       _structuresNode.add(built);
     }
@@ -1033,15 +1033,18 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
-  static const List<String> _heroTreeAssetPaths = <String>[
+  static const List<String> _heroStructureAssetPaths = <String>[
     'assets/models/tree_maple_hero.glb',
     'assets/models/tree_maple_gold.glb',
     'assets/models/tree_pine_bonsai.glb',
     'assets/models/tree_willow_weeping.glb',
     'assets/models/tree_bamboo_clump.glb',
+    'assets/models/machiya_hero.glb',
+    'assets/models/kura_warehouse_hero.glb',
+    'assets/models/teahouse_hero.glb',
   ];
 
-  static String? _heroTreeAssetFor(PlacedStructure structure) =>
+  static String? _heroStructureAssetFor(PlacedStructure structure) =>
       switch (structure.kind) {
         StructureKind.mapleCluster =>
           ((structure.variant + structure.id.value.hashCode) & 1) == 0
@@ -1050,6 +1053,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         StructureKind.pineTree => 'assets/models/tree_pine_bonsai.glb',
         StructureKind.weepingWillow => 'assets/models/tree_willow_weeping.glb',
         StructureKind.bambooGrove => 'assets/models/tree_bamboo_clump.glb',
+        StructureKind.machiya => 'assets/models/machiya_hero.glb',
+        StructureKind.kura => 'assets/models/kura_warehouse_hero.glb',
+        StructureKind.chaya => 'assets/models/teahouse_hero.glb',
         _ => null,
       };
 
@@ -1072,17 +1078,30 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
-  Node _buildStructureOrHeroTreeNode(PlacedStructure structure) {
-    final assetPath = _heroTreeAssetFor(structure);
-    final proto = assetPath == null ? null : _heroTreePrototypes[assetPath];
+  Node _buildStructureOrHeroNode(PlacedStructure structure) {
+    final assetPath = _heroStructureAssetFor(structure);
+    final proto = assetPath == null
+        ? null
+        : _heroStructurePrototypes[assetPath];
     if (proto != null) {
-      final hash = structure.id.value.hashCode.abs();
-      final uniformScale = 0.90 + (hash % 29) * 0.01;
-      final yaw = structure.yawRadians + ((hash % 628) * 0.01);
-      final wrapper = Node(name: 'hero_tree_${structure.id.value}')
+      if (structure.kind.isBotanicalTree) {
+        final hash = structure.id.value.hashCode.abs();
+        final uniformScale = 0.90 + (hash % 29) * 0.01;
+        final yaw = structure.yawRadians + ((hash % 628) * 0.01);
+        final wrapper = Node(name: 'hero_tree_${structure.id.value}')
+          ..position = structure.position.toVector3()
+          ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), yaw)
+          ..scale = Vector3(uniformScale, uniformScale, uniformScale)
+          ..add(proto.clone());
+        return markSubtreeShadowStatic(wrapper);
+      }
+      final wrapper = Node(name: 'hero_structure_${structure.id.value}')
         ..position = structure.position.toVector3()
-        ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), yaw)
-        ..scale = Vector3(uniformScale, uniformScale, uniformScale)
+        ..rotation = Quaternion.axisAngle(
+          Vector3(0, 1, 0),
+          structure.yawRadians,
+        )
+        ..scale = Vector3(1, 1, 1)
         ..add(proto.clone());
       return markSubtreeShadowStatic(wrapper);
     }
@@ -1143,31 +1162,31 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _worldRoot!.add(skyCloudDome);
     }
 
-    for (final treeAsset in _heroTreeAssetPaths) {
-      if (_heroTreePrototypes.containsKey(treeAsset)) {
+    for (final structureAsset in _heroStructureAssetPaths) {
+      if (_heroStructurePrototypes.containsKey(structureAsset)) {
         continue;
       }
-      final loadedTree = await _tryLoadHeroScene(treeAsset);
-      if (loadedTree != null) {
-        _heroTreePrototypes[treeAsset] = loadedTree;
+      final loaded = await _tryLoadHeroScene(structureAsset);
+      if (loaded != null) {
+        _heroStructurePrototypes[structureAsset] = loaded;
       }
     }
 
-    if (_heroTreePrototypes.isNotEmpty) {
+    if (_heroStructurePrototypes.isNotEmpty) {
       for (final structure in _graph.structures.values) {
-        final treeAsset = _heroTreeAssetFor(structure);
-        if (treeAsset == null ||
-            !_heroTreePrototypes.containsKey(treeAsset) ||
+        final assetPath = _heroStructureAssetFor(structure);
+        if (assetPath == null ||
+            !_heroStructurePrototypes.containsKey(assetPath) ||
             _scene == null) {
           continue;
         }
-        final heroTree = _buildStructureOrHeroTreeNode(structure);
+        final heroNode = _buildStructureOrHeroNode(structure);
         final existing = _structureNodes[structure.id];
         if (existing != null) {
           _structuresNode.remove(existing.node);
         }
-        _structureNodes[structure.id] = (data: structure, node: heroTree);
-        _structuresNode.add(heroTree);
+        _structureNodes[structure.id] = (data: structure, node: heroNode);
+        _structuresNode.add(heroNode);
       }
     }
 
@@ -1352,7 +1371,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _scene!.remove(_worldRoot!);
     }
     _simAgents.clear();
-    _heroTreePrototypes.clear();
+    _heroStructurePrototypes.clear();
     _vistaMountainsNode = null;
     _skyCloudDomeNode = null;
     _clearIncrementalCaches();
