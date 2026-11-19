@@ -4,7 +4,15 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_scene/kit.dart' show Steering;
 import 'package:flutter_scene/scene.dart'
-    show GeometryBuilder, Mesh, Node, Scene, loadScene, releaseScene;
+    show
+        GeometryBuilder,
+        Material,
+        Mesh,
+        Node,
+        Scene,
+        ShadowCastingMode,
+        loadScene,
+        releaseScene;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         AmbientLoopKind,
@@ -102,6 +110,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   late final Node _atmosphereMistNode = Node(name: 'atmosphere_mist_ribbons');
   late final Node _previewNode = Node(name: 'preview_root');
   late final Node _heroPropsNode = Node(name: 'hero_glb_props');
+  Node? _vistaMountainsNode;
+  Node? _skyCloudDomeNode;
+  final Map<String, Node> _heroTreePrototypes = <String, Node>{};
   final List<String> _loadedScenePaths = <String>[];
 
   final Set<int> _dirtyFloraChunkIndices = <int>{
@@ -332,6 +343,14 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _wallsNode.removeAll();
     _structuresNode.removeAll();
     _heroPropsNode.removeAll();
+    if (_vistaMountainsNode != null) {
+      _worldRoot?.remove(_vistaMountainsNode!);
+      _vistaMountainsNode = null;
+    }
+    if (_skyCloudDomeNode != null) {
+      _worldRoot?.remove(_skyCloudDomeNode!);
+      _skyCloudDomeNode = null;
+    }
     _structureNodes.clear();
     _lanternSpansNode.removeAll();
     _builtRoads = null;
@@ -758,9 +777,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       if (_structureNodes.containsKey(entry.key)) {
         continue;
       }
-      final built = markSubtreeShadowStatic(
-        _kitBuilder.buildStructureNode(entry.value, _resolveMaterial),
-      );
+      final built = _buildStructureOrHeroTreeNode(entry.value);
       _structureNodes[entry.key] = (data: entry.value, node: built);
       _structuresNode.add(built);
     }
@@ -1016,6 +1033,64 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
+  static const List<String> _heroTreeAssetPaths = <String>[
+    'assets/models/tree_maple_hero.glb',
+    'assets/models/tree_maple_gold.glb',
+    'assets/models/tree_pine_bonsai.glb',
+    'assets/models/tree_willow_weeping.glb',
+    'assets/models/tree_bamboo_clump.glb',
+  ];
+
+  static String? _heroTreeAssetFor(PlacedStructure structure) =>
+      switch (structure.kind) {
+        StructureKind.mapleCluster =>
+          ((structure.variant + structure.id.value.hashCode) & 1) == 0
+              ? 'assets/models/tree_maple_hero.glb'
+              : 'assets/models/tree_maple_gold.glb',
+        StructureKind.pineTree => 'assets/models/tree_pine_bonsai.glb',
+        StructureKind.weepingWillow => 'assets/models/tree_willow_weeping.glb',
+        StructureKind.bambooGrove => 'assets/models/tree_bamboo_clump.glb',
+        _ => null,
+      };
+
+  static void _overrideSubtreeMaterial(Node root, Material material) {
+    final mesh = root.mesh;
+    if (mesh != null) {
+      for (final prim in mesh.primitives) {
+        prim.material = material;
+      }
+    }
+    for (final child in root.children) {
+      _overrideSubtreeMaterial(child, material);
+    }
+  }
+
+  static void _setSubtreeShadowCasting(Node root, ShadowCastingMode mode) {
+    root.shadowCastingMode = mode;
+    for (final child in root.children) {
+      _setSubtreeShadowCasting(child, mode);
+    }
+  }
+
+  Node _buildStructureOrHeroTreeNode(PlacedStructure structure) {
+    final assetPath = _heroTreeAssetFor(structure);
+    final proto = assetPath == null ? null : _heroTreePrototypes[assetPath];
+    if (proto != null) {
+      final hash = structure.id.value.hashCode.abs();
+      final uniformScale = 0.90 + (hash % 29) * 0.01;
+      final yaw = structure.yawRadians + ((hash % 628) * 0.01);
+      final wrapper = Node(name: 'hero_tree_${structure.id.value}')
+        ..position = structure.position.toVector3()
+        ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), yaw)
+        ..scale = Vector3(uniformScale, uniformScale, uniformScale)
+        ..add(proto.clone());
+      return markSubtreeShadowStatic(wrapper);
+    }
+    return markSubtreeShadowStatic(
+      _kitBuilder.buildStructureNode(structure, _resolveMaterial),
+    );
+  }
+
   Future<Node?> _tryLoadHeroScene(String assetPath) async {
     try {
       final loaded = await loadScene(assetPath);
@@ -1033,6 +1108,67 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   Future<void> _attachHeroGlbModels() async {
     if (_scene == null || _worldRoot == null) {
       return;
+    }
+
+    final vistaMountains = await _tryLoadHeroScene(
+      'assets/models/vista_mountains.glb',
+    );
+    if (vistaMountains != null && _worldRoot != null) {
+      _overrideSubtreeMaterial(
+        vistaMountains,
+        _resolveMaterial(ShukubaSurfaceRole.mountainVista),
+      );
+      _setSubtreeShadowCasting(vistaMountains, ShadowCastingMode.off);
+      _horizonRidgesNode.visible = false;
+      if (_vistaMountainsNode != null) {
+        _worldRoot!.remove(_vistaMountainsNode!);
+      }
+      _vistaMountainsNode = vistaMountains;
+      _worldRoot!.add(vistaMountains);
+    }
+
+    final skyCloudDome = await _tryLoadHeroScene(
+      'assets/models/sky_cloud_dome.glb',
+    );
+    if (skyCloudDome != null && _worldRoot != null) {
+      _overrideSubtreeMaterial(
+        skyCloudDome,
+        _resolveMaterial(ShukubaSurfaceRole.paintedClouds),
+      );
+      _setSubtreeShadowCasting(skyCloudDome, ShadowCastingMode.off);
+      if (_skyCloudDomeNode != null) {
+        _worldRoot!.remove(_skyCloudDomeNode!);
+      }
+      _skyCloudDomeNode = skyCloudDome;
+      _worldRoot!.add(skyCloudDome);
+    }
+
+    for (final treeAsset in _heroTreeAssetPaths) {
+      if (_heroTreePrototypes.containsKey(treeAsset)) {
+        continue;
+      }
+      final loadedTree = await _tryLoadHeroScene(treeAsset);
+      if (loadedTree != null) {
+        _heroTreePrototypes[treeAsset] = loadedTree;
+      }
+    }
+
+    if (_heroTreePrototypes.isNotEmpty) {
+      for (final structure in _graph.structures.values) {
+        final treeAsset = _heroTreeAssetFor(structure);
+        if (treeAsset == null ||
+            !_heroTreePrototypes.containsKey(treeAsset) ||
+            _scene == null) {
+          continue;
+        }
+        final heroTree = _buildStructureOrHeroTreeNode(structure);
+        final existing = _structureNodes[structure.id];
+        if (existing != null) {
+          _structuresNode.remove(existing.node);
+        }
+        _structureNodes[structure.id] = (data: structure, node: heroTree);
+        _structuresNode.add(heroTree);
+      }
     }
 
     final heroBridge = await _tryLoadHeroScene(
@@ -1107,87 +1243,90 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
 
     _heroPropsNode.removeAll();
-    const heroPlacements = <({
-      String name,
-      String assetPath,
-      double x,
-      double z,
-      double yaw,
-      double yOffset,
-    })>[
-      (
-        name: 'hero_distant_pagoda',
-        assetPath: 'assets/models/edo_distant_pagoda.glb',
-        x: 68.0,
-        z: -21.0,
-        yaw: 0.42,
-        yOffset: -0.35,
-      ),
-      (
-        name: 'hero_stone_lantern_bridge_w',
-        assetPath: 'assets/models/edo_stone_lantern.glb',
-        x: -6.35,
-        z: 2.35,
-        yaw: 0.0,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_stone_lantern_bridge_e',
-        assetPath: 'assets/models/edo_stone_lantern.glb',
-        x: 6.15,
-        z: 2.30,
-        yaw: 3.14,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_stone_lantern_torii_n',
-        assetPath: 'assets/models/edo_stone_lantern.glb',
-        x: -22.8,
-        z: 2.85,
-        yaw: 0.10,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_stone_lantern_torii_s',
-        assetPath: 'assets/models/edo_stone_lantern.glb',
-        x: -22.8,
-        z: -2.85,
-        yaw: -0.10,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_handcart_west',
-        assetPath: 'assets/models/edo_handcart.glb',
-        x: -14.8,
-        z: -2.35,
-        yaw: 0.25,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_handcart_east',
-        assetPath: 'assets/models/edo_handcart.glb',
-        x: 22.6,
-        z: 2.15,
-        yaw: -0.35,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_sake_barrels_chaya',
-        assetPath: 'assets/models/edo_sake_barrels.glb',
-        x: -8.5,
-        z: 3.35,
-        yaw: 0.40,
-        yOffset: 0.0,
-      ),
-      (
-        name: 'hero_sake_barrels_market',
-        assetPath: 'assets/models/edo_sake_barrels.glb',
-        x: 10.4,
-        z: -2.55,
-        yaw: -0.30,
-        yOffset: 0.0,
-      ),
-    ];
+    const heroPlacements =
+        <
+          ({
+            String name,
+            String assetPath,
+            double x,
+            double z,
+            double yaw,
+            double yOffset,
+          })
+        >[
+          (
+            name: 'hero_distant_pagoda',
+            assetPath: 'assets/models/edo_distant_pagoda.glb',
+            x: 68.0,
+            z: -21.0,
+            yaw: 0.42,
+            yOffset: -0.35,
+          ),
+          (
+            name: 'hero_stone_lantern_bridge_w',
+            assetPath: 'assets/models/edo_stone_lantern.glb',
+            x: -6.35,
+            z: 2.35,
+            yaw: 0.0,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_stone_lantern_bridge_e',
+            assetPath: 'assets/models/edo_stone_lantern.glb',
+            x: 6.15,
+            z: 2.30,
+            yaw: 3.14,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_stone_lantern_torii_n',
+            assetPath: 'assets/models/edo_stone_lantern.glb',
+            x: -22.8,
+            z: 2.85,
+            yaw: 0.10,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_stone_lantern_torii_s',
+            assetPath: 'assets/models/edo_stone_lantern.glb',
+            x: -22.8,
+            z: -2.85,
+            yaw: -0.10,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_handcart_west',
+            assetPath: 'assets/models/edo_handcart.glb',
+            x: -14.8,
+            z: -2.35,
+            yaw: 0.25,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_handcart_east',
+            assetPath: 'assets/models/edo_handcart.glb',
+            x: 22.6,
+            z: 2.15,
+            yaw: -0.35,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_sake_barrels_chaya',
+            assetPath: 'assets/models/edo_sake_barrels.glb',
+            x: -8.5,
+            z: 3.35,
+            yaw: 0.40,
+            yOffset: 0.0,
+          ),
+          (
+            name: 'hero_sake_barrels_market',
+            assetPath: 'assets/models/edo_sake_barrels.glb',
+            x: 10.4,
+            z: -2.55,
+            yaw: -0.30,
+            yOffset: 0.0,
+          ),
+        ];
 
     for (final item in heroPlacements) {
       final model = await _tryLoadHeroScene(item.assetPath);
@@ -1213,6 +1352,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _scene!.remove(_worldRoot!);
     }
     _simAgents.clear();
+    _heroTreePrototypes.clear();
+    _vistaMountainsNode = null;
+    _skyCloudDomeNode = null;
     _clearIncrementalCaches();
     for (final path in _loadedScenePaths) {
       unawaited(releaseScene(path).then((_) {}, onError: (_) {}));

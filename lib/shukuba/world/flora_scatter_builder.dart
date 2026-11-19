@@ -1141,34 +1141,30 @@ class FloraScatterBuilder {
       );
     }
 
-    const reedCandidates = 1480;
+    const reedCandidates = 520;
     final placedReeds = <Vector2>[];
     for (var i = 0; i < reedCandidates; i++) {
       final side = i.isEven ? -1.0 : 1.0;
       final u = ((i + 1) * 0.6180339887498949) % 1.0;
-      final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.64;
-      final standMask =
-          0.5 +
-          0.32 * math.sin(z * 0.31 + side * 1.4) +
-          0.18 * math.cos(z * 0.57 - side * 0.8);
-      if (standMask < 0.40) {
+      final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.92;
+      if (math.sin(z * 0.55 + side * 1.4) <= 0.15) {
         continue;
       }
       final goldenMix = (i * 0.38196601125) % 1.0;
-      final bankDist = 2.34 + 1.85 * goldenMix;
+      final bankDist = 2.42 + 2.05 * goldenMix;
       final x = TerrainConfig.riverCenterX(z) + side * bankDist;
-      if (!index.isClear(x, z, roadMargin: 0.44, minRiverDist: 2.28)) {
+      if (!index.isClear(x, z, roadMargin: 0.44, minRiverDist: 2.34)) {
         continue;
       }
       var tooCloseReed = false;
       for (var rIdx = placedReeds.length - 1; rIdx >= 0; rIdx--) {
         final prev = placedReeds[rIdx];
-        if ((z - prev.y).abs() > 1.2) {
+        if ((z - prev.y).abs() > 1.4) {
           break;
         }
         final dx = x - prev.x;
         final dz = z - prev.y;
-        if (dx * dx + dz * dz < 0.34) {
+        if (dx * dx + dz * dz < 0.58) {
           tooCloseReed = true;
           break;
         }
@@ -1182,13 +1178,13 @@ class FloraScatterBuilder {
       }
 
       final hSeed = (math.sin(i * 7.73 + 1.9) * 917.3).abs() % 1.0;
-      final r = 0.40 + 0.28 * (1 - goldenMix * 0.48) + 0.08 * hSeed;
-      final g = 0.39 + 0.08 * hSeed;
-      final b = 0.13 + 0.04 * hSeed;
+      final r = 0.24 + 0.14 * (1 - goldenMix * 0.45) + 0.05 * hSeed;
+      final g = 0.34 + 0.10 * hSeed;
+      final b = 0.16 + 0.05 * hSeed;
 
-      final width = 0.54 + 0.26 * hSeed;
+      final width = 0.62 + 0.30 * hSeed;
       final height =
-          0.66 + 0.44 * (1 - goldenMix * 0.40) * (0.75 + 0.38 * hSeed);
+          0.46 + 0.32 * (1 - goldenMix * 0.35) * (0.75 + 0.35 * hSeed);
       addAlignedInstance(
         _FloraBatchKind.reeds,
         x: x,

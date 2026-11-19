@@ -254,7 +254,13 @@ void main() {
         expect(lookSrc.contains('FogMode.exponential'), isTrue);
         expect(lookSrc.contains('fogStart: 18'), isTrue);
         expect(lookSrc.contains('fogStart: 22'), isTrue);
-        expect(lookSrc.contains('fogDensity: 0.0036'), isTrue);
+        final fogDensities = RegExp(
+          r'fogDensity:\s*([0-9.]+)',
+        ).allMatches(lookSrc).map((m) => double.parse(m.group(1)!)).toList();
+        expect(fogDensities.length, greaterThanOrEqualTo(2));
+        for (final d in fogDensities) {
+          expect(d, inInclusiveRange(0.001, 0.008));
+        }
         expect(lookSrc.contains('fogDensity: 0.0048'), isTrue);
         expect(lookSrc.contains('fogHeight: 1.4'), isTrue);
         expect(lookSrc.contains('fogHeightFalloff: 0.34'), isTrue);

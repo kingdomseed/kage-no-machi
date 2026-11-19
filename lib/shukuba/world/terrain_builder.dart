@@ -1919,7 +1919,7 @@ class TerrainBuilder {
     }
 
     final horizonBuilders = List.generate(4, (_) => GeometryBuilder());
-    const apronRings = [88.04, 96.0, 110.0, 128.0, 152.0, 184.0];
+    const apronRings = [88.04, 96.0, 108.0];
     const segsPerSide = 64;
     const totalPerim = segsPerSide * 4;
 
@@ -1942,13 +1942,10 @@ class TerrainBuilder {
       if (ringIdx == 0) {
         return edgeY - 0.02;
       }
-      final outDist = math.max(x.abs(), z.abs()) - 88.0;
-      final eastBias = ((x + 88.0) / 176.0).clamp(0.0, 1.0);
-      final ridge =
-          2.6 * math.sin(x * 0.042 + z * 0.055) +
-          1.7 * math.cos(z * 0.038 - x * 0.031);
-      final climb = outDist * (0.045 + 0.105 * eastBias);
-      return edgeY + climb + ridge * (outDist / 36.0).clamp(0.0, 1.0);
+      if (ringIdx == 1) {
+        return edgeY - 0.65;
+      }
+      return edgeY - 2.80;
     }
 
     Vector4 apronColor(double x, double z, int ringIdx) {

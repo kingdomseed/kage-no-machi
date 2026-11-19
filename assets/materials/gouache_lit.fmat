@@ -16,7 +16,10 @@ material {
     { type: float, name: texture_blend, default: 0.0 },
     { type: float, name: texture_scale, default: 0.35 },
     { type: sampler2d, name: paint_albedo, hint: default_white },
-    { type: sampler2d, name: paint_albedo_b, hint: default_white }
+    { type: sampler2d, name: paint_albedo_b, hint: default_white },
+    { type: float, name: normal_strength, default: 0.0 },
+    { type: sampler2d, name: paint_normal, hint: default_white },
+    { type: sampler2d, name: paint_normal_b, hint: default_white }
   ]
 }
 
@@ -62,6 +65,23 @@ fragment {
       NoiseSimplex2(xz * (scale * 0.22), 1409) * 0.5 + 0.5
     );
     return mix(SamplePaintedLinear(tex, uvA), SamplePaintedLinear(tex, uvB), blend);
+  }
+
+  vec3 DecodeTangentNormal(sampler2D ntex, vec2 pUv) {
+    return texture(ntex, pUv).xyz * 2.0 - 1.0;
+  }
+
+  vec2 SampleNormalWorldAntiTileXY(sampler2D ntex, vec2 xz, float scale) {
+    vec2 uvA = xz * scale;
+    vec2 uvB = (mat2(0.8, -0.6, 0.6, 0.8) * xz) * (scale * 0.47) + vec2(0.37, 0.71);
+    float blend = smoothstep(
+      0.25,
+      0.75,
+      NoiseSimplex2(xz * (scale * 0.22), 1409) * 0.5 + 0.5
+    );
+    vec2 nA = DecodeTangentNormal(ntex, uvA).xy;
+    vec2 nB = mat2(0.8, 0.6, -0.6, 0.8) * DecodeTangentNormal(ntex, uvB).xy;
+    return mix(nA, nB, blend);
   }
 
   float ComputeAtmosphericGobo(vec2 worldXZ, float t) {
@@ -635,6 +655,7 @@ fragment {
     vec3 perturbedN = N;
     float laneFeatherForTint = 0.0;
     float texBlend = clamp(material_params.texture_blend, 0.0, 1.0);
+    float normGain = clamp(material_params.normal_strength, 0.0, 2.5);
 
     if (abs(style - kStyleKawaraTile) < 0.5) {
       float uEave = dot(P, T);
@@ -658,15 +679,21 @@ fragment {
             material_params.weathering;
         albedo = mix(albedo, vec3(0.11, 0.19, 0.065), thatchMoss * 0.65);
         if (texBlend > 0.01) {
-          vec3 thatchTex = SamplePaintedLinear(
-            paint_albedo_b,
-            vec2(uEave, -vSlope) * (material_params.texture_scale * 1.15)
-          );
+          vec2 thatchUv = vec2(uEave, -vSlope) * (material_params.texture_scale * 1.15);
+          vec3 thatchTex = SamplePaintedLinear(paint_albedo_b, thatchUv);
           albedo = mix(albedo, thatchTex * vec3(1.08, 1.02, 0.90) * (0.90 + 0.16 * pigment), 0.84 * texBlend);
         }
         float reedSlope = cos(uEave * 44.0 + reedWarp * 2.4) * 0.24 * midFade;
         float stepKick = (1.0 - smoothstep(0.0, 0.16, layerFract)) * 0.30;
         perturbedN = normalize(N + T * reedSlope + B * (stepKick + (reedFine - 0.5) * 0.12));
+        if (texBlend > 0.01 && normGain > 0.01) {
+          vec2 thatchUv = vec2(uEave, -vSlope) * (material_params.texture_scale * 1.15);
+          vec3 tn = DecodeTangentNormal(paint_normal_b, thatchUv);
+          perturbedN = normalize(
+            mix(perturbedN, N, 0.52) +
+                (T * tn.x - B * tn.y) * (normGain * 0.72 * mix(0.4, 1.0, midFade))
+          );
+        }
         rough = clamp(0.89 + (reedFine - 0.5) * 0.08, 0.82, 0.95);
         spec = 0.24;
         cavityAo = clamp(
@@ -740,6 +767,14 @@ fragment {
         perturbedN = normalize(
           N + T * (ribSlope * 0.38) + B * (stepKick * (courseLip * 0.2 + 0.8))
         );
+        if (texBlend > 0.01 && normGain > 0.01) {
+          vec2 tileUv = vec2(uEave, -vSlope) * material_params.texture_scale;
+          vec3 tn = DecodeTangentNormal(paint_normal, tileUv);
+          perturbedN = normalize(
+            mix(perturbedN, N, 0.52) +
+                (T * tn.x - B * tn.y) * (normGain * 0.78 * mix(0.4, 1.0, midFade))
+          );
+        }
         rough = mix(0.32, 0.72, (1.0 - (ribWave * 0.5 + 0.5)) * 0.70 + mossMask * 0.30);
         spec = 0.68;
         cavityAo = clamp(
@@ -785,6 +820,19 @@ fragment {
       }
       float bevel = (boardFract < 0.09 ? -1.0 : (boardFract > 0.91 ? 1.0 : 0.0)) * seam;
       perturbedN = normalize(N + T * (bevel * 0.30 + (woodGrain - 0.5) * 0.09));
+      if (texBlend > 0.01 && normGain > 0.01) {
+        vec2 woodUv = vec2(
+          dot(P, T),
+          abs(N.y) < 0.55 ? P.y : dot(P, B)
+        ) * material_params.texture_scale;
+        vec3 tn = DecodeTangentNormal(paint_normal, woodUv);
+        vec3 upUv = abs(N.y) < 0.55 ? vec3(0.0, 1.0, 0.0) : B;
+        vec3 bitan = normalize(upUv - N * dot(N, upUv));
+        perturbedN = normalize(
+          mix(perturbedN, N, 0.50) +
+              (T * tn.x + bitan * tn.y) * (normGain * 0.72 * mix(0.4, 1.0, fineFade))
+        );
+      }
       rough = clamp(rough + seam * 0.12 - woodGrain * 0.06, 0.35, 0.96);
       cavityAo = clamp((1.0 - 0.68 * seam) * (0.88 + 0.12 * woodGrain), 0.46, 1.0);
     } else if (abs(style - kStyleStoneMasonry) < 0.5) {
@@ -821,19 +869,6 @@ fragment {
           vec3(0.058, 0.122, 0.044),
           clamp(dampMoss * (0.46 + 0.54 * mortar), 0.0, 0.74)
         );
-        if (texBlend > 0.01) {
-          vec3 masonryTex = SamplePaintedLinear(
-            paint_albedo,
-            vec2(uStone, vStone) * material_params.texture_scale
-          );
-          vec3 masonryTint = mix(
-            vec3(0.90, 0.93, 1.00),
-            vec3(1.06, 1.01, 0.94),
-            stoneHash
-          ) * (1.0 - 0.24 * mortar);
-          albedo = mix(albedo, masonryTex * masonryTint, 0.86 * texBlend);
-        }
-
         float bevelX = (fx < 0.13 ? -1.0 : (fx > 0.87 ? 1.0 : 0.0)) *
             (1.0 - smoothstep(0.0, 0.13, edgeX)) *
             midFade;
@@ -845,6 +880,27 @@ fragment {
               T * (bevelX * 0.42 + rockFacet * 0.12 + rockPore * 0.05) +
               B * (bevelY * 0.38)
         );
+
+        if (texBlend > 0.01) {
+          vec2 masonryUv = vec2(uStone, vStone) * material_params.texture_scale;
+          vec3 masonryTex = SamplePaintedLinear(paint_albedo, masonryUv);
+          vec3 masonryTint = mix(
+            vec3(0.90, 0.93, 1.00),
+            vec3(1.06, 1.01, 0.94),
+            stoneHash
+          ) * (1.0 - 0.24 * mortar);
+          albedo = mix(albedo, masonryTex * masonryTint, 0.86 * texBlend);
+          if (normGain > 0.01) {
+            vec3 tn = DecodeTangentNormal(paint_normal, masonryUv);
+            vec3 bitan = abs(N.y) < 0.82
+                ? normalize(vec3(0.0, 1.0, 0.0) - N * N.y)
+                : B;
+            perturbedN = normalize(
+              mix(perturbedN, N, 0.48) +
+                  (T * tn.x + bitan * tn.y) * (normGain * 0.82 * mix(0.4, 1.0, midFade))
+            );
+          }
+        }
         rough = mix(0.68, 0.95, mortar * 0.70 + dampMoss * 0.30);
         cavityAo = clamp((1.0 - 0.76 * mortar) * (0.86 + 0.14 * stoneHash), 0.48, 1.0);
       } else {
@@ -934,6 +990,16 @@ fragment {
               (1.0 - totalCrevice * 0.32);
           rockTint = mix(rockTint, rockTint * 0.72, riverDamp * 0.44);
           albedo = mix(albedo, rockTex * rockTint, 0.68 * texBlend);
+          if (normGain > 0.01) {
+            vec3 tn = DecodeTangentNormal(paint_normal, rockUv);
+            vec3 bitan = abs(N.y) < 0.82
+                ? normalize(vec3(0.0, 1.0, 0.0) - N * N.y)
+                : B;
+            perturbedN = normalize(
+              mix(perturbedN, N, 0.56) +
+                  (T * tn.x + bitan * tn.y) * (normGain * 0.80 * mix(0.4, 1.0, midFade))
+            );
+          }
         }
         cavityAo = clamp((1.0 - totalCrevice * 0.78) * (1.0 - bedCrevice * 0.22), 0.48, 1.0);
         float farMountain = smoothstep(90.0, 114.0, length(P.xz));
@@ -954,19 +1020,25 @@ fragment {
       float splashMask = clamp(1.0 - uv.y * 2.8, 0.0, 1.0) * material_params.weathering;
       albedo *= 0.94 + 0.10 * trowel + 0.04 * fineGrain;
       albedo = mix(albedo, albedo * vec3(0.54, 0.48, 0.42), splashMask * 0.68);
+      perturbedN = normalize(N + T * (trowel * 0.07 + fineGrain * 0.03));
       if (texBlend > 0.01) {
-        vec3 plasterTex = SamplePaintedLinear(
-          paint_albedo,
-          vec2(dot(P, T), P.y) * material_params.texture_scale
-        );
+        vec2 plasterUv = vec2(dot(P, T), P.y) * material_params.texture_scale;
+        vec3 plasterTex = SamplePaintedLinear(paint_albedo, plasterUv);
         vec3 plasterTint = mix(
           material_params.base_tint.rgb,
           material_params.warm_tint.rgb,
           pigmentMix
         ) * 1.42 * (1.0 - splashMask * 0.22);
         albedo = mix(albedo, plasterTex * plasterTint, 0.84 * texBlend);
+        if (normGain > 0.01) {
+          vec3 tn = DecodeTangentNormal(paint_normal, plasterUv);
+          vec3 bitan = normalize(vec3(0.0, 1.0, 0.0) - N * N.y);
+          perturbedN = normalize(
+            mix(perturbedN, N, 0.55) +
+                (T * tn.x + bitan * tn.y) * (normGain * 0.48 * mix(0.4, 1.0, fineFade))
+          );
+        }
       }
-      perturbedN = normalize(N + T * (trowel * 0.07 + fineGrain * 0.03));
       cavityAo = clamp(0.94 - splashMask * 0.22 - max(0.0, -trowel) * 0.12, 0.68, 1.0);
     } else if (style > 4.5 && style < 5.8) {
       float isLane = step(kStyleLaneThreshold, style);
@@ -1080,6 +1152,8 @@ fragment {
         );
       }
       if (texBlend > 0.01) {
+        vec3 texX = normalize(vec3(1.0, 0.0, 0.0) - N * N.x);
+        vec3 texZ = normalize(vec3(0.0, 0.0, 1.0) - N * N.z);
         if (isLane > 0.5) {
           vec3 roadTex = SamplePaintedWorldAntiTile(
             paint_albedo,
@@ -1099,13 +1173,27 @@ fragment {
             roadTex * vec3(0.84, 0.86, 0.82),
             isGardenOnly * 0.62
           );
-          lanePaint = mix(
-            lanePaint,
-            vergeTex * vec3(0.92, 0.96, 0.86),
-            clamp(laneFeatherForTint * 0.90, 0.0, 1.0)
-          );
+          float vergeW = clamp(laneFeatherForTint * 0.90, 0.0, 1.0);
+          lanePaint = mix(lanePaint, vergeTex * vec3(0.92, 0.96, 0.86), vergeW);
           albedo = mix(albedo, lanePaint, 0.86 * texBlend);
-          cavityAo = max(cavityAo, 0.62);
+          if (normGain > 0.01) {
+            vec2 roadNormXY = SampleNormalWorldAntiTileXY(
+              paint_normal,
+              P.xz,
+              material_params.texture_scale
+            );
+            vec2 vergeNormXY = SampleNormalWorldAntiTileXY(
+              paint_normal_b,
+              P.xz,
+              material_params.texture_scale * 0.50
+            );
+            vec2 nXY = mix(roadNormXY, vergeNormXY, vergeW);
+            perturbedN = normalize(
+              mix(perturbedN, N, 0.62) +
+                  (texX * nXY.x + texZ * nXY.y) * (normGain * mix(0.42, 1.0, midFade))
+            );
+          }
+          cavityAo = max(cavityAo, 0.46);
         } else {
           vec3 meadowTex = SamplePaintedWorldAntiTile(
             paint_albedo,
@@ -1136,7 +1224,24 @@ fragment {
             riverWet * 0.52
           );
           albedo = mix(albedo, groundPaint, 0.88 * texBlend);
-          cavityAo = max(cavityAo, 0.58);
+          if (normGain > 0.01) {
+            vec2 meadowNormXY = SampleNormalWorldAntiTileXY(
+              paint_normal,
+              P.xz,
+              material_params.texture_scale
+            );
+            vec2 earthNormXY = SampleNormalWorldAntiTileXY(
+              paint_normal_b,
+              P.xz,
+              material_params.texture_scale * 1.65
+            );
+            vec2 nXY = mix(meadowNormXY, earthNormXY, earthMix) * (1.0 - riverWet * 0.65);
+            perturbedN = normalize(
+              mix(perturbedN, N, 0.62) +
+                  (texX * nXY.x + texZ * nXY.y) * (normGain * mix(0.40, 1.0, midFade))
+            );
+          }
+          cavityAo = max(cavityAo, 0.42);
         }
       }
     } else if (style >= 5.8) {

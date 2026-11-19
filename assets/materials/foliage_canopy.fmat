@@ -374,7 +374,7 @@ fragment {
     vec3 domeNormal = normalize(
       vec3(0.0, 1.0, 0.0) + T * (centeredUv.x * 0.55) + B * (centeredUv.y * 0.42)
     );
-    vec3 leafNormal = normalize(mix(cardNormal, domeNormal, 0.72));
+    vec3 leafNormal = normalize(mix(cardNormal, domeNormal, 0.24));
 
     vec3 viewDir = GetViewDirection();
     float skyFacing = leafNormal.y * 0.5 + 0.5;
@@ -404,6 +404,14 @@ fragment {
       tipExposure = clamp(leafTone * 0.64 + outerReach * 0.36, 0.0, 1.0);
     }
     leafColor *= rootShade;
+
+    vec3 shadowIndigoShift = vec3(0.76, 0.74, 0.96);
+    vec3 sunlitGoldTip = vec3(1.10, 1.04, 0.88);
+    leafColor *= mix(
+      shadowIndigoShift,
+      sunlitGoldTip,
+      smoothstep(0.22, 0.82, skyFacing * 0.65 + tipExposure * 0.35)
+    );
 
     float goboLight = ComputeAtmosphericGobo(worldPos.xz, t);
     leafColor *= mix(vec3(0.80, 0.86, 0.96), vec3(1.12, 1.06, 0.96), goboLight);

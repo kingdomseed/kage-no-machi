@@ -235,7 +235,7 @@ fragment {
       float plumeTone = 0.5;
       coverage = SusukiPlumeCoverage(uv, bHash, plumeTone);
       vec3 stemGold = vec3(0.28, 0.22, 0.10);
-      vec3 silkyPlume = vec3(0.80, 0.72, 0.52);
+      vec3 silkyPlume = vec3(0.58, 0.48, 0.30);
       vec3 basePlume = mix(stemGold, silkyPlume, plumeTone) * vColor.rgb;
       float backLight = (0.38 + 0.88 * forwardScatter) * plumeTone;
       vec3 plumeGlow = silkyPlume *
@@ -246,7 +246,7 @@ fragment {
       albedo = basePlume + plumeGlow * 0.28;
       material.normal = vec3(0.0, 1.0, 0.0);
       spec = 0.24;
-      emissive = plumeGlow * 0.14;
+      emissive = plumeGlow * 0.08;
       tuftOcclusion = mix(0.38, 1.0, smoothstep(0.0, 0.75, s));
     } else if (subKind < 0.80) {
       float isCenter = 0.0;

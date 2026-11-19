@@ -2571,6 +2571,16 @@ enum ShukubaSurfaceRole {
     depthLayer: 4,
     defaultRoughness: 1,
     previewColor: Color(0x99FFD88A),
+  ),
+  mountainVista(
+    depthLayer: 0,
+    defaultRoughness: 0.99,
+    previewColor: Color(0xFF4B5576),
+  ),
+  paintedClouds(
+    depthLayer: 0,
+    defaultRoughness: 1,
+    previewColor: Color(0xFFE09E72),
   );
 
   new({
