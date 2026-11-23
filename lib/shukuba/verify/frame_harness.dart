@@ -43,6 +43,10 @@ const bool kShukubaAudit360 = bool.fromEnvironment('SHUKUBA_AUDIT_360');
 
 const String kShukubaRealm = String.fromEnvironment('SHUKUBA_REALM');
 
+const bool kShukubaVerifyReentry = bool.fromEnvironment(
+  'SHUKUBA_VERIFY_REENTRY',
+);
+
 @immutable
 class FramePixelStats {
   const new({

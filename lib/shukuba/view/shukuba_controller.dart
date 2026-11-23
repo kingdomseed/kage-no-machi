@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:flutter_scene/scene.dart' show Camera, RenderView, Scene;
+import 'package:kage_no_machi/shukuba/look/edo_look_driver.dart'
+    show EdoLookDriver;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/world/edo_world_driver.dart'
@@ -32,6 +34,7 @@ class ShukubaController extends ChangeNotifier {
   bool _isReady = false;
   int _nextEntitySeq = 1;
   double _elapsedSeconds = 0;
+  int _sceneEpoch = 0;
 
   bool get isReady => _isReady;
 
@@ -85,39 +88,80 @@ class ShukubaController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Detaches scene-bound world/look/audio state so a new [Scene] can be
+  /// attached later without leaking or double-parenting nodes.
+  void detachFromScene() {
+    _sceneEpoch++;
+    _isReady = false;
+    _strokePoints.clear();
+    _hoverPoint = null;
+    _activePreview = const NoBuildPreview();
+    audio.dispose();
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.detach();
+    }
+    if (look case final EdoLookDriver edoLook) {
+      edoLook.detach();
+    }
+  }
+
   Future<BootReport> initializeStaged({
     required Scene scene,
     required Camera camera,
     void Function(BootStageId stage, double elapsedMs)? onStage,
   }) async {
+    final epoch = ++_sceneEpoch;
     final timings = <BootStageTiming>[];
     final totalSw = Stopwatch()..start();
     final stageSw = Stopwatch()..start();
 
+    BootReport abortedReport() => BootReport(
+      stages: timings,
+      totalMs: totalSw.elapsedMicroseconds / 1000.0,
+    );
+
     await Scene.initializeStaticResources();
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
     scene.camera = camera;
     await look.attach(scene);
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
     var elapsed = stageSw.elapsedMicroseconds / 1000.0;
     timings.add(
       BootStageTiming(stage: BootStageId.lookAndShaders, durationMs: elapsed),
     );
     onStage?.call(BootStageId.lookAndShaders, elapsed);
     await Future<void>.delayed(Duration.zero);
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
 
     stageSw.reset();
     await audio.prewarm();
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
     elapsed = stageSw.elapsedMicroseconds / 1000.0;
     timings.add(
       BootStageTiming(stage: BootStageId.audioSynthesis, durationMs: elapsed),
     );
     onStage?.call(BootStageId.audioSynthesis, elapsed);
     await Future<void>.delayed(Duration.zero);
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
 
     if (world is EdoWorldDriver) {
       await (world as EdoWorldDriver).attachStaged(
         scene,
         resolveMaterial: look.materialFor,
         onStage: (stage, ms) async {
+          if (epoch != _sceneEpoch) {
+            return;
+          }
           timings.add(BootStageTiming(stage: stage, durationMs: ms));
           onStage?.call(stage, ms);
         },
@@ -129,12 +173,21 @@ class ShukubaController extends ChangeNotifier {
         BootStageId.townArchitecture,
         BootStageId.floraAndAir,
       ]) {
+        if (epoch != _sceneEpoch) {
+          return abortedReport();
+        }
         timings.add(BootStageTiming(stage: stage, durationMs: 1));
         onStage?.call(stage, 1);
         await Future<void>.delayed(Duration.zero);
       }
     }
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
     await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
 
     stageSw.reset();
     if (world case final EdoWorldDriver edoWorld) {
@@ -157,6 +210,9 @@ class ShukubaController extends ChangeNotifier {
       sliceBudget: const Duration(milliseconds: 50),
       allShadingTiers: true,
     );
+    if (epoch != _sceneEpoch) {
+      return abortedReport();
+    }
     elapsed = stageSw.elapsedMicroseconds / 1000.0;
     timings.add(
       BootStageTiming(stage: BootStageId.gpuWarmup, durationMs: elapsed),
@@ -729,6 +785,7 @@ class ShukubaController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _sceneEpoch++;
     audio.dispose();
     world.dispose();
     look.dispose();

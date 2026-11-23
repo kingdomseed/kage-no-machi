@@ -123,6 +123,14 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   Node? _minatoSeawallNode;
   Node? _outerApronNode;
   bool _heroBridgeAttached = false;
+  int _attachEpoch = 0;
+
+  bool _isStaleAttach(int epoch, ShowcaseRealm realm, Scene? scene) =>
+      _scene == null ||
+      _worldRoot == null ||
+      _attachEpoch != epoch ||
+      _realm != realm ||
+      !identical(_scene, scene);
   final Map<String, Node> _heroStructurePrototypes = <String, Node>{};
   final List<String> _loadedScenePaths = <String>[];
   final Set<PhysicallyBasedMaterial> _seenEmissives =
@@ -225,6 +233,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       .sampleGroundHeight(x, z, terraces: _graph.terraces, roads: _graph.roads);
 
   void _mountInitialWorldRoot() {
+    _terrainBuilder.realm = _realm;
     _worldRoot = Node();
     _horizonRidgesNode = _terrainBuilder.buildHorizonMountainRidgesNode(
       _resolveMaterial,
@@ -259,12 +268,38 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _scene!.add(_worldRoot!);
   }
 
+  /// Detaches the world root and all persistent container nodes from any active
+  /// [Scene] so this driver can cleanly re-attach to a new [Scene] later.
+  void detach() {
+    _attachEpoch++;
+    final oldRoot = _worldRoot;
+    final oldScene = _scene;
+    if (oldRoot != null) {
+      oldRoot.removeAll();
+      if (oldScene != null && identical(oldRoot.parent, oldScene.root)) {
+        oldScene.remove(oldRoot);
+      } else {
+        oldRoot.parent?.remove(oldRoot);
+      }
+    }
+    _worldRoot = null;
+    _scene = null;
+    _heroBridgeAttached = false;
+    _previewNode.removeAll();
+    _clearIncrementalCaches();
+  }
+
   @override
   Future<void> attach(
     Scene scene, {
     ShukubaMaterialResolver resolveMaterial = defaultShukubaMaterial,
     ShukubaGraph? initialGraph,
   }) async {
+    if (_worldRoot != null || _scene != null) {
+      detach();
+    }
+    final epoch = ++_attachEpoch;
+    final capturedRealm = _realm;
     _scene = scene;
     _resolveMaterial = resolveMaterial;
 
@@ -273,6 +308,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     initSimulation(initialGraph: initialGraph);
     _rebuildGraphNodes();
     _rebuildPreviewNode();
+    if (_isStaleAttach(epoch, capturedRealm, scene)) {
+      return;
+    }
     await _attachHeroGlbModels();
   }
 
@@ -282,6 +320,11 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     ShukubaGraph? initialGraph,
     Future<void> Function(BootStageId stage, double elapsedMs)? onStage,
   }) async {
+    if (_worldRoot != null || _scene != null) {
+      detach();
+    }
+    final epoch = ++_attachEpoch;
+    final capturedRealm = _realm;
     _scene = scene;
     _resolveMaterial = resolveMaterial;
 
@@ -299,6 +342,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
     }
     await Future<void>.delayed(Duration.zero);
+    if (_isStaleAttach(epoch, capturedRealm, scene)) {
+      return;
+    }
 
     stopwatch.reset();
     _rebuildArchitectureAndAgentNodes();
@@ -309,6 +355,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
     }
     await Future<void>.delayed(Duration.zero);
+    if (_isStaleAttach(epoch, capturedRealm, scene)) {
+      return;
+    }
 
     stopwatch.reset();
     _rebuildFloraAtmosphereAndPreviewNodes();
@@ -317,6 +366,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         BootStageId.floraAndAir,
         stopwatch.elapsedMicroseconds / 1000.0,
       );
+    }
+    if (_isStaleAttach(epoch, capturedRealm, scene)) {
+      return;
     }
     await _attachHeroGlbModels();
   }
@@ -332,6 +384,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       return;
     }
 
+    _attachEpoch++;
     _worldRoot!.remove(_waterNode);
     _horizonRidgesNode.visible = true;
     _waterNode = _realm == ShowcaseRealm.minatoJo
@@ -402,6 +455,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _floraNode.removeAll();
     _atmosphereMistNode.removeAll();
     _atmosphereNode.removeAll();
+    _atmosphereMistNode.parent?.remove(_atmosphereMistNode);
     _riverMistNodes = const [];
     _wardSteamNodes = const [];
     _lanternHalosNode = null;
@@ -1339,13 +1393,15 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     if (_scene == null || _worldRoot == null) {
       return;
     }
+    final capturedEpoch = _attachEpoch;
     final capturedRealm = _realm;
+    final capturedScene = _scene;
 
     final vistaAsset = _realm == ShowcaseRealm.minatoJo
         ? 'assets/models/minato_coastal_islands.glb'
         : 'assets/models/vista_mountains.glb';
     final vistaProto = await _loadCachedGlbPrototype(vistaAsset);
-    if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+    if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
       return;
     }
     if (vistaProto != null) {
@@ -1367,7 +1423,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     final skyCloudProto = await _loadCachedGlbPrototype(
       'assets/models/sky_cloud_dome.glb',
     );
-    if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+    if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
       return;
     }
     if (skyCloudProto != null) {
@@ -1386,7 +1442,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     for (final structureAsset in _heroStructureAssetPaths) {
       await _loadCachedGlbPrototype(structureAsset);
-      if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+      if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
         return;
       }
     }
@@ -1413,7 +1469,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       final heroBridgeProto = await _loadCachedGlbPrototype(
         'assets/models/edo_arched_bridge.glb',
       );
-      if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+      if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
         return;
       }
       if (heroBridgeProto != null) {
@@ -1430,7 +1486,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     final heroToriiProto = await _loadCachedGlbPrototype(
       'assets/models/edo_torii_gate.glb',
     );
-    if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+    if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
       return;
     }
     if (heroToriiProto != null) {
@@ -1487,7 +1543,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       }
     }
 
-    if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+    if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
       return;
     }
 
@@ -1498,7 +1554,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       );
       for (final item in minatoPlacements) {
         final proto = await _loadCachedGlbPrototype(item.assetPath);
-        if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+        if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
           return;
         }
         if (proto == null) {
@@ -1791,7 +1847,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
       for (final item in heroPlacements) {
         final proto = await _loadCachedGlbPrototype(item.assetPath);
-        if (_scene == null || _worldRoot == null || _realm != capturedRealm) {
+        if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
           return;
         }
         if (proto == null) {
@@ -1819,19 +1875,12 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
   @override
   void dispose() {
-    if (_worldRoot != null && _scene != null) {
-      _scene!.remove(_worldRoot!);
-    }
+    detach();
     _simAgents.clear();
     _heroStructurePrototypes.clear();
-    _vistaMountainsNode = null;
-    _skyCloudDomeNode = null;
-    _clearIncrementalCaches();
     for (final path in _loadedScenePaths) {
       unawaited(releaseScene(path).then((_) {}, onError: (_) {}));
     }
     _loadedScenePaths.clear();
-    _worldRoot = null;
-    _scene = null;
   }
 }

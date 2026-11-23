@@ -776,11 +776,13 @@ class LoadingCurtainOverlay extends StatelessWidget {
   const new({
     required this.activeStage,
     required this.completedTimings,
+    this.realm = ShowcaseRealm.shukubaValley,
     super.key,
   });
 
   final BootStageId activeStage;
   final List<BootStageTiming> completedTimings;
+  final ShowcaseRealm realm;
 
   @override
   Widget build(BuildContext context) {
@@ -788,6 +790,9 @@ class LoadingCurtainOverlay extends StatelessWidget {
       for (final t in completedTimings) t.stage: t,
     };
     final progress = (completedTimings.length / 6.0).clamp(0.0, 1.0);
+    final subtitle = realm == ShowcaseRealm.minatoJo
+        ? '港城の構築 (Staged Warmup)'
+        : '宿場町の構築 (Staged Warmup)';
 
     return Material(
       color: Colors.transparent,
@@ -821,17 +826,17 @@ class LoadingCurtainOverlay extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          HankoSealWidget(text: '組', size: 34),
-                          SizedBox(width: 14),
+                          const HankoSealWidget(text: '組', size: 34),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Preparing Shukuba Valley',
-                                  style: TextStyle(
+                                  'Preparing ${realm.displayName}',
+                                  style: const TextStyle(
                                     color: _washiInk,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
@@ -839,8 +844,8 @@ class LoadingCurtainOverlay extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '宿場町の構築 (Staged Warmup)',
-                                  style: TextStyle(
+                                  subtitle,
+                                  style: const TextStyle(
                                     color: _goldAccent,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,

@@ -35,6 +35,7 @@ class EdoLookDriver implements ShukubaLookDriver {
   EnvironmentSettings? _nightSettings;
 
   double _lastSkyTimeValue = -1;
+  int _attachEpoch = 0;
 
   DirectionalLight? get keyLight => _keyLight;
 
@@ -111,20 +112,69 @@ class EdoLookDriver implements ShukubaLookDriver {
   Material materialFor(ShukubaSurfaceRole role) =>
       _materials[role] ?? defaultShukubaMaterial(role);
 
+  /// Detaches scene-bound passes, decals, lights, and sky state without
+  /// unloading reusable materials or textures.
+  void detach() {
+    _attachEpoch++;
+    final scene = _scene;
+    final pass = _sumiPass;
+    if (scene != null && pass != null) {
+      scene.removeRenderPass(pass);
+    }
+    _sumiPass = null;
+    for (final node in _lanternNodes) {
+      node.parent?.remove(node);
+    }
+    _lanternNodes.clear();
+    for (final node in _decalNodes) {
+      node.parent?.remove(node);
+    }
+    _decalNodes.clear();
+    _decalMaterials.clear();
+    _skySource = null;
+    _skyEnvironment = null;
+    _duskSettings = null;
+    _nightSettings = null;
+    _lastSkyTimeValue = -1;
+    _scene = null;
+  }
+
   @override
   Future<void> attach(Scene scene) async {
+    detach();
+    final epoch = ++_attachEpoch;
     _scene = scene;
 
     if (!allowHeadlessFallback) {
       await Scene.initializeStaticResources();
-      await _loadProductionMaterials();
-      await _loadSumiInkPass(scene);
-      await _loadDecalPool(scene);
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
+      if (_materials.length < ShukubaSurfaceRole.values.length) {
+        await _loadProductionMaterials();
+      }
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
+      await _loadSumiInkPass(scene, epoch);
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
+      await _loadDecalPool(scene, epoch);
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
     } else {
       try {
         await Scene.initializeStaticResources();
       } on Object catch (_) {}
-      await _loadHeadlessFallback(scene);
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
+      await _loadHeadlessFallback(scene, epoch);
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
     }
 
     _setupLightingAndSky(scene);
@@ -353,9 +403,12 @@ class EdoLookDriver implements ShukubaLookDriver {
     }
   }
 
-  Future<void> _loadSumiInkPass(Scene scene) async {
+  Future<void> _loadSumiInkPass(Scene scene, int epoch) async {
     final key = await gpu.resolveShaderBundleKey('sumi_ink');
     final library = await gpu.loadShaderLibraryAsync(key);
+    if (_attachEpoch != epoch || !identical(_scene, scene)) {
+      return;
+    }
     final shader = library?['SumiInkFragment'];
     if (shader != null) {
       final pass = SumiInkPass(shader);
@@ -364,11 +417,14 @@ class EdoLookDriver implements ShukubaLookDriver {
     }
   }
 
-  Future<void> _loadDecalPool(Scene scene) async {
+  Future<void> _loadDecalPool(Scene scene, int epoch) async {
     for (var i = 0; i < 12; i++) {
       final mat = await loadFmatMaterial(
         'assets/materials/sightcone_decal.fmat',
       );
+      if (_attachEpoch != epoch || !identical(_scene, scene)) {
+        return;
+      }
       _decalMaterials.add(mat);
       final decal = DecalNode(material: mat, name: 'sightcone_decal_$i')
         ..visible = false;
@@ -377,21 +433,29 @@ class EdoLookDriver implements ShukubaLookDriver {
     }
   }
 
-  Future<void> _loadHeadlessFallback(Scene scene) async {
-    try {
-      await _loadProductionMaterials();
-    } on Object catch (_) {
-      for (final role in ShukubaSurfaceRole.values) {
-        _materials[role] = defaultShukubaMaterial(role);
+  Future<void> _loadHeadlessFallback(Scene scene, int epoch) async {
+    if (_materials.length < ShukubaSurfaceRole.values.length) {
+      try {
+        await _loadProductionMaterials();
+      } on Object catch (_) {
+        for (final role in ShukubaSurfaceRole.values) {
+          _materials[role] = defaultShukubaMaterial(role);
+        }
       }
+    }
+    if (_attachEpoch != epoch || !identical(_scene, scene)) {
+      return;
     }
 
     try {
-      await _loadSumiInkPass(scene);
+      await _loadSumiInkPass(scene, epoch);
     } on Object catch (_) {}
+    if (_attachEpoch != epoch || !identical(_scene, scene)) {
+      return;
+    }
 
     try {
-      await _loadDecalPool(scene);
+      await _loadDecalPool(scene, epoch);
     } on Object catch (_) {}
   }
 
@@ -430,9 +494,10 @@ class EdoLookDriver implements ShukubaLookDriver {
     _ensureLightPool();
     scene.directionalLight = _keyLight;
 
-    _lanternNodes
-      ..forEach(scene.root.remove)
-      ..clear();
+    for (final node in _lanternNodes) {
+      node.parent?.remove(node);
+    }
+    _lanternNodes.clear();
     for (var i = 0; i < _lanternLights.length; i++) {
       final node = Node(name: 'lantern_light_$i')
         ..addComponent(PointLightComponent(_lanternLights[i]))
@@ -828,20 +893,8 @@ class EdoLookDriver implements ShukubaLookDriver {
 
   @override
   void dispose() {
-    final scene = _scene;
-    if (scene != null) {
-      final pass = _sumiPass;
-      if (pass != null) {
-        scene.removeRenderPass(pass);
-        _sumiPass = null;
-      }
-      _lanternNodes.forEach(scene.root.remove);
-      _decalNodes.forEach(scene.root.remove);
-    }
-    _lanternNodes.clear();
+    detach();
     _lanternLights.clear();
-    _decalNodes.clear();
-    _decalMaterials.clear();
     for (final path in _loadedTexturePaths) {
       try {
         unawaited(releaseTexture(path).then((_) {}, onError: (_) {}));
@@ -850,8 +903,6 @@ class EdoLookDriver implements ShukubaLookDriver {
     _loadedTexturePaths.clear();
     _materials.clear();
     _keyLight = null;
-    _skySource = null;
-    _scene = null;
   }
 
   static void _applySkyForRig(PhysicalSkySource sky, TimeOfDayRig rig) {

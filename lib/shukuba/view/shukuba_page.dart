@@ -61,6 +61,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   bool _gpuAvailable = false;
   bool _captureStarted = false;
+  int _bootEpoch = 0;
   int _activeButtons = 0;
   Offset? _primaryDownPos;
   bool _draggedDuringPrimary = false;
@@ -97,7 +98,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
       }
     } else if (_shellMode == ShukubaShellMode.inValley ||
         _shellMode == ShukubaShellMode.loadingValley) {
-      unawaited(_bootSceneStaged());
+      unawaited(_bootSceneStaged(epoch: ++_bootEpoch));
     }
   }
 
@@ -106,26 +107,51 @@ class _ShukubaPageState extends State<ShukubaPage> {
     _frameTimer.ingestTimings(timings);
   }
 
+  void _teardownActiveScene({bool stopAudio = true}) {
+    final oldScene = _scene;
+    _scene = null;
+    _gpuAvailable = false;
+    if (oldScene != null || stopAudio) {
+      _controller.detachFromScene();
+    }
+    oldScene?.dispose();
+  }
+
+  void _returnToTitle() {
+    _bootEpoch++;
+    _teardownActiveScene();
+    _controller.selectTool(const ExploreTool());
+    if (_controller.audio case final EdoAudioDriver edoAudio) {
+      unawaited(edoAudio.startMenuMusic());
+    }
+    setState(() => _shellMode = ShukubaShellMode.titleMenu);
+  }
+
   void _enterValley() {
+    unawaited(_enterRealm(ShowcaseRealm.shukubaValley));
+  }
+
+  Future<void> _enterRealm(ShowcaseRealm realm) async {
+    if (_shellMode == ShukubaShellMode.loadingValley) {
+      return;
+    }
+    final epoch = ++_bootEpoch;
+    if (_scene != null) {
+      _teardownActiveScene();
+    }
+    _activeRealm = realm;
+    _cameraRig.applyPreset(realm.defaultPreset);
     setState(() {
       _shellMode = ShukubaShellMode.loadingValley;
       _completedBootTimings.clear();
       _activeBootStage = BootStageId.lookAndShaders;
     });
-    unawaited(_bootSceneStaged());
-  }
-
-  Future<void> _enterRealm(ShowcaseRealm realm) async {
-    if (realm != _activeRealm) {
-      _activeRealm = realm;
-      _cameraRig.applyPreset(realm.defaultPreset);
-      await _controller.switchRealm(realm);
-      _controller.applyCameraPresetState(realm.defaultPreset);
-    }
-    if (!mounted) {
+    await _controller.switchRealm(realm);
+    if (!mounted || epoch != _bootEpoch) {
       return;
     }
-    _enterValley();
+    _controller.applyCameraPresetState(realm.defaultPreset);
+    await _bootSceneStaged(epoch: epoch);
   }
 
   Future<void> _switchRealm(ShowcaseRealm nextRealm) async {
@@ -143,15 +169,20 @@ class _ShukubaPageState extends State<ShukubaPage> {
     setState(() {});
   }
 
-  Future<void> _bootSceneStaged() async {
+  Future<void> _bootSceneStaged({required int epoch}) async {
+    Scene? scene;
+    var gpuReady = false;
     try {
-      final scene = Scene();
+      if (_scene != null) {
+        _teardownActiveScene(stopAudio: false);
+      }
+      scene = Scene();
       _scene = scene;
       final report = await _controller.initializeStaged(
         scene: scene,
         camera: _cameraRig.camera,
         onStage: (stage, elapsedMs) {
-          if (!mounted) return;
+          if (!mounted || epoch != _bootEpoch) return;
           setState(() {
             _completedBootTimings.add(
               BootStageTiming(stage: stage, durationMs: elapsedMs),
@@ -163,21 +194,53 @@ class _ShukubaPageState extends State<ShukubaPage> {
           });
         },
       );
+      if (!mounted || epoch != _bootEpoch) {
+        if (identical(_scene, scene)) {
+          _teardownActiveScene(stopAudio: false);
+        } else {
+          scene.dispose();
+        }
+        return;
+      }
       _bootReport = report;
+      gpuReady = true;
     } on Object catch (error, stack) {
+      if (!mounted || epoch != _bootEpoch) {
+        if (scene != null) {
+          if (identical(_scene, scene)) {
+            _teardownActiveScene(stopAudio: false);
+          } else {
+            scene.dispose();
+          }
+        }
+        return;
+      }
+      final isMissingImpeller = '$error'.contains('Impeller is not enabled');
+      debugPrint(
+        isMissingImpeller
+            ? 'ShukubaPage._bootSceneStaged (headless fallback): $error'
+            : 'ShukubaPage._bootSceneStaged failed: $error\n$stack',
+      );
       if (kShukubaAutoExit || kShukubaCaptureDir.isNotEmpty) {
         stderr.writeln('SHUKUBA_BOOT_ERROR:$error\n$stack');
       }
       if (kShukubaAutoExit) {
         exit(4);
       }
+      if (scene != null) {
+        if (identical(_scene, scene)) {
+          _teardownActiveScene(stopAudio: false);
+        } else {
+          scene.dispose();
+        }
+      }
       await _controller.initialize();
     }
-    if (!mounted) {
+    if (!mounted || epoch != _bootEpoch) {
       return;
     }
     setState(() {
-      _gpuAvailable = true;
+      _gpuAvailable = gpuReady;
       _shellMode = ShukubaShellMode.inValley;
     });
 
@@ -293,6 +356,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
       stdout.writeln(
         'SHUKUBA_REALM:raw="$kShukubaRealm" active=${_activeRealm.id}',
       );
+      if (kShukubaVerifyReentry) {
+        await _executeReentryVerification(harness);
+        return;
+      }
       final presets = kShukubaAudit360
           ? ShukubaFrameHarness.buildAudit360Presets(_activeRealm)
           : (_activeRealm == ShowcaseRealm.minatoJo
@@ -314,6 +381,118 @@ class _ShukubaPageState extends State<ShukubaPage> {
         exit(3);
       }
       rethrow;
+    }
+  }
+
+  Future<void> _executeReentryVerification(
+    ShukubaFrameHarness initialHarness,
+  ) async {
+    Future<void> pumpFrames(int count) async {
+      for (var i = 0; i < count; i++) {
+        await ShukubaFrameHarness.pumpFrame();
+      }
+    }
+
+    if (!_gpuAvailable ||
+        _scene == null ||
+        _controller.graph.structures.isEmpty) {
+      throw StateError(
+        'Initial town failed to boot before re-entry verification',
+      );
+    }
+    await pumpFrames(2);
+    final step1 = await initialHarness.runCaptureSuite(
+      outputDir: '$kShukubaCaptureDir/step1_shukuba',
+      autoExit: false,
+      presets: const [CameraPreset.duskOverview],
+      horizonPresets: const [],
+    );
+
+    _returnToTitle();
+    await pumpFrames(3);
+    if (_scene != null ||
+        _gpuAvailable ||
+        _shellMode != ShukubaShellMode.titleMenu) {
+      throw StateError('Return to title did not cleanly tear down scene 1');
+    }
+
+    await _enterRealm(ShowcaseRealm.minatoJo);
+    await pumpFrames(4);
+    final minatoScene = _scene;
+    if (minatoScene == null ||
+        !_gpuAvailable ||
+        _shellMode != ShukubaShellMode.inValley ||
+        _activeRealm != ShowcaseRealm.minatoJo ||
+        _controller.activeRealm != ShowcaseRealm.minatoJo ||
+        _controller.graph.structures.isEmpty) {
+      throw StateError(
+        'Second town (Minato-jō) failed to load after returning to title',
+      );
+    }
+    final step2Harness = ShukubaFrameHarness(
+      scene: minatoScene,
+      look: _controller.look,
+      world: _controller.world,
+      audio: _controller.audio,
+      repaintBoundaryKey: _repaintBoundaryKey,
+      applyPreset: _applyPresetForCapture,
+      captureUiAtlas: _captureUiAtlas,
+      capturePixelRatio: _capturePixelRatio,
+    );
+    final step2 = await step2Harness.runCaptureSuite(
+      outputDir: '$kShukubaCaptureDir/step2_minato',
+      autoExit: false,
+      presets: const [CameraPreset.minatoSunsetBoulevard],
+      horizonPresets: const [],
+    );
+
+    _returnToTitle();
+    await pumpFrames(3);
+    if (_scene != null ||
+        _gpuAvailable ||
+        _shellMode != ShukubaShellMode.titleMenu) {
+      throw StateError('Return to title did not cleanly tear down scene 2');
+    }
+
+    await _enterRealm(ShowcaseRealm.shukubaValley);
+    await pumpFrames(4);
+    final valleyScene = _scene;
+    if (valleyScene == null ||
+        !_gpuAvailable ||
+        _shellMode != ShukubaShellMode.inValley ||
+        _activeRealm != ShowcaseRealm.shukubaValley ||
+        _controller.activeRealm != ShowcaseRealm.shukubaValley ||
+        _controller.graph.structures.isEmpty) {
+      throw StateError(
+        'Third town entry (Shukuba Valley) failed after returning to title',
+      );
+    }
+    final step3Harness = ShukubaFrameHarness(
+      scene: valleyScene,
+      look: _controller.look,
+      world: _controller.world,
+      audio: _controller.audio,
+      repaintBoundaryKey: _repaintBoundaryKey,
+      applyPreset: _applyPresetForCapture,
+      captureUiAtlas: _captureUiAtlas,
+      capturePixelRatio: _capturePixelRatio,
+    );
+    final step3 = await step3Harness.runCaptureSuite(
+      outputDir: '$kShukubaCaptureDir/step3_shukuba',
+      autoExit: false,
+      presets: const [CameraPreset.duskOverview],
+      horizonPresets: const [],
+    );
+
+    final allPassed = step1.allPassed && step2.allPassed && step3.allPassed;
+    stdout.writeln(
+      'SHUKUBA_REENTRY_VERIFY:allPassed=$allPassed '
+      'step1=${step1.allPassed} step2=${step2.allPassed} '
+      'step3=${step3.allPassed}',
+    );
+    await stdout.flush();
+    if (kShukubaAutoExit) {
+      exit(allPassed ? 0 : 2);
     }
   }
 
@@ -485,10 +664,12 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   @override
   void dispose() {
+    _bootEpoch++;
     WidgetsBinding.instance.removeTimingsCallback(_onFrameTimings);
     _focusNode.dispose();
     _controller.dispose();
     _scene?.dispose();
+    _scene = null;
     super.dispose();
   }
 
@@ -636,6 +817,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
                         child: _gpuAvailable && scene != null
                             ? SceneView(
                                 scene,
+                                key: ValueKey(scene),
                                 camera: _cameraRig.camera,
                                 autoTick: kShukubaCaptureDir.isEmpty,
                                 onTick: _onSceneTick,
@@ -664,20 +846,14 @@ class _ShukubaPageState extends State<ShukubaPage> {
                     LoadingCurtainOverlay(
                       activeStage: _activeBootStage,
                       completedTimings: _completedBootTimings,
+                      realm: _activeRealm,
                     ),
                   if (_shellMode == ShukubaShellMode.pauseMenu)
                     PauseMenuOverlay(
                       onResume: () => setState(
                         () => _shellMode = ShukubaShellMode.inValley,
                       ),
-                      onReturnToTitle: () {
-                        _controller.audio.dispose();
-                        if (_controller.audio
-                            case final EdoAudioDriver edoAudio) {
-                          unawaited(edoAudio.startMenuMusic());
-                        }
-                        setState(() => _shellMode = ShukubaShellMode.titleMenu);
-                      },
+                      onReturnToTitle: _returnToTitle,
                       audioDriver: _controller.audio,
                     ),
                   if (_showTelemetry &&
