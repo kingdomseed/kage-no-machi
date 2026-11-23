@@ -168,12 +168,122 @@ def build_edo_river_stairs() -> None:
     export_glb("edo_river_stairs.glb")
 
 
+def build_rock_coastal_shelf() -> None:
+    """Wide, low tiered granite shelf & pebble-bank rocks straddling ocean waterlines organically."""
+    clear_scene()
+    mats = get_materials()
+    bm = bmesh.new()
+    specs = [
+        ((0.0, -0.08, 0.0), (2.85, 0.86, 2.15), 601),
+        ((-2.05, 0.14, -0.85), (1.75, 0.92, 1.55), 602),
+        ((1.85, -0.34, 0.72), (1.55, 0.58, 1.48), 603),
+        ((-0.65, -0.28, 1.65), (1.35, 0.48, 1.15), 604),
+        ((0.95, 0.10, -1.35), (1.42, 0.66, 1.24), 605),
+        ((2.55, -0.52, -0.35), (1.15, 0.40, 1.05), 606),
+    ]
+    for ctr, rad, sd in specs:
+        _sculpted_rock_lobe(
+            bm,
+            ctr,
+            rad,
+            seed=sd,
+            subdivisions=3,
+            strata_steps=4.8,
+            flatten_bottom=False,
+        )
+    finalize_mesh("rock_coastal_shelf", bm, mats["CliffRock"], smooth=True, box_uv_scale=0.34)
+    export_glb("rock_coastal_shelf.glb")
+
+
+def build_rock_river_cobble_bar() -> None:
+    """Wide low cluster of river anchor boulders & water-tumbled cobbles straddling shallow margins."""
+    clear_scene()
+    mats = get_materials()
+    bm_anchor = bmesh.new()
+    bm_cobbles = bmesh.new()
+
+    anchor_specs = [
+        ((-0.12, 0.00, 0.10), (0.68, 0.24, 0.74), 701, 1.8),
+        ((0.36, -0.04, -0.82), (0.56, 0.21, 0.64), 702, 2.0),
+        ((-0.38, 0.02, 1.02), (0.52, 0.20, 0.58), 703, 1.7),
+        ((0.46, -0.06, 0.86), (0.48, 0.19, 0.54), 704, 2.2),
+        ((-0.44, -0.04, -1.04), (0.48, 0.19, 0.52), 705, 1.6),
+    ]
+    for ctr, rad, sd, strata in anchor_specs:
+        _sculpted_rock_lobe(
+            bm_anchor,
+            ctr,
+            rad,
+            seed=sd,
+            subdivisions=3,
+            strata_steps=strata,
+            flatten_bottom=False,
+        )
+
+    cobble_specs = [
+        ((-0.78, -0.05, 0.34), (0.34, 0.14, 0.38), 711, 1.0),
+        ((0.76, -0.08, -0.18), (0.36, 0.15, 0.40), 712, 1.2),
+        ((-0.08, -0.03, -1.36), (0.38, 0.14, 0.32), 713, 0.9),
+        ((0.12, -0.04, 1.38), (0.34, 0.14, 0.30), 714, 1.1),
+        ((-0.76, -0.07, -0.58), (0.30, 0.13, 0.34), 715, 1.3),
+        ((0.78, -0.08, 0.44), (0.28, 0.12, 0.32), 716, 0.8),
+        ((-0.14, 0.03, -0.54), (0.30, 0.12, 0.28), 717, 1.4),
+        ((0.22, 0.02, 0.42), (0.28, 0.12, 0.28), 718, 1.1),
+        ((-0.64, -0.06, 1.24), (0.26, 0.11, 0.28), 719, 1.0),
+    ]
+    for ctr, rad, sd, strata in cobble_specs:
+        _sculpted_rock_lobe(
+            bm_cobbles,
+            ctr,
+            rad,
+            seed=sd,
+            subdivisions=2,
+            strata_steps=strata,
+            flatten_bottom=False,
+        )
+
+    finalize_mesh("river_cobble_anchors", bm_anchor, mats["CliffRock"], smooth=True, box_uv_scale=0.45)
+    finalize_mesh("river_cobble_stones", bm_cobbles, mats["CobbleStone"], smooth=True, box_uv_scale=0.60)
+    export_glb("rock_river_cobble_bar.glb")
+
+
+def build_rock_bank_ledge() -> None:
+    """Stepped mossy granite bank outcrop (~3.2m along Z x ~2.1m along X x ~1.15m high)."""
+    clear_scene()
+    mats = get_materials()
+    bm = bmesh.new()
+
+    ledge_specs = [
+        ((-0.24, 0.18, 0.05), (0.78, 0.38, 1.08), 801, 5.6),
+        ((-0.18, 0.26, -0.96), (0.68, 0.34, 0.64), 802, 5.2),
+        ((-0.14, 0.12, 1.02), (0.64, 0.30, 0.60), 803, 6.0),
+        ((0.46, -0.06, -0.28), (0.58, 0.28, 0.84), 804, 5.8),
+        ((0.52, -0.14, 0.68), (0.52, 0.24, 0.68), 805, 6.2),
+    ]
+    for ctr, rad, sd, strata in ledge_specs:
+        _sculpted_rock_lobe(
+            bm,
+            ctr,
+            rad,
+            seed=sd,
+            subdivisions=3,
+            strata_steps=strata,
+            flatten_bottom=False,
+        )
+
+    finalize_mesh("rock_bank_ledge", bm, mats["CliffRock"], smooth=True, box_uv_scale=0.36)
+    export_glb("rock_bank_ledge.glb")
+
+
 def build_all() -> None:
     build_rock_river_boulder()
     build_rock_shore_riprap()
     build_rock_cliff_a()
     build_rock_cliff_b()
     build_rock_coastal_headland()
+    build_rock_coastal_shelf()
+    build_rock_river_cobble_bar()
+    build_rock_bank_ledge()
     build_edo_river_stairs()
 
 

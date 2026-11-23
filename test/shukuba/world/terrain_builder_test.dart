@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_scene/scene.dart' show Node;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
+import 'package:kage_no_machi/shukuba/world/agent_navigation.dart';
 import 'package:kage_no_machi/shukuba/world/scene_shadow_helper.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
 import 'package:vector_math/vector_math.dart' show Aabb2, Vector2;
@@ -274,6 +276,79 @@ void main() {
         expect(camera.position.x, closeTo(-66.0, 1e-4));
         expect(camera.position.y, closeTo(56.0, 1e-4));
         expect(camera.position.z, closeTo(-66.0, 1e-4));
+      },
+    );
+  });
+
+  group('Shukuba Riverbank Gentleness & Sculpted Shoal Props', () {
+    test('Shukuba riverbank waterline slope stays gentle across slices', () {
+      final terrain = TerrainBuilder();
+      const slices = <double>[-35, -20, -10, 10, 20, 35];
+      for (final z in slices) {
+        final rcx = TerrainConfig.riverCenterX(z);
+        for (final side in const <double>[-1, 1]) {
+          var bestX = rcx + side * 3.0;
+          var bestDiff = double.infinity;
+          for (var k = 15; k <= 70; k++) {
+            final x = rcx + side * (k * 0.1);
+            final diff =
+                (terrain.sampleRawTerrain(x, z) -
+                        TerrainConfig.waterSurfaceElevation)
+                    .abs();
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestX = x;
+            }
+          }
+          final slope =
+              (terrain.sampleRawTerrain(bestX + 0.25, z) -
+                  terrain.sampleRawTerrain(bestX - 0.25, z)) /
+              0.5;
+          expect(
+            slope.abs(),
+            lessThan(0.52),
+            reason: 'Steep riverbank waterline at z=$z side=$side x=$bestX',
+          );
+
+          var maxAboveWaterSlope = 0.0;
+          for (var k = 15; k <= 75; k++) {
+            final x = rcx + side * (k * 0.1);
+            if (terrain.sampleRawTerrain(x, z) >= -0.52) {
+              final s =
+                  ((terrain.sampleRawTerrain(x + 0.25, z) -
+                              terrain.sampleRawTerrain(x - 0.25, z)) /
+                          0.5)
+                      .abs();
+              if (s > maxAboveWaterSlope) {
+                maxAboveWaterSlope = s;
+              }
+            }
+          }
+          expect(
+            maxAboveWaterSlope,
+            lessThan(0.52),
+            reason: 'Steep upper bank step at z=$z side=$side',
+          );
+        }
+      }
+    });
+
+    test(
+      'Sculpted river cobble bar and bank ledge GLBs exist and are placed',
+      () {
+        expect(
+          File('assets/models/rock_river_cobble_bar.glb').existsSync(),
+          isTrue,
+        );
+        expect(File('assets/models/rock_bank_ledge.glb').existsSync(), isTrue);
+
+        final terrain = TerrainBuilder();
+        final placements = buildShukubaHeroPropPlacements(
+          terrain.sampleGroundHeight,
+        );
+        final assetPaths = placements.map((p) => p.assetPath).toSet();
+        expect(assetPaths, contains('assets/models/rock_river_cobble_bar.glb'));
+        expect(assetPaths, contains('assets/models/rock_bank_ledge.glb'));
       },
     );
   });

@@ -1225,12 +1225,39 @@ fragment {
             earthTex * vec3(1.04, 0.94, 0.82),
             earthMix
           );
-          vec3 mossBankTint = vec3(0.22, 0.28, 0.16);
-          groundPaint = mix(groundPaint, mossBankTint, dampShore * (1.0 - submerged) * 0.38);
+          vec3 mossBankTint = vec3(0.30, 0.38, 0.20);
+          groundPaint = mix(groundPaint, mossBankTint, dampShore * (1.0 - submerged) * 0.26);
+
+          float cobbleZone = smoothstep(0.22, -0.18, warpedY) *
+              clamp(groundWear * 0.72 + dampShore * 0.58, 0.0, 1.0);
+          if (cobbleZone > 0.01) {
+            float bigStoneCell = max(
+              0.0,
+              NoiseCellular2(P.xz * 3.8 + warp * 0.15, 787, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.88) + 1.0
+            );
+            float finePebbleCell = max(
+              0.0,
+              NoiseCellular2(P.xz * 8.2, 797, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.86) + 1.0
+            );
+            float stoneHue = NoiseSimplex2(P.xz * 2.9, 811) * 0.5 + 0.5;
+            vec3 stoneA = vec3(0.68, 0.62, 0.52);
+            vec3 stoneB = vec3(0.46, 0.50, 0.50);
+            vec3 stoneC = vec3(0.66, 0.54, 0.36);
+            vec3 stoneTint = stoneHue < 0.5
+                ? mix(stoneA, stoneB, stoneHue * 2.0)
+                : mix(stoneB, stoneC, (stoneHue - 0.5) * 2.0);
+            float stoneBody = (1.0 - smoothstep(0.24, 0.52, bigStoneCell)) * 0.65 +
+                (1.0 - smoothstep(0.20, 0.48, finePebbleCell)) * 0.35;
+            float gapDarken = smoothstep(0.40, 0.66, bigStoneCell * 0.65 + finePebbleCell * 0.35);
+            vec3 pebbleColor = mix(stoneTint * 0.68, stoneTint * 1.06, clamp(stoneBody, 0.0, 1.0)) *
+                (1.0 - gapDarken * 0.22);
+            groundPaint = mix(groundPaint, pebbleColor, cobbleZone * mix(0.55, 0.88, midFade));
+          }
+
           groundPaint = mix(
             groundPaint,
             groundPaint * vec3(0.56, 0.62, 0.58),
-            submerged * 0.58 + dampShore * 0.18
+            submerged * 0.42 + dampShore * 0.08
           );
           float leafNoise = NoiseSimplex2(P.xz * 3.4 + vec2(groundWear * 3.1, 0.0), 827) * 0.5 + 0.5;
           float leafFleck = smoothstep(0.76, 0.92, leafNoise) * (1.0 - dampShore) * midFade;
@@ -1255,7 +1282,7 @@ fragment {
                   (texX * nXY.x + texZ * nXY.y) * (normGain * mix(0.40, 1.0, midFade))
             );
           }
-          rough = mix(rough, min(rough, 0.38), dampShore * 0.72);
+          rough = mix(rough, min(rough, 0.34), dampShore * 0.78);
           spec = mix(spec, max(spec, 0.42), dampShore * 0.55);
           cavityAo = max(cavityAo, 0.42);
         }

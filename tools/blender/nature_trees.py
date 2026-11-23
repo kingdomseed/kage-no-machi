@@ -104,6 +104,8 @@ def build_tree_pine_bonsai() -> None:
         _add_curved_foliage_dome(bm_leaf, (pad_ctr[0], pad_ctr[1] + 0.16, pad_ctr[2]), pad_sz * 0.84, pad_sz * 0.78, 0.68, yaw=sd * 0.9, segs_u=6, segs_v=6)
     # Extra inner shoulder cloud tuft near fork so crown reads full from eye-level angles
     _add_crossed_foliage_cluster(bm_leaf, (-0.15, 4.85, 0.12), 1.38, 0.95, seed=19)
+    _add_crossed_foliage_cluster(bm_leaf, (0.72, 3.62, 0.45), 1.48, 0.92, seed=23)
+    _add_crossed_foliage_cluster(bm_leaf, (-0.82, 4.35, -0.32), 1.42, 0.88, seed=29)
 
     finalize_mesh("pine_trunk", bm_bark, mats["PineBark"], smooth=True, box_uv_scale=0.6)
     finalize_mesh("pine_canopy", bm_leaf, mats["PineFoliage"], smooth=True, box_uv_scale=None)
@@ -132,6 +134,9 @@ def build_tree_maple(is_gold: bool, filename: str) -> None:
     for pts, ctr, sz, sd in boughs:
         add_swept_tube(bm_bark, pts, [0.11, 0.08, 0.05], segments=8)
         _add_crossed_foliage_cluster(bm_leaf, ctr, sz, 0.92, seed=sd)
+    # Central mid-canopy fill tufts so maples silhouette organically from steep aerial cameras
+    _add_crossed_foliage_cluster(bm_leaf, (-0.45, 3.65, 0.42), 1.46, 0.95, seed=211)
+    _add_crossed_foliage_cluster(bm_leaf, (0.55, 3.88, -0.35), 1.42, 0.90, seed=217)
 
     leaf_mat = mats["MapleGoldFoliage"] if is_gold else mats["MapleCrimsonFoliage"]
     finalize_mesh("maple_trunk", bm_bark, mats["MapleBark"], smooth=True, box_uv_scale=0.6)
@@ -236,12 +241,52 @@ def build_tree_bamboo_clump() -> None:
     export_glb("tree_bamboo_clump.glb", has_alpha=True)
 
 
+def build_tree_shrub_cluster() -> None:
+    """Lush multi-mound woody Japanese hillside & courtyard shrub cluster (has_alpha=True)."""
+    clear_scene()
+    mats = get_materials()
+    bm_bark = bmesh.new()
+    bm_leaf = bmesh.new()
+    rng = random.Random(509)
+
+    mounds = [
+        ((0.0, 0.65, 0.0), 1.18, 0.92, 51),
+        ((-0.82, 0.48, 0.45), 0.92, 0.74, 52),
+        ((0.86, 0.52, -0.38), 0.96, 0.78, 53),
+        ((0.28, 0.44, 0.78), 0.85, 0.68, 54),
+        ((-0.42, 0.46, -0.74), 0.88, 0.70, 55),
+    ]
+    for (cx, cy, cz), sz, ht, sd in mounds:
+        add_swept_tube(
+            bm_bark,
+            [(cx * 0.25, -0.25, cz * 0.25), (cx * 0.68, cy * 0.45, cz * 0.68), (cx, cy * 0.88, cz)],
+            [0.09, 0.06, 0.035],
+            segments=6,
+        )
+        _add_crossed_foliage_cluster(bm_leaf, (cx, cy, cz), sz, ht, seed=sd + rng.randint(0, 10))
+        _add_curved_foliage_dome(
+            bm_leaf,
+            (cx, cy + ht * 0.14, cz),
+            sz * 0.84,
+            sz * 0.78,
+            ht * 0.42,
+            yaw=sd * 0.7,
+            segs_u=5,
+            segs_v=5,
+        )
+
+    finalize_mesh("shrub_twigs", bm_bark, mats["WillowBark"], smooth=True, box_uv_scale=0.7)
+    finalize_mesh("shrub_canopy", bm_leaf, mats["PineFoliage"], smooth=True, box_uv_scale=None)
+    export_glb("tree_shrub_cluster.glb", has_alpha=True)
+
+
 def build_all() -> None:
     build_tree_pine_bonsai()
     build_tree_maple(False, "tree_maple_hero.glb")
     build_tree_maple(True, "tree_maple_gold.glb")
     build_tree_willow_weeping()
     build_tree_bamboo_clump()
+    build_tree_shrub_cluster()
 
 
 if __name__ == "__main__":

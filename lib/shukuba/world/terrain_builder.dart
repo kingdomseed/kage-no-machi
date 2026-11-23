@@ -270,12 +270,13 @@ class TerrainBuilder {
     final breakwaterSpit = spitEnter * spitExit;
 
     final northRetreat = _quintic((-46.0 - z) / 28.0);
-    // Natural cove undulations only north of castle and south of quay
+    // Rich cove & bay undulations north of castle & south of breakwater spit
     final naturalShoreMask =
-        (1.0 - _quintic((z - (-42.5)) / 3.5)) +
-        _quintic((z - 31.0) / 4.5);
+        (1.0 - _quintic((z - (-42.8)) / 3.8)) + _quintic((z - 33.5) / 5.5);
     final shoreUndulation =
-        (1.15 * math.sin(z * 0.14 + 0.5) + 0.65 * math.cos(z * 0.29 - 0.8)) *
+        (2.45 * math.sin(z * 0.11 + 0.5) +
+            1.35 * math.cos(z * 0.23 - 0.8) +
+            0.65 * math.sin(z * 0.41 + 1.2)) *
         naturalShoreMask.clamp(0.0, 1.0);
     return coveBase +
         castlePromontory * 17.6 +
@@ -318,15 +319,18 @@ class TerrainBuilder {
     }
 
     // Flatten the sheltered Stone Quay Promenade (z in [-12.5, 32.0])
+    final paveCamber =
+        0.016 * math.sin(x * 0.27 + z * 0.19) +
+        0.010 * math.cos(z * 0.35 - x * 0.21);
     final quayZMask =
-        _quintic((z - (-13.0)) / 2.2) * (1.0 - _quintic((z - 30.0) / 3.5));
+        _quintic((z - (-12.5)) / 2.2) * (1.0 - _quintic((z - 30.0) / 3.5));
     final quayXDist = coastX - x;
     final quayXMask =
         (1.0 - _quintic((quayXDist - 7.5) / 4.5)) *
         _quintic((quayXDist + 0.5) / 1.0);
     final quayBlend = quayZMask * quayXMask * (1.0 - castleZMask);
     if (quayBlend > 1e-4) {
-      landY = landY + (0.78 - landY) * quayBlend;
+      landY = landY + (0.78 + paveCamber - landY) * quayBlend;
     }
 
     // Level SE Breakwater Spit ridge to y ~ 0.86 around (x ~ 24, z ~ 33)
@@ -336,25 +340,57 @@ class TerrainBuilder {
         _quintic((x - 4.0) / 4.0) * (1.0 - _quintic((x - 24.5) / 2.8));
     final spitW = spitZ * spitX;
     if (spitW > 1e-4) {
-      landY = landY + (0.86 - landY) * spitW;
+      landY = landY + (0.86 + paveCamber - landY) * spitW;
     }
 
-    // Steep seawall drop / wider sloped rocky coastal shelf -> deep harbor seabed (-4.5m)
+    final engineeredEdge = math.max(quayZMask, castleZMask).clamp(0.0, 1.0);
+    final naturalCoast = 1.0 - engineeredEdge;
     final seaward = x - coastX;
+
+    // Gentle landward coastal berm grading on natural shores
+    if (naturalCoast > 1e-3 && seaward < 20.0) {
+      final landDist = math.max<double>(0, coastX - x);
+      final beachGradeW =
+          naturalCoast *
+          (1.0 - spitW * 0.88) *
+          (1.0 - _quintic((landDist / 20.0).clamp(0.0, 1.0)));
+      if (beachGradeW > 1e-4) {
+        final beachBermY =
+            0.46 +
+            0.18 * math.sin(z * 0.16 + 0.4) +
+            0.10 * math.cos(x * 0.22 - z * 0.14);
+        landY = landY + (beachBermY - landY) * beachGradeW;
+      }
+    }
+
     if (seaward <= 0.0) {
       return landY;
     }
+
     const seaFloorY = -4.50;
-    final engineeredEdge = math.max(quayZMask, castleZMask);
-    final dropSpan = 1.5 + 0.35 * castleZMask + 2.4 * (1.0 - engineeredEdge);
-    if (seaward >= dropSpan) {
-      final shoal =
-          0.14 * math.sin(x * 0.16 + z * 0.11) +
-          0.08 * math.cos(z * 0.27 - x * 0.12);
-      return seaFloorY + shoal * 0.4;
-    }
-    final u = _quintic(seaward / dropSpan);
-    return landY + (seaFloorY - landY) * u;
+    final shoalRipple =
+        0.16 * math.sin(x * 0.19 + z * 0.15) +
+        0.09 * math.cos(z * 0.31 - x * 0.14);
+
+    // Engineered seawall / castle drop across harbor basin & promontory ramparts
+    final engDrop = 1.55 + 0.45 * castleZMask;
+    final engU = _quintic((seaward / engDrop).clamp(0.0, 1.0));
+    final engineeredY = landY + (seaFloorY + shoalRipple * 0.35 - landY) * engU;
+
+    // Natural two-stage beach + shallow shoal shelf -> deep harbor bay
+    const beachSlopeSpan = 8.5;
+    const outerShelfSpan = 12.0;
+    final shoalTarget = -1.68 + shoalRipple;
+    final tBeach = _quintic((seaward / beachSlopeSpan).clamp(0.0, 1.0));
+    final tShelf = _quintic(
+      ((seaward - beachSlopeSpan) / outerShelfSpan).clamp(0.0, 1.0),
+    );
+    final naturalY =
+        landY +
+        (shoalTarget - landY) * tBeach +
+        (seaFloorY + shoalRipple * 0.35 - shoalTarget) * tShelf;
+
+    return naturalY * naturalCoast + engineeredY * (1.0 - naturalCoast);
   }
 
   double sampleRawTerrain(double x, double z) {
@@ -404,38 +440,42 @@ class TerrainBuilder {
     }
 
     final bridgeCalm = _quintic(((z.abs() - 3.6) / 3.8).clamp(0.0, 1.0));
+    final countrysideOpen = _quintic(((z.abs() - 15.0) / 14.0).clamp(0.0, 1.0));
+    final shoalBias =
+        0.5 + 0.5 * math.sin(z * 0.105 + (signed < 0 ? 0.55 : 3.69));
     final bankWave =
-        (0.62 * math.sin(z * 0.14 + (signed < 0 ? 0.4 : 1.7)) +
-            0.38 * math.cos(z * 0.29 - (signed < 0 ? 0.9 : 0.2)) +
-            0.22 * math.sin(z * 0.53 + x * 0.18)) *
+        (0.48 * math.sin(z * 0.13 + (signed < 0 ? 0.4 : 1.9)) +
+            0.26 * math.cos(z * 0.27 - (signed < 0 ? 0.8 : 0.3)) +
+            0.14 * math.sin(z * 0.51 + x * 0.16)) *
         bridgeCalm;
-    final effectiveHalfWidth = TerrainConfig.riverBankHalfWidth + bankWave;
-    final effectiveTransition =
-        TerrainConfig.riverTransitionWidth + 0.75 * bridgeCalm;
+    final innerBedHalfWidth = 1.06 + 0.12 * bridgeCalm;
+    final townEastTrim = signed > 0 ? 0.20 * (1.0 - countrysideOpen) : 0.0;
+    final totalSlopeWidth =
+        (3.88 +
+                0.38 * bridgeCalm -
+                townEastTrim +
+                (1.35 + 0.95 * shoalBias) * countrysideOpen +
+                0.48 * bankWave)
+            .clamp(3.40, 6.50);
 
-    if (dist <= effectiveHalfWidth) {
-      final shoal = 0.11 * math.sin(z * 0.34) * math.cos(x * 0.44);
+    if (dist <= innerBedHalfWidth) {
+      final shoal = 0.08 * math.sin(z * 0.34) * math.cos(x * 0.44);
       return TerrainConfig.riverBedElevation + shoal;
     }
 
     final bankTarget = signed < 0 ? westPlain : eastSlope;
-    final rampFrac = (dist - effectiveHalfWidth) / effectiveTransition;
-    if (rampFrac >= 1) {
+    final u = (dist - innerBedHalfWidth) / totalSlopeWidth;
+    if (u >= 1) {
       return bankTarget;
     }
 
-    final benchY =
-        -0.34 +
-        0.09 *
-            math.sin(z * 0.22 + (signed < 0 ? 0.0 : 1.3)) *
-            bridgeCalm;
-    if (rampFrac < 0.42) {
-      final u = _quintic(rampFrac / 0.42);
-      return TerrainConfig.riverBedElevation +
-          (benchY - TerrainConfig.riverBedElevation) * u;
-    }
-    final u = _quintic((rampFrac - 0.42) / 0.58);
-    return benchY + (bankTarget - benchY) * u;
+    final tSub = _quintic((u / 0.26).clamp(0.0, 1.0));
+    final tBank = ((u - 0.18) / 0.82).clamp(0.0, 1.0);
+    final bankEase = 1.0 - math.pow(1.0 - tBank, 1.28);
+    final ySub =
+        TerrainConfig.riverBedElevation +
+        (-0.84 - TerrainConfig.riverBedElevation) * tSub;
+    return ySub + (bankTarget - ySub) * bankEase;
   }
 
   List<_RoadTerraceCrossing> _findCrossingsForTerrace(
@@ -1144,14 +1184,24 @@ class TerrainBuilder {
           gCol *= dampShade;
           bCol *= dampShade;
 
-          final seaWet = seaward >= -0.4
+          final naturalShoreMask = !(onQuay || onCastle);
+          final pebbleShoreT = naturalShoreMask && y < 1.15 && y > -0.82
+              ? (1.0 - ((y - 0.10).abs() / 0.95).clamp(0.0, 1.0))
+              : 0.0;
+          final dryPebbleW = pebbleShoreT * (y > -0.22 ? 0.78 : 0.35);
+          rCol = rCol * (1 - dryPebbleW) + 0.86 * dryPebbleW;
+          gCol = gCol * (1 - dryPebbleW) + 0.80 * dryPebbleW;
+          bCol = bCol * (1 - dryPebbleW) + 0.66 * dryPebbleW;
+
+          final seaWet = seaward >= 1.8
               ? 1.0
-              : 1.0 - ((-0.4 - seaward) / 2.2).clamp(0.0, 1.0);
-          final finalR = rCol * (1 - seaWet * 0.68) + 0.28 * (seaWet * 0.68);
-          final finalG = gCol * (1 - seaWet * 0.68) + 0.34 * (seaWet * 0.68);
-          final finalB = bCol * (1 - seaWet * 0.68) + 0.38 * (seaWet * 0.68);
+              : (y < -0.10 ? ((-0.10 - y) / 0.95).clamp(0.0, 1.0) : 0.0);
+          final finalR = rCol * (1 - seaWet * 0.64) + 0.34 * (seaWet * 0.64);
+          final finalG = gCol * (1 - seaWet * 0.64) + 0.38 * (seaWet * 0.64);
+          final finalB = bCol * (1 - seaWet * 0.64) + 0.36 * (seaWet * 0.64);
+          final shoreWear = math.max(dryPebbleW * 0.92, seaWet * 0.82);
           final wearAlpha =
-              (math.max(totalWear, seaWet * 0.45) * (1.0 - habitatMoss * 0.35))
+              (math.max(totalWear, shoreWear) * (1.0 - habitatMoss * 0.30))
                   .clamp(0.0, 1.0);
 
           builder
@@ -1168,11 +1218,20 @@ class TerrainBuilder {
         }
         final inTanadaBasin = isInsideTanadaFloodedBasin(x, z);
 
-        final bankWet = 1.0 - ((rivDist - 2.2) / 2.8).clamp(0.0, 1.0);
         final wx = x + 2.2 * math.sin(z * 0.14 + 0.5);
         final wz = z + 2.2 * math.cos(x * 0.15 - 0.3);
         final warmWash =
             0.5 + 0.5 * math.sin(wx * 0.16 + wz * 0.13) * math.cos(wz * 0.19);
+        final riverBandFade = (!inTanadaBasin && rivDist < 9.5)
+            ? (1.0 - ((rivDist - 6.0) / 3.5).clamp(0.0, 1.0))
+            : 0.0;
+        final mossCollarT =
+            (1.0 - ((y - 0.08).abs() / 0.38).clamp(0.0, 1.0)) * riverBandFade;
+        final pebbleBarT =
+            (1.0 - ((y - (-0.35)).abs() / 0.55).clamp(0.0, 1.0)) *
+            riverBandFade *
+            (0.78 + 0.22 * warmWash);
+        final submergedT = ((-0.50 - y) / 0.72).clamp(0.0, 1.0) * riverBandFade;
 
         var rCol = 0.88 + 0.18 * warmWash;
         var gCol = 0.86 + 0.14 * warmWash;
@@ -1207,13 +1266,26 @@ class TerrainBuilder {
         gCol *= dampShade;
         bCol *= dampShade;
 
-        final wetMix = bankWet * 0.58;
-        final finalR = rCol * (1 - wetMix) + 0.48 * wetMix;
-        final finalG = gCol * (1 - wetMix) + 0.54 * wetMix;
-        final finalB = bCol * (1 - wetMix) + 0.56 * wetMix;
+        final collarMix = mossCollarT * 0.42;
+        rCol = rCol * (1 - collarMix) + 0.54 * collarMix;
+        gCol = gCol * (1 - collarMix) + 0.74 * collarMix;
+        bCol = bCol * (1 - collarMix) + 0.46 * collarMix;
+
+        final pebbleMix = pebbleBarT * 0.84;
+        rCol = rCol * (1 - pebbleMix) + 0.94 * pebbleMix;
+        gCol = gCol * (1 - pebbleMix) + 0.87 * pebbleMix;
+        bCol = bCol * (1 - pebbleMix) + 0.72 * pebbleMix;
+
+        final subMix = submergedT * 0.68;
+        final finalR = rCol * (1 - subMix) + 0.34 * subMix;
+        final finalG = gCol * (1 - subMix) + 0.42 * subMix;
+        final finalB = bCol * (1 - subMix) + 0.44 * subMix;
+        final bankWear = math.max(pebbleBarT * 0.90, submergedT * 0.82);
         final wearAlpha =
-            (math.max(totalWear, bankWet * 0.55) * (1.0 - habitatMoss * 0.45))
-                .clamp(0.0, 1.0);
+            (math.max(totalWear, bankWear) * (1.0 - habitatMoss * 0.30)).clamp(
+              0.0,
+              1.0,
+            );
 
         builder
           ..normal(Vector3(nx * invLen, ny * invLen, nz * invLen))
@@ -1674,10 +1746,10 @@ class TerrainBuilder {
     const minZ = -176.0;
     const maxZ = 176.0;
     const lengthSegs = 240;
-    const crossSegs = 8;
+    const crossSegs = 12;
     const zStep = (maxZ - minZ) / lengthSegs;
     const waterY = TerrainConfig.waterSurfaceElevation;
-    const halfWidth = 4.65;
+    const halfWidth = 6.8;
     const cols = crossSegs + 1;
 
     for (var i = 0; i <= lengthSegs; i++) {
@@ -1724,10 +1796,14 @@ class TerrainBuilder {
 
     double outerCoastX(double z) {
       if (z < -88.0) {
-        return minatoCoastlineX(-88) - _quintic((-88.0 - z) / 55.0) * 18.0;
+        return minatoCoastlineX(-88) -
+            _quintic(((-88.0 - z) / 55.0).clamp(0.0, 1.0)) * 18.0 +
+            2.4 * math.sin(z * 0.08 + 0.5);
       }
       if (z > 88.0) {
-        return minatoCoastlineX(88) - _quintic((z - 88.0) / 55.0) * 24.0;
+        return minatoCoastlineX(88) -
+            _quintic(((z - 88.0) / 55.0).clamp(0.0, 1.0)) * 24.0 +
+            2.2 * math.cos(z * 0.07 - 0.4);
       }
       return minatoCoastlineX(z);
     }
@@ -1747,29 +1823,43 @@ class TerrainBuilder {
           roads: roads,
         );
         if (_realm == ShowcaseRealm.minatoJo) {
-          final seaward = x - minatoCoastlineX(z);
-          final seaWet = seaward >= -0.4
-              ? 1.0
-              : 1.0 - ((-0.4 - seaward) / 2.2).clamp(0.0, 1.0);
+          final dryPebbleW = edgeY < 1.15 && edgeY > -0.35
+              ? (1.0 - ((edgeY - 0.35).abs() / 0.85).clamp(0.0, 1.0)) * 0.72
+              : 0.0;
+          final seaWet = edgeY < -0.10
+              ? ((-0.10 - edgeY) / 0.95).clamp(0.0, 1.0)
+              : 0.0;
+          final baseR = 0.76 * (1 - dryPebbleW) + 0.86 * dryPebbleW;
+          final baseG = 0.84 * (1 - dryPebbleW) + 0.80 * dryPebbleW;
+          final baseB = 0.66 * (1 - dryPebbleW) + 0.66 * dryPebbleW;
           return (
             y: edgeY,
             color: Vector4(
-              0.76 * (1 - seaWet) + 0.24 * seaWet,
-              0.84 * (1 - seaWet) + 0.30 * seaWet,
-              0.66 * (1 - seaWet) + 0.34 * seaWet,
-              0.08 * (1 - seaWet) + 0.35 * seaWet,
+              baseR * (1 - seaWet * 0.64) + 0.34 * (seaWet * 0.64),
+              baseG * (1 - seaWet * 0.64) + 0.38 * (seaWet * 0.64),
+              baseB * (1 - seaWet * 0.64) + 0.36 * (seaWet * 0.64),
+              math.max(dryPebbleW * 0.85, seaWet * 0.75),
             ),
           );
         }
         final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
-        final wetT = 1.0 - ((rivDist - 2.2) / 2.8).clamp(0.0, 1.0);
+        final bandFade = 1.0 - ((rivDist - 6.0) / 3.5).clamp(0.0, 1.0);
+        final pebbleT =
+            (1.0 - ((edgeY - (-0.42)).abs() / 0.48).clamp(0.0, 1.0)) * bandFade;
+        final subT = ((-0.50 - edgeY) / 0.72).clamp(0.0, 1.0) * bandFade;
+        var sR = 0.80 * (1 - pebbleT * 0.78) + 0.84 * (pebbleT * 0.78);
+        var sG = 0.86 * (1 - pebbleT * 0.78) + 0.78 * (pebbleT * 0.78);
+        var sB = 0.72 * (1 - pebbleT * 0.78) + 0.66 * (pebbleT * 0.78);
+        sR = sR * (1 - subT * 0.68) + 0.34 * (subT * 0.68);
+        sG = sG * (1 - subT * 0.68) + 0.42 * (subT * 0.68);
+        sB = sB * (1 - subT * 0.68) + 0.44 * (subT * 0.68);
         return (
           y: edgeY,
           color: Vector4(
-            0.80 * (1 - wetT) + 0.38 * wetT,
-            0.86 * (1 - wetT) + 0.44 * wetT,
-            0.72 * (1 - wetT) + 0.48 * wetT,
-            0.08 * (1 - wetT) + 0.42 * wetT,
+            sR,
+            sG,
+            sB,
+            math.max(0.08, math.max(pebbleT * 0.90, subT * 0.82)),
           ),
         );
       }
@@ -1783,37 +1873,71 @@ class TerrainBuilder {
         roads: roads,
       );
 
+      final bedWave =
+          0.42 * math.sin(x * 0.031 + z * 0.023) +
+          0.28 * math.cos(z * 0.041 - x * 0.019);
+
       if (_realm == ShowcaseRealm.minatoJo) {
-        final floorY = seaBedY(outDist);
-        final seaward = x - outerCoastX(z);
-        if (seaward >= 2.6) {
-          return (y: floorY, color: Vector4(0.22, 0.28, 0.32, 0.35));
+        final floorY = seaBedY(outDist) + bedWave * _quintic(outDist / 24.0);
+        final coastX = outerCoastX(z);
+        final seaward = x - coastX;
+        if (seaward >= 18.5) {
+          return (y: floorY, color: Vector4(0.32, 0.36, 0.36, 0.75));
         }
         var landH =
             edgeY +
-            6.5 * _quintic(outDist / 38.0) +
+            2.4 * _quintic(outDist / 34.0) +
             1.2 *
                 math.sin(x * 0.045) *
                 math.cos(z * 0.045) *
                 _quintic(outDist / 24.0);
-        if (outDist > 42.0) {
-          final tuck = _quintic((outDist - 42.0) / 52.0);
-          final outerDrop = -8.2 - 0.015 * math.max<double>(0, outDist - 96.0);
+        if (seaward < 20.0) {
+          final landDist = math.max<double>(0, coastX - x);
+          final beachW = 1.0 - _quintic((landDist / 20.0).clamp(0.0, 1.0));
+          final beachBerm = 0.48 + 0.16 * math.sin(z * 0.14 + 0.3);
+          landH = landH + (beachBerm - landH) * beachW;
+        }
+        if (outDist > 26.0) {
+          final tuck = _quintic((outDist - 26.0) / 42.0);
+          final outerDrop =
+              -8.2 - 0.015 * math.max<double>(0, outDist - 96.0) + bedWave;
           landH = landH * (1.0 - tuck) + outerDrop * tuck;
         }
         if (seaward > 0.0) {
-          final u = _quintic(seaward / 2.6);
+          final tBeach = _quintic((seaward / 8.5).clamp(0.0, 1.0));
+          final tShelf = _quintic(((seaward - 8.5) / 10.0).clamp(0.0, 1.0));
+          final shoalTarget = -1.68 + 0.14 * math.sin(x * 0.17 + z * 0.13);
+          final y =
+              landH +
+              (shoalTarget - landH) * tBeach +
+              (floorY - shoalTarget) * tShelf;
+          final dryP = y > -0.22 && y < 1.1
+              ? (1.0 - ((y - 0.35).abs() / 0.85).clamp(0.0, 1.0)) * 0.72
+              : 0.0;
+          final wetU = y < -0.10 ? ((-0.10 - y) / 0.95).clamp(0.0, 1.0) : 0.0;
+          final bR = 0.74 * (1 - dryP) + 0.86 * dryP;
+          final bG = 0.82 * (1 - dryP) + 0.80 * dryP;
+          final bB = 0.64 * (1 - dryP) + 0.66 * dryP;
           return (
-            y: landH + (floorY - landH) * u,
+            y: y,
             color: Vector4(
-              0.72 * (1 - u) + 0.22 * u,
-              0.82 * (1 - u) + 0.28 * u,
-              0.64 * (1 - u) + 0.32 * u,
-              0.06 * (1 - u) + 0.35 * u,
+              bR * (1 - wetU * 0.64) + 0.32 * (wetU * 0.64),
+              bG * (1 - wetU * 0.64) + 0.36 * (wetU * 0.64),
+              bB * (1 - wetU * 0.64) + 0.36 * (wetU * 0.64),
+              math.max(dryP * 0.85, wetU * 0.75),
             ),
           );
         }
-        return (y: landH, color: Vector4(0.72, 0.82, 0.64, 0.06));
+        final outerTint = _quintic(((outDist - 8.0) / 30.0).clamp(0.0, 1.0));
+        return (
+          y: landH,
+          color: Vector4(
+            0.72 - 0.18 * outerTint,
+            0.82 - 0.16 * outerTint,
+            0.64 - 0.20 * outerTint,
+            0.06,
+          ),
+        );
       }
 
       final rivX = extendedShukubaRiverCenterX(z);
@@ -1827,24 +1951,35 @@ class TerrainBuilder {
               _quintic(outDist / 24.0);
       if (outDist > 46.0) {
         final tuck = _quintic((outDist - 46.0) / 52.0);
-        final outerDrop = -8.2 - 0.015 * math.max<double>(0, outDist - 96.0);
+        final outerDrop =
+            -8.2 - 0.015 * math.max<double>(0, outDist - 96.0) + bedWave;
         hillY = hillY * (1.0 - tuck) + outerDrop * tuck;
       }
 
       if (z.abs() >= 88.0 && rivDist < 34.0 && outDist < 68.0) {
         const bedY = -1.78;
-        final bankT = _quintic((rivDist - 3.2) / 30.8);
+        final bankT = _quintic(((rivDist - 1.5) / 28.0).clamp(0.0, 1.0));
         final corridorY = bedY + (hillY - bedY) * bankT;
         final fadeT = _quintic((outDist - 24.0) / 42.0);
         final y = corridorY + (hillY - corridorY) * fadeT;
-        final wetT = (1.0 - _quintic((rivDist - 2.0) / 3.2)) * (1.0 - fadeT);
+        final bandFade =
+            (1.0 - ((rivDist - 5.5) / 4.0).clamp(0.0, 1.0)) * (1.0 - fadeT);
+        final pebbleT =
+            (1.0 - ((y - (-0.42)).abs() / 0.48).clamp(0.0, 1.0)) * bandFade;
+        final subT = ((-0.50 - y) / 0.72).clamp(0.0, 1.0) * bandFade;
+        var cR = 0.78 * (1 - pebbleT * 0.78) + 0.84 * (pebbleT * 0.78);
+        var cG = 0.85 * (1 - pebbleT * 0.78) + 0.78 * (pebbleT * 0.78);
+        var cB = 0.70 * (1 - pebbleT * 0.78) + 0.66 * (pebbleT * 0.78);
+        cR = cR * (1 - subT * 0.68) + 0.34 * (subT * 0.68);
+        cG = cG * (1 - subT * 0.68) + 0.42 * (subT * 0.68);
+        cB = cB * (1 - subT * 0.68) + 0.44 * (subT * 0.68);
         return (
           y: y,
           color: Vector4(
-            0.78 * (1 - wetT) + 0.38 * wetT,
-            0.85 * (1 - wetT) + 0.44 * wetT,
-            0.70 * (1 - wetT) + 0.48 * wetT,
-            0.06 * (1 - wetT) + 0.42 * wetT,
+            cR,
+            cG,
+            cB,
+            math.max(0.06, math.max(pebbleT * 0.90, subT * 0.82)),
           ),
         );
       }
@@ -2033,18 +2168,24 @@ class TerrainBuilder {
     const zEnd = 31.5;
     const segsZ = 48;
     const yBottom = -2.40;
-    const yTop = 0.84;
+    const yTop = 0.90;
 
-    // Continuous concave-battered harbor seawall matching minatoCoastlineX(z)
+    // Continuous concave-battered harbor seawall matching minatoCoastlineX(z),
+    // tapering smoothly into coastal rock shoulders at both ends.
     final crestFront = <Vector3>[];
     final toeFront = <Vector3>[];
     final crestBack = <Vector3>[];
     for (var i = 0; i <= segsZ; i++) {
       final z = zStart + (zEnd - zStart) * (i / segsZ);
       final cx = minatoCoastlineX(z);
-      crestFront.add(Vector3(cx - 0.06, yTop, z));
-      toeFront.add(Vector3(cx + 0.52, yBottom, z));
-      crestBack.add(Vector3(cx - 0.92, yTop, z));
+      final distFromEnd = math.min(i, segsZ - i);
+      final tEnd = (distFromEnd / 3.0).clamp(0.0, 1.0);
+      final smoothIn = tEnd * tEnd * (3.0 - 2.0 * tEnd);
+      final recess = 1.0 - smoothIn;
+      final topY = yTop - 0.28 * recess;
+      crestFront.add(Vector3(cx - 0.06 - 1.10 * recess, topY, z));
+      toeFront.add(Vector3(cx + 0.52 - 1.35 * recess, yBottom, z));
+      crestBack.add(Vector3(cx - 0.92 - 0.95 * recess, topY, z));
     }
 
     for (var i = 0; i < segsZ; i++) {
@@ -2080,7 +2221,7 @@ class TerrainBuilder {
         color: Vector4(0.95, 0.93, 0.90, 1),
       );
 
-      if (i.isEven) {
+      if (i.isEven && i >= 2 && i <= segsZ - 4) {
         final zMid = (cf0.z + cf1.z) * 0.5;
         final cxMid = minatoCoastlineX(zMid);
         EdoKitBuilder.addBox(
@@ -2127,7 +2268,7 @@ class TerrainBuilder {
       EdoKitBuilder.addBox(
         fenderBuilder,
         Vector3(cx + 0.16, yBottom, z - 0.11),
-        Vector3(cx + 0.40, 0.96, z + 0.11),
+        Vector3(cx + 0.40, 1.04, z + 0.11),
       );
     }
 
@@ -2390,7 +2531,6 @@ class TerrainBuilder {
   }) {
     final root = Node();
     final roadList = roads.toList();
-    final timberBuilder = GeometryBuilder();
     final shrubBuilder = GeometryBuilder();
 
     for (final b in _gorgeBankSpecs) {
@@ -2430,67 +2570,36 @@ class TerrainBuilder {
       }
     }
 
-    const shigaramiSpans = [
-      (-10.8, -5.6, -2.78),
-      (5.6, 11.2, -2.78),
-      (-11.4, -6.4, 2.78),
-      (6.6, 12.0, 2.78),
+    const extraBankRosettes = <(double z, double dx, double phase)>[
+      (-41.0, -5.0, 0.4),
+      (-31.5, 5.1, 1.3),
+      (-22.5, -4.7, 2.2),
+      (-17.5, -4.5, 3.0),
+      (17.5, -4.7, 0.9),
+      (31.0, -4.9, 1.9),
+      (35.5, 5.2, 2.7),
+      (41.5, 4.9, 0.2),
     ];
-    for (final span in shigaramiSpans) {
-      final z0 = span.$1;
-      final z1 = span.$2;
-      final bankOffset = span.$3;
-      final stakeCount = ((z1 - z0) / 0.38).round() + 1;
-      Vec3? prevLogA;
-      Vec3? prevLogB;
-      for (var i = 0; i < stakeCount; i++) {
-        final z = z0 + (z1 - z0) * (i / (stakeCount - 1));
-        final x = TerrainConfig.riverCenterX(z) + bankOffset;
-        if (!_isClearOfRoadCorridors(x, z, 0.16, roadList)) {
-          prevLogA = null;
-          prevLogB = null;
-          continue;
-        }
-        final y = sampleRawTerrain(x, z);
-        final topJitter = 0.05 * math.sin(i * 2.1 + z0);
-        final topY = math.max(y + 0.44, -0.18) + topJitter;
-        EdoKitBuilder.addBox(
-          timberBuilder,
-          Vector3(x - 0.044, y - 0.52, z - 0.044),
-          Vector3(x + 0.044, topY, z + 0.044),
-        );
-        final logBackX = x + (bankOffset < 0 ? -0.095 : 0.095);
-        final curA = Vec3(logBackX, topY - 0.14, z);
-        final curB = Vec3(logBackX, topY - 0.28, z);
-        if (prevLogA != null && prevLogB != null) {
-          EdoKitBuilder.addCordSegment(
-            timberBuilder,
-            prevLogA,
-            curA,
-            halfThick: 0.038,
-          );
-          EdoKitBuilder.addCordSegment(
-            timberBuilder,
-            prevLogB,
-            curB,
-            halfThick: 0.038,
+    for (final r in extraBankRosettes) {
+      if (r.$1.abs() < 4.0) {
+        continue;
+      }
+      final sx = TerrainConfig.riverCenterX(r.$1) + r.$2;
+      final sz = r.$1;
+      if (_isClearOfRoadCorridors(sx, sz, 0.92, roadList)) {
+        final sy = sampleRawTerrain(sx, sz);
+        if (sy > -0.10) {
+          EdoKitBuilder.addShrubRosette(
+            shrubBuilder,
+            Vector3(sx, sy + 0.06, sz),
+            Vector3(0.92, 0.40, 0.84),
+            color: Vector4(0.76, 0.92, 0.64, 1),
+            phase: r.$3,
           );
         }
-        prevLogA = curA;
-        prevLogB = curB;
       }
     }
 
-    if (timberBuilder.vertexCount > 0) {
-      root.add(
-        Node(
-          mesh: Mesh(
-            timberBuilder.build(),
-            resolveMaterial(ShukubaSurfaceRole.charredTimber),
-          ),
-        ),
-      );
-    }
     if (shrubBuilder.vertexCount > 0) {
       root.add(
         Node(

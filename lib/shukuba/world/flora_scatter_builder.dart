@@ -291,6 +291,7 @@ class _FloraExclusionIndex {
     double roadMargin = 0.42,
     double footprintMargin = 0.34,
     double minRiverDist = 2.40,
+    double minGroundY = -0.22,
   }) {
     if (x < TerrainConfig.minX + 1.1 ||
         x > TerrainConfig.maxX - 1.1 ||
@@ -301,20 +302,24 @@ class _FloraExclusionIndex {
 
     if (realm == ShowcaseRealm.minatoJo) {
       final coastX = TerrainBuilder.minatoCoastlineX(z);
-      if (x > coastX - 1.2) {
+      if (x > coastX - 2.1) {
         return false;
       }
-      if (sampleGroundY != null && sampleGroundY!(x, z) < 0.25) {
+      if (sampleGroundY != null && sampleGroundY!(x, z) < 0.48) {
         return false;
       }
       if (x >= -1.5 && x <= coastX + 1.0 && z >= -11.5 && z <= 32.0) {
         return false;
       }
-      if (x >= -6.0 && x <= 29.0 && z >= -46.5 && z <= -10.5) {
+      if (x >= -2.2 && x <= 25.4 && z >= -42.8 && z <= -13.8) {
         return false;
       }
     } else {
       if ((x - TerrainConfig.riverCenterX(z)).abs() < minRiverDist) {
+        return false;
+      }
+
+      if (sampleGroundY != null && sampleGroundY!(x, z) < minGroundY) {
         return false;
       }
 
@@ -489,7 +494,7 @@ enum _FloraBatchKind {
   nogiku(protoRadiusXZ: 0.42, protoMinY: 0, protoMaxY: 1.12),
   susuki(protoRadiusXZ: 0.54, protoMinY: 0, protoMaxY: 1.25),
   higanbana(protoRadiusXZ: 0.44, protoMinY: 0, protoMaxY: 1.15),
-  reeds(protoRadiusXZ: 0.72, protoMinY: 0, protoMaxY: 1.02),
+  reeds(protoRadiusXZ: 0.72, protoMinY: 0, protoMaxY: 1.32),
   shrubs(protoRadiusXZ: 1.02, protoMinY: 0, protoMaxY: 0.80),
   wallDrapes(protoRadiusXZ: 0.54, protoMinY: -1.02, protoMaxY: 0.02),
   fallenMomiji(protoRadiusXZ: 0.72, protoMinY: 0, protoMaxY: 0.03);
@@ -757,7 +762,7 @@ class FloraScatterBuilder {
         livingMat,
         castShadows: false,
       );
-      attachKind(_FloraBatchKind.reeds, 'flora_reeds', groundCutoutMat);
+      attachKind(_FloraBatchKind.reeds, 'flora_reeds', livingMat);
       attachKind(_FloraBatchKind.shrubs, 'flora_shrubs', bambooCutoutMat);
       attachKind(
         _FloraBatchKind.wallDrapes,
@@ -1199,66 +1204,107 @@ class FloraScatterBuilder {
     }
 
     if (realm == ShowcaseRealm.shukubaValley) {
-      const reedCandidates = 640;
       final placedReeds = <Vector2>[];
-      for (var i = 0; i < reedCandidates; i++) {
-        final side = i.isEven ? -1.0 : 1.0;
-        final u = ((i + 1) * 0.6180339887498949) % 1.0;
-        final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.92;
-        if (math.sin(z * 0.55 + side * 1.4) <= 0.10) {
+      var reedIdx = 0;
+      for (var z = -82.0; z <= 82.0; z += 0.55) {
+        if (z.abs() < 2.2) {
           continue;
         }
-        final goldenMix = (i * 0.38196601125) % 1.0;
-        final bankDist = 2.60 + 2.30 * goldenMix;
-        final x = TerrainConfig.riverCenterX(z) + side * bankDist;
-        if (!index.isClear(x, z, roadMargin: 0.44, minRiverDist: 2.34)) {
-          continue;
-        }
-        var tooCloseReed = false;
-        for (var rIdx = placedReeds.length - 1; rIdx >= 0; rIdx--) {
-          final prev = placedReeds[rIdx];
-          if ((z - prev.y).abs() > 1.4) {
-            break;
+        final rcx = TerrainConfig.riverCenterX(z);
+        for (final side in const <double>[-1, 1]) {
+          final clump =
+              math.sin(z * 0.36 + side * 1.1) +
+              0.50 * math.cos(z * 0.82 - side * 0.6);
+          if (clump <= -0.35) {
+            continue;
           }
-          final dx = x - prev.x;
-          final dz = z - prev.y;
-          if (dx * dx + dz * dz < 0.58) {
-            tooCloseReed = true;
-            break;
+          var waterlineDist = 2.6;
+          for (var d = 1.5; d <= 6.0; d += 0.25) {
+            if (sampleGroundY(rcx + side * d, z) >=
+                TerrainConfig.waterSurfaceElevation) {
+              waterlineDist = d;
+              break;
+            }
+          }
+          for (var tuftIdx = 0; tuftIdx < 3; tuftIdx++) {
+            final seedIdx = reedIdx++;
+            final hOff =
+                (math.sin(seedIdx * 12.9898 + 1.3) * 43758.5453).abs() % 1.0;
+            final hZ = (math.sin(seedIdx * 78.233 + 2.7) * 29711.7).abs() % 1.0;
+            final tz = z + (hZ - 0.5) * 0.42;
+            if (tz.abs() < 2.2) {
+              continue;
+            }
+            final offset = -0.10 + tuftIdx * 0.44 + (hOff - 0.5) * 0.28;
+            final x =
+                TerrainConfig.riverCenterX(tz) +
+                side * (waterlineDist + offset.clamp(-0.12, 0.95));
+            if (!buckets.containsKey(chunkIndexFor(x, tz))) {
+              continue;
+            }
+            final gy = sampleGroundY(x, tz);
+            if (gy < -0.64 || gy > 0.26) {
+              continue;
+            }
+            if (!index.isClear(x, tz, minRiverDist: 1.40, minGroundY: -0.66)) {
+              continue;
+            }
+            var tooCloseReed = false;
+            for (var rIdx = placedReeds.length - 1; rIdx >= 0; rIdx--) {
+              final prev = placedReeds[rIdx];
+              if ((tz - prev.y).abs() > 1.4) {
+                break;
+              }
+              final dx = x - prev.x;
+              final dz = tz - prev.y;
+              if (dx * dx + dz * dz < 0.22) {
+                tooCloseReed = true;
+                break;
+              }
+            }
+            if (tooCloseReed) {
+              continue;
+            }
+            placedReeds.add(Vector2(x, tz));
+
+            final hSeed = (math.sin(seedIdx * 7.73 + 1.9) * 917.3).abs() % 1.0;
+            final double r;
+            final double g;
+            final double b;
+            if (hSeed < 0.55) {
+              r = 1.34 + 0.16 * hSeed;
+              g = 0.96 + 0.10 * hSeed;
+              b = 0.54;
+            } else if (hSeed < 0.80) {
+              r = 1.18 + 0.12 * hSeed;
+              g = 0.98 + 0.08 * hSeed;
+              b = 0.62;
+            } else {
+              r = 0.84 + 0.12 * hSeed;
+              g = 1.06 + 0.10 * hSeed;
+              b = 0.58;
+            }
+
+            final width = 0.68 + 0.36 * hSeed;
+            final height = 0.64 + 0.44 * hSeed;
+            addAlignedInstance(
+              _FloraBatchKind.reeds,
+              x: x,
+              z: tz,
+              yaw: (seedIdx * 2.39996323) % (math.pi * 2),
+              sx: width,
+              sy: height,
+              sz: width,
+              color: Vector4(r, g, b, 1),
+              yLift: -0.04,
+              slopeFollow: 0.20,
+            );
           }
         }
-        if (tooCloseReed) {
-          continue;
-        }
-        placedReeds.add(Vector2(x, z));
-        if (!buckets.containsKey(chunkIndexFor(x, z))) {
-          continue;
-        }
-
-        final hSeed = (math.sin(i * 7.73 + 1.9) * 917.3).abs() % 1.0;
-        final r = 0.24 + 0.14 * (1 - goldenMix * 0.45) + 0.05 * hSeed;
-        final g = 0.34 + 0.10 * hSeed;
-        final b = 0.16 + 0.05 * hSeed;
-
-        final width = 0.62 + 0.30 * hSeed;
-        final height =
-            0.46 + 0.32 * (1 - goldenMix * 0.35) * (0.75 + 0.35 * hSeed);
-        addAlignedInstance(
-          _FloraBatchKind.reeds,
-          x: x,
-          z: z,
-          yaw: (i * 2.39996323) % (math.pi * 2),
-          sx: width,
-          sy: height,
-          sz: width,
-          color: Vector4(r, g, b, 1),
-          yLift: -0.03,
-          slopeFollow: 0.20,
-        );
       }
     }
 
-    const shrubCandidates = 3800;
+    final shrubCandidates = realm == ShowcaseRealm.minatoJo ? 5200 : 4600;
     for (var i = 0; i < shrubCandidates; i++) {
       final ux = ((i + 17) * 0.7548776662466927) % 1.0;
       final uz = ((i + 17) * 0.5698402909980532) % 1.0;
@@ -1269,7 +1315,16 @@ class FloraScatterBuilder {
       }
       final habitat = index.sampleHabitatAffinity(x, z);
       final sHash = (math.sin(i * 17.3 + 2.7) * 613.9).abs() % 1.0;
-      if (habitat < 0.44 || sHash > habitat * 0.98) {
+      final rivDist = (x - TerrainConfig.riverCenterX(z)).abs();
+      final riverCollar =
+          realm == ShowcaseRealm.shukubaValley &&
+          rivDist >= 3.5 &&
+          rivDist <= 8.5;
+      final outerHill =
+          realm == ShowcaseRealm.minatoJo && math.sqrt(x * x + z * z) > 16.0;
+      final minShrubHabitat = outerHill ? 0.35 : (riverCollar ? 0.32 : 0.44);
+      final acceptCeiling = riverCollar ? math.max(habitat, 0.48) : habitat;
+      if (habitat < minShrubHabitat || sHash > acceptCeiling * 0.98) {
         continue;
       }
       if (!index.isClear(x, z, roadMargin: 0.72, footprintMargin: 0.54)) {
@@ -1860,41 +1915,51 @@ class FloraScatterBuilder {
   }
 
   static MeshGeometry _buildReedTuftPrototypeGeometry() {
-    final builder = GeometryBuilder()..color(Vector4(1, 1, 1, 1));
-
-    int emit(Vector3 pos, double u, double v) {
-      builder.texCoord(Vector2(u, v));
-      return builder.addVertex(pos);
+    final builder = GeometryBuilder();
+    const bladeCount = 11;
+    for (var i = 0; i < bladeCount; i++) {
+      final frac = (i + 0.5) / bladeCount;
+      final ang = i * 2.39996323 + 0.18;
+      final r = 0.26 * math.sqrt(frac);
+      final h = (math.sin(i * 19.7 + 0.9) * 811.3).abs() % 1.0;
+      _addCurvedGrassBlade(
+        builder,
+        rootOffset: Vector3(math.cos(ang) * r, 0, math.sin(ang) * r),
+        yaw: ang + (h - 0.5) * 0.45,
+        height: 0.56 + 0.42 * h,
+        baseHalfWidth: 0.026,
+        archOut: 0.14 + 0.16 * h,
+        color: Vector4(1.06, 0.94, 0.72, 0.10),
+      );
     }
 
-    const planes = 3;
-    for (var i = 0; i < planes; i++) {
-      final yaw = (i / planes) * math.pi + 0.22;
-      final cy = math.cos(yaw);
-      final sy = math.sin(yaw);
-      final right = Vector3(cy, 0, sy);
-      final splay = Vector3(-sy, 0, cy);
-      final lean = (i.isEven ? 1.0 : -1.0) * 0.20;
+    const plumeCount = 3;
+    final upN = Vector3(0, 1, 0);
+    for (var p = 0; p < plumeCount; p++) {
+      final ang = p * (math.pi * 2 / plumeCount) + 0.45;
+      final cy = math.cos(ang);
+      final sy = math.sin(ang);
+      final right = Vector3(-sy, 0, cy) * 0.115;
+      final outDir = Vector3(cy, 0, sy);
+      final base = outDir * 0.11 + Vector3(0, 0.58 + 0.08 * p, 0);
+      final tip = outDir * 0.30 + Vector3(0, 1.06 + 0.08 * p, 0);
 
-      final bL = -right * 0.46 + splay * (lean * 0.12);
-      final bR = right * 0.46 + splay * (lean * 0.12);
-      final mL = -right * 0.52 + splay * (lean * 0.52) + Vector3(0, 0.52, 0);
-      final mR = right * 0.52 + splay * (lean * 0.52) + Vector3(0, 0.52, 0);
-      final tL = -right * 0.50 + splay * lean + Vector3(0, 1, 0);
-      final tR = right * 0.50 + splay * lean + Vector3(0, 1, 0);
+      builder.color(Vector4(1.12, 0.96, 0.68, 0.40));
 
-      final v0 = emit(bL, 0, 0);
-      final v1 = emit(bR, 1, 0);
-      final v2 = emit(mL, 0, 0.52);
-      final v3 = emit(mR, 1, 0.52);
-      final v4 = emit(tL, 0, 1);
-      final v5 = emit(tR, 1, 1);
+      int emit(Vector3 pos, double u, double v) {
+        builder
+          ..normal(upN)
+          ..texCoord(Vector2(u, v));
+        return builder.addVertex(pos);
+      }
 
+      final v0 = emit(base - right, 0, 0);
+      final v1 = emit(base + right, 1, 0);
+      final v2 = emit(tip + right * 0.85, 1, 1);
+      final v3 = emit(tip - right * 0.85, 0, 1);
       builder
-        ..addTriangle(v0, v1, v3)
-        ..addTriangle(v0, v3, v2)
-        ..addTriangle(v2, v3, v5)
-        ..addTriangle(v2, v5, v4);
+        ..addTriangle(v0, v1, v2)
+        ..addTriangle(v0, v2, v3);
     }
 
     return builder.build(retainCpuData: false);

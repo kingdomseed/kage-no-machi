@@ -802,94 +802,144 @@ class EdoKitBuilder {
     Vector3 topHook, {
     double radius = 0.17,
     double height = 0.38,
+    double dropLength = 0.12,
+    int sides = 12,
+    Vector4? color,
   }) {
-    addBox(
-      timberBuilder,
-      Vector3(topHook.x - 0.015, topHook.y - 0.12, topHook.z - 0.015),
-      Vector3(topHook.x + 0.015, topHook.y + 0.01, topHook.z + 0.015),
-    );
-    final capTopY = topHook.y - 0.13;
-    final bodyTopY = capTopY - 0.025;
-    final bodyMidY = bodyTopY - height * 0.48;
+    final capTopY = topHook.y - dropLength - 0.01;
+    final bodyTopY = capTopY - 0.026;
     final bodyBotY = bodyTopY - height;
-    final capBotY = bodyBotY - 0.025;
-    final capR = radius * 0.58;
+    final capBotY = bodyBotY - 0.026;
+    final capR = radius * 0.56;
 
-    addBox(
+    // Slender hanging wire/cord from catenary down into top collar
+    addCordSegment(
       timberBuilder,
-      Vector3(topHook.x - capR, bodyTopY + 0.008, topHook.z - capR),
-      Vector3(topHook.x + capR, capTopY, topHook.z + capR),
-    );
-    addBox(
-      timberBuilder,
-      Vector3(topHook.x - capR * 0.88, capBotY, topHook.z - capR * 0.88),
-      Vector3(
-        topHook.x + capR * 0.88,
-        bodyBotY - 0.008,
-        topHook.z + capR * 0.88,
-      ),
+      Vec3(topHook.x, topHook.y + 0.01, topHook.z),
+      Vec3(topHook.x, bodyTopY + 0.002, topHook.z),
+      halfThick: 0.011,
     );
 
-    const sides = 6;
-    final topRing = <Vector3>[];
-    final midRing = <Vector3>[];
-    final botRing = <Vector3>[];
-    for (var i = 0; i < sides; i++) {
-      final ang = (i / sides) * math.pi * 2;
-      final ca = math.cos(ang);
-      final sa = math.sin(ang);
-      topRing.add(
-        Vector3(topHook.x + ca * capR, bodyTopY, topHook.z + sa * capR),
-      );
-      midRing.add(
-        Vector3(topHook.x + ca * radius, bodyMidY, topHook.z + sa * radius),
-      );
-      botRing.add(
-        Vector3(
-          topHook.x + ca * capR * 0.92,
-          bodyBotY,
-          topHook.z + sa * capR * 0.92,
-        ),
-      );
+    // Rounded multi-sided top & bottom collars + delicate tassel knob
+    void addCircularCap(double yBot, double yTop, double rCap) {
+      final botRing = <Vector3>[];
+      final topRing = <Vector3>[];
+      for (var i = 0; i < sides; i++) {
+        final ang = (i / sides) * math.pi * 2;
+        final ca = math.cos(ang);
+        final sa = math.sin(ang);
+        botRing.add(
+          Vector3(topHook.x + ca * rCap, yBot, topHook.z + sa * rCap),
+        );
+        topRing.add(
+          Vector3(topHook.x + ca * rCap, yTop, topHook.z + sa * rCap),
+        );
+      }
+      final cBot = Vector3(topHook.x, yBot, topHook.z);
+      final cTop = Vector3(topHook.x, yTop, topHook.z);
+      for (var i = 0; i < sides; i++) {
+        final next = (i + 1) % sides;
+        final out = ((botRing[i] + botRing[next]) * 0.5) - cBot;
+        addQuadOutward(
+          timberBuilder,
+          botRing[i],
+          botRing[next],
+          topRing[next],
+          topRing[i],
+          out,
+          uvScale: 2,
+        );
+        addTriangleOutward(
+          timberBuilder,
+          topRing[i],
+          topRing[next],
+          cTop,
+          Vector3(0, 1, 0),
+        );
+        addTriangleOutward(
+          timberBuilder,
+          botRing[next],
+          botRing[i],
+          cBot,
+          Vector3(0, -1, 0),
+        );
+      }
     }
+
+    addCircularCap(bodyTopY - 0.006, capTopY, capR * 1.06);
+    addCircularCap(capBotY, bodyBotY + 0.006, capR * 0.94);
+    addCordSegment(
+      timberBuilder,
+      Vec3(topHook.x, capBotY, topHook.z),
+      Vec3(topHook.x, capBotY - 0.045, topHook.z),
+      halfThick: 0.009,
+    );
+
+    // 5-ring curved ovoid silhouette (no sharp hexagonal silhouette)
+    const tFracs = [0.0, 0.22, 0.50, 0.78, 1.0];
+    const rFracs = [0.56, 0.90, 1.00, 0.87, 0.52];
+    final rings = <List<Vector3>>[];
+    for (var rIdx = 0; rIdx < tFracs.length; rIdx++) {
+      final y = bodyTopY - height * tFracs[rIdx];
+      final rr = radius * rFracs[rIdx];
+      final ring = <Vector3>[];
+      for (var i = 0; i < sides; i++) {
+        final ang = (i / sides) * math.pi * 2;
+        ring.add(
+          Vector3(
+            topHook.x + math.cos(ang) * rr,
+            y,
+            topHook.z + math.sin(ang) * rr,
+          ),
+        );
+      }
+      rings.add(ring);
+    }
+
+    final lanternColor = color ?? Vector4(1, 0.96, 0.90, 1);
     final topCenter = Vector3(topHook.x, bodyTopY, topHook.z);
     final botCenter = Vector3(topHook.x, bodyBotY, topHook.z);
+    for (var b = 0; b < rings.length - 1; b++) {
+      final upper = rings[b];
+      final lower = rings[b + 1];
+      final yMid =
+          (bodyTopY - height * tFracs[b] + bodyTopY - height * tFracs[b + 1]) *
+          0.5;
+      final outY = (0.5 - tFracs[b]) * 0.45;
+      for (var i = 0; i < sides; i++) {
+        final next = (i + 1) % sides;
+        final out =
+            ((upper[i] + lower[next]) * 0.5) -
+            Vector3(topHook.x, yMid, topHook.z);
+        addQuadOutward(
+          lanternBuilder,
+          lower[i],
+          lower[next],
+          upper[next],
+          upper[i],
+          out + Vector3(0, outY, 0),
+          uvScale: 1.6,
+          color: lanternColor,
+        );
+      }
+    }
     for (var i = 0; i < sides; i++) {
       final next = (i + 1) % sides;
-      final out =
-          ((midRing[i] + midRing[next]) * 0.5) -
-          Vector3(topHook.x, bodyMidY, topHook.z);
-      addQuadOutward(
-        lanternBuilder,
-        midRing[i],
-        midRing[next],
-        topRing[next],
-        topRing[i],
-        out + Vector3(0, 0.2, 0),
-        uvScale: 1.6,
-      );
-      addQuadOutward(
-        lanternBuilder,
-        botRing[i],
-        botRing[next],
-        midRing[next],
-        midRing[i],
-        out - Vector3(0, 0.2, 0),
-        uvScale: 1.6,
-      );
       addTriangleOutward(
         lanternBuilder,
-        topRing[i],
-        topRing[next],
+        rings.first[i],
+        rings.first[next],
         topCenter,
         Vector3(0, 1, 0),
+        color: lanternColor,
       );
       addTriangleOutward(
         lanternBuilder,
-        botRing[next],
-        botRing[i],
+        rings.last[next],
+        rings.last[i],
         botCenter,
         Vector3(0, -1, 0),
+        color: lanternColor,
       );
     }
   }
@@ -3249,20 +3299,24 @@ class EdoKitBuilder {
     final roofBuilder = GeometryBuilder();
     final waterBuilder = GeometryBuilder();
 
-    addBox(stoneBuilder, Vector3(-0.90, 0, -0.90), Vector3(0.90, 0.035, 0.90));
+    addBox(
+      stoneBuilder,
+      Vector3(-0.90, -0.42, -0.90),
+      Vector3(0.90, 0.18, 0.90),
+    );
 
     addTaperedLimb(
       stoneBuilder,
-      const Vec3(0, 0.035, 0),
-      const Vec3(0, 0.56, 0),
+      const Vec3(0, 0.18, 0),
+      const Vec3(0, 0.68, 0),
       0.58,
       0.58,
       sides: 8,
     );
     addTaperedLimb(
       timberBuilder,
-      const Vec3(0, 0.54, 0),
-      const Vec3(0, 0.62, 0),
+      const Vec3(0, 0.66, 0),
+      const Vec3(0, 0.74, 0),
       0.61,
       0.61,
       sides: 8,
@@ -3271,7 +3325,7 @@ class EdoKitBuilder {
     addTaperedLimb(
       stoneBuilder,
       const Vec3(0, -0.75, 0),
-      const Vec3(0, 0.035, 0),
+      const Vec3(0, 0.16, 0),
       0.46,
       0.46,
       sides: 8,
@@ -3288,7 +3342,7 @@ class EdoKitBuilder {
     for (final xPost in const [-0.64, 0.64]) {
       addTaperedLimb(
         timberBuilder,
-        Vec3(xPost, 0.035, 0),
+        Vec3(xPost, 0.18, 0),
         Vec3(xPost, 1.82, 0),
         0.055,
         0.045,
@@ -7718,8 +7772,42 @@ class EdoKitBuilder {
     }
 
     final hangPoints = span.lanternHangPoints();
-    for (final hp in hangPoints) {
-      addLanternBody(lanternBuilder, timberBuilder, hp.toVector3());
+    final spanSeed = span.id.value.hashCode.abs();
+    final tintPalette = <Vector4>[
+      Vector4(1, 0.96, 0.88, 1), // warm washi honey
+      Vector4(1, 0.78, 0.62, 1), // vermilion blush
+      Vector4(1, 0.89, 0.70, 1), // amber gold
+      Vector4(0.98, 0.97, 0.93, 1), // ivory festival paper
+    ];
+    for (var idx = 0; idx < hangPoints.length; idx++) {
+      final hp = hangPoints[idx];
+      final hSeed = (spanSeed * 31 + idx * 17).abs();
+      final style = hSeed % 3;
+      final (double r, double h) = switch (style) {
+        0 => (
+          0.185 + (hSeed % 3) * 0.015,
+          0.31 + (hSeed % 2) * 0.04,
+        ), // maru-chochin
+        1 => (
+          0.130 + (hSeed % 2) * 0.014,
+          0.44 + (hSeed % 3) * 0.04,
+        ), // naga-chochin
+        _ => (
+          0.162 + (hSeed % 3) * 0.012,
+          0.36 + (hSeed % 2) * 0.03,
+        ), // barrel ovoid
+      };
+      final drop = 0.095 + ((hSeed >> 2) % 4) * 0.042;
+      final tint = tintPalette[(hSeed >> 3) % tintPalette.length];
+      addLanternBody(
+        lanternBuilder,
+        timberBuilder,
+        hp.toVector3(),
+        radius: r,
+        height: h,
+        dropLength: drop,
+        color: tint,
+      );
     }
 
     if (span.hasFestivalStreamers) {

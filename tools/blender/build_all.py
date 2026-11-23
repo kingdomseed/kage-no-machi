@@ -13,6 +13,7 @@ if HERE not in sys.path:
 import bridge_and_landmarks
 import buildings
 import castle_port
+import characters
 import nature_trees
 import props_street
 import rocks_and_shore
@@ -25,6 +26,7 @@ def main() -> None:
     bridge_and_landmarks.build_edo_arched_bridge()
     buildings.build_all()
     castle_port.build_all()
+    characters.build_all()
     nature_trees.build_all()
     props_street.build_all()
     vistas.build_all()

@@ -202,6 +202,10 @@ def get_materials() -> dict[str, bpy.types.Material]:
             "KawaraRust", "kawara_tile.png", "kawara_tile_normal.png",
             tint=(0.52, 0.34, 0.25, 1.0), roughness=0.64, specular=0.30, normal_strength=1.1, uv_scale=0.55,
         ),
+        "KawaraMossGreen": _make_tex_material(
+            "KawaraMossGreen", "kawara_tile.png", "kawara_tile_normal.png",
+            tint=(0.30, 0.48, 0.34, 1.0), roughness=0.62, specular=0.34, normal_strength=1.1, uv_scale=0.55,
+        ),
         "KayabukiThatch": _make_tex_material(
             "KayabukiThatch", "kayabuki_thatch.png", "kayabuki_thatch_normal.png",
             tint=(0.86, 0.74, 0.52, 1.0), roughness=0.92, specular=0.08, normal_strength=1.05, uv_scale=0.50,
@@ -209,6 +213,10 @@ def get_materials() -> dict[str, bpy.types.Material]:
         "ShikkuiPlaster": _make_tex_material(
             "ShikkuiPlaster", "shikkui_plaster.png", "shikkui_plaster_normal.png",
             tint=(0.88, 0.84, 0.76, 1.0), roughness=0.86, specular=0.14, normal_strength=0.65, uv_scale=0.40,
+        ),
+        "PlasterBlack": _make_tex_material(
+            "PlasterBlack", "shikkui_plaster.png", "shikkui_plaster_normal.png",
+            tint=(0.14, 0.16, 0.20, 1.0), roughness=0.78, specular=0.16, normal_strength=0.75, uv_scale=0.45,
         ),
         "NamakoKabe": _make_tex_material(
             "NamakoKabe", "shikkui_plaster.png", "shikkui_plaster_normal.png",
@@ -237,6 +245,43 @@ def get_materials() -> dict[str, bpy.types.Material]:
         ),
         "ClothCream": _make_flat_material(
             "ClothCream", (0.64, 0.56, 0.43, 1.0), roughness=0.92, specular=0.06, double_sided=True,
+        ),
+        "OchreCloth": _make_flat_material(
+            "OchreCloth", (0.58, 0.42, 0.16, 1.0), roughness=0.88, specular=0.08, double_sided=True,
+        ),
+        "PersonSkin": _make_flat_material(
+            "PersonSkin", (0.80, 0.56, 0.40, 1.0), roughness=0.66, specular=0.18,
+        ),
+        "PersonHair": _make_flat_material(
+            "PersonHair", (0.04, 0.035, 0.045, 1.0), roughness=0.48, specular=0.22,
+        ),
+        "PersonIndigo": _make_flat_material(
+            "PersonIndigo", (0.10, 0.18, 0.34, 1.0), roughness=0.86, specular=0.08,
+        ),
+        "PersonNavy": _make_flat_material(
+            "PersonNavy", (0.07, 0.10, 0.19, 1.0), roughness=0.84, specular=0.10,
+        ),
+        "PersonPlum": _make_flat_material(
+            "PersonPlum", (0.34, 0.08, 0.13, 1.0), roughness=0.84, specular=0.10,
+        ),
+        "PersonRusset": _make_flat_material(
+            "PersonRusset", (0.36, 0.19, 0.10, 1.0), roughness=0.88, specular=0.08,
+        ),
+        "PersonMoss": _make_flat_material(
+            "PersonMoss", (0.16, 0.24, 0.14, 1.0), roughness=0.88, specular=0.08,
+        ),
+        "PersonOchre": _make_flat_material(
+            "PersonOchre", (0.56, 0.40, 0.16, 1.0), roughness=0.88, specular=0.08,
+        ),
+        "PersonStraw": _make_tex_material(
+            "PersonStraw", "kayabuki_thatch.png", "kayabuki_thatch_normal.png",
+            tint=(0.82, 0.72, 0.48, 1.0), roughness=0.92, specular=0.06, uv_scale=1.1,
+        ),
+        "PersonCream": _make_flat_material(
+            "PersonCream", (0.76, 0.70, 0.58, 1.0), roughness=0.88, specular=0.08,
+        ),
+        "PersonCharcoal": _make_flat_material(
+            "PersonCharcoal", (0.12, 0.13, 0.15, 1.0), roughness=0.80, specular=0.12,
         ),
         "SailCanvas": _make_tex_material(
             "SailCanvas", "shikkui_plaster.png", "shikkui_plaster_normal.png",

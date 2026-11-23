@@ -244,12 +244,112 @@ def build_edo_nobori_banner() -> None:
     export_glb("edo_nobori_banner.glb")
 
 
+def build_edo_wooden_fence_gate() -> None:
+    """Edo tiled timber board fence (4.6m span) with low stone plinth & pitched kawara cap."""
+    clear_scene()
+    mats = get_materials()
+    bm_stone = bmesh.new()
+    bm_cedar = bmesh.new()
+    bm_charred = bmesh.new()
+    bm_roof = bmesh.new()
+
+    span = 4.6
+    # Mossy dressed stone base curb anchored firmly into slopes
+    add_game_box(bm_stone, 0.0, -0.10, 0.0, span, 0.62, 0.36, bevel=0.02)
+
+    # 3 heavy charred timber posts proud of cedar panels (10 cm Z step)
+    for px in (-2.12, 0.0, 2.12):
+        add_game_box(bm_charred, px, 1.12, 0.0, 0.16, 1.98, 0.26, bevel=0.012)
+
+    # Vertical cedar plank panels strictly framed between posts and rails
+    for seg_x in (-1.06, 1.06):
+        add_game_box(bm_cedar, seg_x, 1.12, 0.0, 1.88, 1.48, 0.06, bevel=0.008)
+    # Lower sill & upper header belt rails clearly below/above cedar panel faces
+    for ry in (0.30, 1.93):
+        add_game_box(bm_charred, 0.0, ry, 0.0, span - 0.16, 0.10, 0.16, bevel=0.008)
+
+    # Gently pitched double-slope kawara coping roof with overhanging eaves (explicit game-space extrusion)
+    rx = span * 0.5 + 0.22
+    eave_z = 0.42
+    y_eave = 2.10
+    y_ridge = 2.34
+    thick = 0.08
+    for sx in (-1.0, 1.0):
+        pass
+    # Build solid manifold gable cap extruding along X from -rx to +rx
+    prof_pts = [
+        (-eave_z, y_eave),
+        (0.0, y_ridge),
+        (eave_z, y_eave),
+        (eave_z, y_eave - thick),
+        (0.0, y_ridge - thick),
+        (-eave_z, y_eave - thick),
+    ]
+    ring_l = [bm_roof.verts.new(g2b(-rx, py, pz)) for (pz, py) in prof_pts]
+    ring_r = [bm_roof.verts.new(g2b(rx, py, pz)) for (pz, py) in prof_pts]
+    n_p = len(prof_pts)
+    for k in range(n_p):
+        kn = (k + 1) % n_p
+        bm_roof.faces.new((ring_l[k], ring_r[k], ring_r[kn], ring_l[kn]))
+    bm_roof.faces.new(list(reversed(ring_l)))
+    bm_roof.faces.new(ring_r)
+    # Ridge cap clear of roof slopes
+    add_game_box(bm_roof, 0.0, y_ridge + 0.06, 0.0, span + 0.48, 0.11, 0.14, bevel=0.015)
+
+    finalize_mesh("woodfence_stone", bm_stone, mats["IshigakiStone"], smooth=True, box_uv_scale=0.45)
+    finalize_mesh("woodfence_cedar", bm_cedar, mats["CedarTimber"], smooth=True, box_uv_scale=0.50)
+    finalize_mesh("woodfence_charred", bm_charred, mats["CharredTimber"], smooth=True, box_uv_scale=0.50)
+    finalize_mesh("woodfence_kawara", bm_roof, mats["KawaraTile"], smooth=True, box_uv_scale=0.55)
+    export_glb("edo_wooden_fence_gate.glb")
+
+
+def build_edo_street_clutter() -> None:
+    """Lived-in corner cluster: stacked timber crates, rice straw bales & wooden tub."""
+    clear_scene()
+    mats = get_materials()
+    bm_cedar = bmesh.new()
+    bm_charred = bmesh.new()
+    bm_straw = bmesh.new()
+    bm_iron = bmesh.new()
+
+    # Large lower crate + rotated smaller crate seated >=5cm clear above
+    add_game_box(bm_cedar, -0.34, 0.28, -0.18, 0.62, 0.56, 0.52, yaw=0.14, bevel=0.02)
+    add_game_box(bm_charred, -0.30, 0.77, -0.20, 0.44, 0.36, 0.42, yaw=-0.22, bevel=0.018)
+
+    # Woven straw rice bales (rounded cylinders with dark rope bands)
+    for bx, by, bz, yaw in ((0.38, 0.21, 0.18, 0.42), (0.36, 0.21, -0.28, -0.28), (0.37, 0.56, -0.05, 0.12)):
+        pts = [
+            (bx - math.cos(yaw) * 0.34, by, bz - math.sin(yaw) * 0.34),
+            (bx + math.cos(yaw) * 0.34, by, bz + math.sin(yaw) * 0.34),
+        ]
+        add_swept_tube(bm_straw, pts, [0.20, 0.20], segments=14)
+        for off in (-0.16, 0.16):
+            rx = bx + math.cos(yaw) * off
+            rz = bz + math.sin(yaw) * off
+            p0 = (rx - math.cos(yaw) * 0.02, by, rz - math.sin(yaw) * 0.02)
+            p1 = (rx + math.cos(yaw) * 0.02, by, rz + math.sin(yaw) * 0.02)
+            add_swept_tube(bm_charred, [p0, p1], [0.215, 0.215], segments=14)
+
+    # Hooped wooden water tub (oke) & iron hoops
+    add_game_cylinder(bm_cedar, -0.28, 0.0, 0.46, 0.25, 0.28, 0.52, segments=16)
+    for hy, hr in ((0.14, 0.275), (0.38, 0.292)):
+        add_game_cylinder(bm_iron, -0.28, hy, 0.46, hr, hr, 0.035, segments=16)
+
+    finalize_mesh("clutter_cedar", bm_cedar, mats["CedarTimber"], smooth=True, box_uv_scale=0.6)
+    finalize_mesh("clutter_charred", bm_charred, mats["CharredTimber"], smooth=True, box_uv_scale=0.6)
+    finalize_mesh("clutter_straw", bm_straw, mats["StrawBale"], smooth=True, box_uv_scale=0.65)
+    finalize_mesh("clutter_iron", bm_iron, mats["DarkIron"], smooth=True, box_uv_scale=0.7)
+    export_glb("edo_street_clutter.glb")
+
+
 def build_all() -> None:
     build_edo_wagon()
     build_edo_wagasa_bench()
     build_edo_bamboo_fence()
     build_edo_andon_lantern()
     build_edo_nobori_banner()
+    build_edo_wooden_fence_gate()
+    build_edo_street_clutter()
 
 
 if __name__ == "__main__":

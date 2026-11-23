@@ -347,8 +347,44 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('willow_east_foreshore'),
       kind: StructureKind.weepingWillow,
-      position: Vec3(2.8, wardY(2.8, -18.6), -18.6),
+      position: Vec3(3.6, wardY(3.6, -18.6), -18.6),
       yawRadians: -2.45,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_west_mid_north'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(-5.2, wardY(-5.2, 24.5), 24.5),
+      yawRadians: 0.45,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_east_river_bend_n'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(7.4, wardY(7.4, 29), 29),
+      yawRadians: -1.35,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('pine_west_river_bend_n'),
+      kind: StructureKind.pineTree,
+      position: Vec3(-8.3, wardY(-8.3, 44.5), 44.5),
+      yawRadians: 0.72,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_west_river_bend_s'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(-7.2, wardY(-7.2, -26.5), -26.5),
+      yawRadians: 0.85,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('maple_east_river_bend_s'),
+      kind: StructureKind.mapleCluster,
+      position: Vec3(6, wardY(6, -25), -25),
+      yawRadians: -0.95,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('willow_east_mid_south'),
+      kind: StructureKind.weepingWillow,
+      position: Vec3(7.3, wardY(7.3, -43), -43),
+      yawRadians: -2.25,
     ),
     PlacedStructure(
       id: EntityId.validated('bamboo_west_garden'),

@@ -56,8 +56,9 @@ def build_castle_ishigaki_wall() -> None:
         for xi in range(x_segs):
             u = xi / x_segs
             x = -hx + 2.0 * hx * u
-            # Subtle organic masonry course bulge on lower courses
-            wobble = 0.035 * math.sin(t * 7.0 + u * 9.0) * (1.0 - t * 0.5)
+            # Smoothly taper masonry wobble to zero at abutting X ends so wall joints match
+            end_taper = math.sin(u * math.pi)
+            wobble = 0.035 * math.sin(t * 7.0 + u * 9.0) * (1.0 - t * 0.5) * end_taper
             ring.append(bm.verts.new(g2b(x, y, hz + wobble)))
         # Right edge +hx from +hz -> -hz (single span or 4 substeps)
         for zi in range(4):
@@ -67,7 +68,8 @@ def build_castle_ishigaki_wall() -> None:
         for xi in range(x_segs):
             u = xi / x_segs
             x = hx - 2.0 * hx * u
-            wobble = 0.035 * math.cos(t * 7.0 + u * 8.0) * (1.0 - t * 0.5)
+            end_taper = math.sin(u * math.pi)
+            wobble = 0.035 * math.cos(t * 7.0 + u * 8.0) * (1.0 - t * 0.5) * end_taper
             ring.append(bm.verts.new(g2b(x, y, -hz - wobble)))
         # Left edge -hx from -hz -> +hz
         for zi in range(4):

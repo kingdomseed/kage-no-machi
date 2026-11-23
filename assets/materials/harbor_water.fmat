@@ -90,26 +90,35 @@ fragment {
     float rawThickness = validSceneDepth < 1.0e5 ? max(0.0, validSceneDepth - fragDepth) : 12.0;
     float thickness = hasSceneDepth ? clamp(rawThickness * viewCosY, 0.0, 12.0) : 3.0;
     float shoreNoise = NoiseFbm2(wp.xz * 0.45 + vec2(t * 0.08, -t * 0.05), 577, 2, 2.0, 0.5);
-    float organicThickness = max(0.0, thickness + shoreNoise * 0.14);
-    float shoreFeather = hasSceneDepth ? smoothstep(0.0, 0.32, organicThickness) : 1.0;
-    float glintGate = smoothstep(0.05, 0.28, organicThickness);
+    float organicThickness = max(0.0, thickness + shoreNoise * 0.16);
+    float shoreFeather = hasSceneDepth ? smoothstep(0.0, 0.56, organicThickness) : 1.0;
+    float glintGate = smoothstep(0.06, 0.34, organicThickness);
 
     // Beer-Lambert shallow jade harbor transitioning to deep Prussian bay indigo
-    vec3 activeTransmittance = exp(-vec3(2.4, 1.05, 0.78) * thickness);
-    float depthT = clamp(1.0 - exp(-thickness * 1.25), 0.0, 1.0);
+    vec3 activeTransmittance = exp(-vec3(2.2, 0.95, 0.72) * thickness);
+    float depthT = clamp(1.0 - exp(-thickness * 1.10), 0.0, 1.0);
 
     vec3 shallowJade = material_params.shallow_color.rgb;
     vec3 deepPrussian = material_params.deep_color.rgb;
     vec3 nightPrussian = vec3(0.006, 0.016, 0.042);
     vec3 waterBodyColor = mix(shallowJade, mix(deepPrussian, nightPrussian, night), depthT);
 
-    // Crisp organic surf foam collar against coastal rocks, seawalls, pilings, and ship hulls
-    float lapMask = (1.0 - smoothstep(0.08, 0.34, organicThickness)) *
-        smoothstep(0.010, 0.048, organicThickness);
-    float foamNoiseA = NoiseSimplex2(wp.xz * 2.4 + vec2(t * 0.32, -t * 0.22), 503) * 0.5 + 0.5;
-    float foamNoiseB = NoiseSimplex2(wp.xz * 5.8 - vec2(t * 0.48, t * 0.28), 521) * 0.5 + 0.5;
-    float foamPattern = smoothstep(0.34, 0.82, foamNoiseA * 0.62 + foamNoiseB * 0.38);
-    float foamStrength = clamp(lapMask * foamPattern * 0.85 * glintGate, 0.0, 0.78);
+    // Multi-band organic shoreline surf (inner tidal collar + soft lapping swash ripple)
+    float lapMask = (1.0 - smoothstep(0.10, 0.44, organicThickness)) *
+        smoothstep(0.012, 0.055, organicThickness);
+    float swashPhase = sin(organicThickness * 9.5 - t * 1.8 + shoreNoise * 3.2);
+    float secondarySwash =
+        (1.0 - smoothstep(0.32, 0.92, organicThickness)) *
+        smoothstep(0.24, 0.42, organicThickness) *
+        smoothstep(0.15, 0.85, swashPhase);
+    float foamNoiseA = NoiseSimplex2(wp.xz * 2.2 + vec2(t * 0.32, -t * 0.22), 503) * 0.5 + 0.5;
+    float foamNoiseB = NoiseSimplex2(wp.xz * 5.6 - vec2(t * 0.48, t * 0.28), 521) * 0.5 + 0.5;
+    float foamPattern = smoothstep(0.32, 0.80, foamNoiseA * 0.62 + foamNoiseB * 0.38);
+    float foamStrength = clamp(
+      (lapMask * 0.85 + secondarySwash * 0.52) * foamPattern * glintGate,
+      0.0,
+      0.78
+    );
 
     // Sun direction & subdued sky Fresnel (keeps deep Prussian shadow troughs contrasty)
     vec3 rawLD = frag_info.directional_light_direction.xyz;
@@ -174,7 +183,7 @@ fragment {
 
     if (frag_info.scene_inputs.x > 0.5) {
       vec3 sceneBedColor = GetSceneColor(refractUvOffset);
-      float bedFade = smoothstep(2.6, 0.25, thickness);
+      float bedFade = smoothstep(3.8, 0.15, thickness);
       vec3 transmittedBed = sceneBedColor *
           activeTransmittance *
           (1.0 - fresnel * 0.85) *
@@ -182,9 +191,9 @@ fragment {
           bedFade;
       vec3 inScatteredBody = waterBodyColor * (vec3(1.0) - activeTransmittance);
       outBaseRgb = mix(inScatteredBody, material_params.foam_color.rgb * 0.90, foamStrength);
-      outAlpha = clamp(mix(max(0.86, fresnel), 0.99, depthT), 0.0, 1.0);
+      outAlpha = clamp(mix(max(0.76, fresnel), 0.99, depthT), 0.0, 1.0);
       outAlpha = mix(outAlpha, max(outAlpha, 0.95), foamStrength);
-      outEmissive = transmittedBed * mix(0.72, 1.0, depthT) + reflectedRadiance + sunPath;
+      outEmissive = transmittedBed * mix(0.68, 1.0, depthT) + reflectedRadiance + sunPath;
     } else {
       outBaseRgb = mix(waterBodyColor, material_params.foam_color.rgb * 0.90, foamStrength);
       outAlpha = clamp(mix(max(0.68, fresnel), 0.98, depthT), 0.0, 1.0);

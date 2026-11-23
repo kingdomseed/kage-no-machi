@@ -253,9 +253,10 @@ void main() {
             .readAsStringSync();
         expect(lookSrc.contains('FogMode.exponential'), isTrue);
         expect(lookSrc.contains('fogStart: 22'), isTrue);
-        final fogDensities = RegExp(
-          r'fogDensity:\s*([0-9.]+)',
-        ).allMatches(lookSrc).map((m) => double.parse(m.group(1)!)).toList();
+        final fogDensities = RegExp(r'fogDensity:\s*([0-9.]+)')
+            .allMatches(lookSrc)
+            .map((m) => double.parse(m.group(1)!))
+            .toList();
         expect(fogDensities.length, greaterThanOrEqualTo(2));
         for (final d in fogDensities) {
           expect(d, inInclusiveRange(0.001, 0.008));

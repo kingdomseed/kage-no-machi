@@ -246,8 +246,8 @@ def build_machiya_variant(variant: int, filename: str) -> None:
     bm_lantern = bmesh.new()
     bm_iron = bmesh.new()
 
-    bx = 3.55 if variant in (0, 2) else 3.72
-    bz = 4.25 if variant != 3 else 4.05
+    bx = (3.22, 4.05, 3.68, 3.55)[variant]
+    bz = (4.35, 3.85, 4.05, 4.25)[variant]
 
     # Stone foundation skirt reaching deep into terrain (top +0.26m frames bx+0.20 sill plate)
     add_game_box(bm_stone, 0.0, -0.44, 0.0, bx + 0.30, 1.40, bz + 0.30, bevel=0.03)
@@ -272,14 +272,27 @@ def build_machiya_variant(variant: int, filename: str) -> None:
     else:
         _add_framed_wall_bays(bm_cedar, bx, bz, y_sill_top, y_plate_bot)
 
+    # Vertical wooden merchant signboard on v0 & v3
+    if variant in (0, 3):
+        add_game_box(
+            bm_charred,
+            -bx * 0.5 - 0.15,
+            1.48,
+            bz * 0.5 + 0.16,
+            0.22,
+            0.74,
+            0.06,
+            bevel=0.01,
+        )
+
     # Shoji window bays (strictly >=0.05m proud of waist rail & wall!)
     win_w, win_h = 0.88, 1.12
     for z_side, ndir in ((bz * 0.5 + 0.13, "+z"), (-bz * 0.5 - 0.13, "-z")):
-        for wx in (-0.82, 0.82):
+        for wx in (-0.78, 0.78):
             _add_shoji_panel(bm_shoji, wx, 1.26, z_side, win_w, win_h, ndir)
             add_game_box(bm_charred, wx, 0.70, z_side + (0.02 if ndir == "+z" else -0.02), win_w + 0.08, 0.06, 0.06)
     for x_side, ndir in ((bx * 0.5 + 0.13, "+x"), (-bx * 0.5 - 0.13, "-x")):
-        for wz in (-0.95, 0.95):
+        for wz in (-0.90, 0.90):
             _add_shoji_panel(bm_shoji, x_side, 1.26, wz, win_w * 0.85, win_h, ndir)
 
     # Noren-kake curtain beam above entrance supporting noren cleanly clear of mullions & top-plate beam
@@ -317,14 +330,19 @@ def build_machiya_variant(variant: int, filename: str) -> None:
             eave_flare=0.14,
         )
 
-    # Hanging entrance lanterns
-    for lx in (-1.22, 1.22):
-        _add_chochin(bm_lantern, bm_iron, lx, y1_top - 0.36, bz * 0.5 + 0.48, radius=0.13, h=0.30)
+    # Varied hanging entrance lanterns (no identical symmetrical clone rhythm down the block)
+    if variant == 0:
+        for lx in (-1.08, 1.08):
+            _add_chochin(bm_lantern, bm_iron, lx, y1_top - 0.36, bz * 0.5 + 0.48, radius=0.12, h=0.28)
+    elif variant == 1:
+        _add_chochin(bm_lantern, bm_iron, 1.32, y1_top - 0.34, bz * 0.5 + 0.48, radius=0.14, h=0.34)
+    elif variant == 3:
+        _add_chochin(bm_lantern, bm_iron, -1.24, y1_top - 0.36, bz * 0.5 + 0.50, radius=0.16, h=0.38)
 
     # Upper second story seated cleanly atop the 1st-story cornice [2.19, 2.35]
-    ubx = bx - (0.40 if variant in (1, 2) else 0.36)
-    ubz = bz - (0.44 if variant in (1, 2) else 0.38)
-    h2 = 1.64 if variant != 2 else 1.80
+    ubx = bx - (0.36 if variant in (0, 3) else 0.44)
+    ubz = bz - (0.40 if variant in (0, 3) else 0.48)
+    h2 = (1.88, 1.66, 1.06, 1.68)[variant]
     y2_bot = y1_top
     y2_top = y2_bot + h2
     y2_plate_bot = y2_top - 0.16
@@ -337,32 +355,38 @@ def build_machiya_variant(variant: int, filename: str) -> None:
         plate_h=0.16,
         sill_bot=None,
     )
+    upper_wall_bm = bm_plaster if variant in (1, 3) else bm_cedar
     _add_framed_wall_bays(
-        bm_plaster if variant != 0 else bm_cedar,
+        upper_wall_bm,
         ubx,
         ubz,
         y2_bot,
         y2_plate_bot,
     )
 
-    # Upper Engawa wooden veranda rail on v1
+    # Upper Engawa wooden veranda rail + proud udatsu fire-wall wing on v1
     if variant == 1:
         ry = y1_top + 0.58
         add_game_box(bm_charred, 0.0, ry, ubz * 0.5 + 0.28, ubx + 0.12, 0.06, 0.07)
         for px in (-1.35, -0.45, 0.45, 1.35):
             add_game_box(bm_charred, px, ry - 0.22, ubz * 0.5 + 0.28, 0.06, 0.48, 0.06)
+        # Udatsu wing wall rising cleanly beside roof eave on -X flank
+        ux = -(ubx * 0.5 + 0.26)
+        add_game_box(bm_plaster, ux, y2_top + 0.22, 0.25, 0.20, 1.35, ubz * 0.65, bevel=0.02)
+        add_game_box(bm_roof, ux, y2_top + 0.96, 0.25, 0.34, 0.12, ubz * 0.72, bevel=0.015)
 
     y_shoji_2 = y2_bot + (y2_plate_bot - y2_bot) * 0.50
+    shoji2_h = 0.58 if variant == 2 else 0.86
     for z_side, ndir in ((ubz * 0.5 + 0.11, "+z"), (-ubz * 0.5 - 0.11, "-z")):
-        for wx in (-0.72, 0.72):
-            _add_shoji_panel(bm_shoji, wx, y_shoji_2, z_side, 0.78, 0.86, ndir)
+        for wx in (-0.70, 0.70):
+            _add_shoji_panel(bm_shoji, wx, y_shoji_2, z_side, 0.76, shoji2_h, ndir)
     for x_side, ndir in ((ubx * 0.5 + 0.11, "+x"), (-ubx * 0.5 - 0.11, "-x")):
-        _add_shoji_panel(bm_shoji, x_side, y_shoji_2, 0.0, 0.82, 0.84, ndir)
+        _add_shoji_panel(bm_shoji, x_side, y_shoji_2, 0.0, 0.80, shoji2_h, ndir)
 
     # Sweeping main roof (eaves sit +0.05m above y2_top with 0.11m thickness so wall top embeds cleanly)
-    ridge_ax = "z" if variant == 2 else "x"
-    hipped = variant in (1, 3)
-    roof_rise = 1.28 if variant != 2 else 1.44
+    ridge_ax = "z" if variant in (2, 3) else "x"
+    hipped = variant == 1
+    roof_rise = (1.36, 1.24, 1.48, 1.32)[variant]
     _add_curved_roof(
         bm_roof,
         0.0,
@@ -377,6 +401,17 @@ def build_machiya_variant(variant: int, filename: str) -> None:
         curve_segs=8,
         eave_flare=0.22,
     )
+    # Closed gable tympanum walls cleanly inset above cornice without grazing roof slope
+    if not hipped:
+        if ridge_ax == "x":
+            for sx in (-1.0, 1.0):
+                gx = sx * (ubx * 0.5 - 0.12)
+                add_game_box(bm_cedar if variant != 1 else bm_plaster, gx, y2_top + 0.06 + roof_rise * 0.32, 0.0, 0.08, roof_rise * 0.64, ubz * 0.62)
+        else:
+            for sz in (-1.0, 1.0):
+                gz = sz * (ubz * 0.5 - 0.12)
+                add_game_box(upper_wall_bm, 0.0, y2_top + 0.06 + roof_rise * 0.32, gz, ubx * 0.62, roof_rise * 0.64, 0.08)
+
     # Ornate ridge beam & end tile finials (onigawara)
     if ridge_ax == "x":
         r_len = (ubx + 0.65) if not hipped else (ubx * 0.55)
@@ -385,8 +420,22 @@ def build_machiya_variant(variant: int, filename: str) -> None:
         r_len = ubz + 0.65
         add_game_box(bm_roof, 0.0, y2_top + roof_rise + 0.08, 0.0, 0.18, 0.16, r_len, bevel=0.02)
 
-    roof_mat = mats["KawaraRust"] if variant == 2 else mats["KawaraTile"]
-    noren_mat = mats["ClothCrimson"] if variant in (1, 3) else mats["NorenIndigo"]
+    # Rooftop hoshidai timber drying platform perched cleanly on v2 workshop roof
+    if variant == 2:
+        deck_y = y2_top + roof_rise + 0.24
+        for lx in (-0.52, 0.52):
+            for lz in (-0.42, 0.42):
+                add_game_box(bm_charred, lx, deck_y - 0.38, lz - 0.15, 0.07, 0.78, 0.07)
+        add_game_box(bm_cedar, 0.0, deck_y + 0.04, -0.15, 1.32, 0.08, 1.08, bevel=0.01)
+        add_game_box(bm_charred, 0.0, deck_y + 0.44, 0.36, 1.30, 0.06, 0.06)
+
+    roof_mat = mats["KawaraRust"] if variant == 2 else (mats["KawaraMossGreen"] if variant == 3 else mats["KawaraTile"])
+    noren_mat = (
+        mats["NorenIndigo"],
+        mats["ClothCrimson"],
+        mats["OchreCloth"],
+        mats["ClothCrimson"],
+    )[variant]
 
     finalize_mesh("machiya_stone", bm_stone, mats["CastleIshigaki"], smooth=True, box_uv_scale=0.38)
     finalize_mesh("machiya_charred", bm_charred, mats["CharredTimber"], smooth=True, box_uv_scale=0.45)
@@ -458,7 +507,11 @@ def build_teahouse_variant(variant: int, filename: str) -> None:
     for nx in (-0.42, 0.42):
         add_game_box(bm_noren, nx, 1.62, bz * 0.5 + 0.32, 0.38, 0.72, 0.03, bevel=0.004)
 
-    roof_mat = mats["KawaraRust"] if variant == 1 else mats["KawaraTile"]
+    roof_mat = (
+        mats["KawaraTile"]
+        if variant == 0
+        else (mats["KawaraRust"] if variant == 1 else mats["KawaraMossGreen"])
+    )
     finalize_mesh("teahouse_stone", bm_stone, mats["CastleIshigaki"], smooth=True, box_uv_scale=0.38)
     finalize_mesh("teahouse_charred", bm_charred, mats["CharredTimber"], smooth=True, box_uv_scale=0.45)
     finalize_mesh("teahouse_cedar", bm_cedar, mats["CedarTimber"], smooth=True, box_uv_scale=0.45)
@@ -501,13 +554,18 @@ def build_kura_variant(variant: int, filename: str) -> None:
 
     _add_curved_roof(bm_roof, 0.0, 0.24 + h_wall + 0.05, 0.0, bx + 1.05, bz + 0.92, 1.32, ridge_axis="z" if variant == 0 else "x", hipped=(variant == 1), thickness=0.14, curve_segs=8, eave_flare=0.22)
     add_game_box(bm_roof, 0.0, 0.24 + h_wall + 1.39, 0.0, 0.20 if variant == 0 else 1.85, 0.18, (bz + 0.70) if variant == 0 else 0.20, bevel=0.02)
+    if variant == 1:
+        # Harbor timber loading canopy overhanging front iron doors
+        _add_curved_roof(bm_roof, 0.0, 2.38, bz * 0.5 + 0.42, bx * 0.72, 0.88, 0.34, ridge_axis="x", thickness=0.09, curve_segs=5, eave_flare=0.14)
 
+    plaster_mat = mats["PlasterBlack"] if variant == 1 else mats["ShikkuiPlaster"]
+    kura_roof_mat = mats["KawaraRust"] if variant == 1 else mats["KawaraTile"]
     finalize_mesh("kura_stone", bm_stone, mats["CastleIshigaki"], smooth=True, box_uv_scale=0.38)
-    finalize_mesh("kura_plaster", bm_plaster, mats["ShikkuiPlaster"], smooth=True, box_uv_scale=0.38)
+    finalize_mesh("kura_plaster", bm_plaster, plaster_mat, smooth=True, box_uv_scale=0.38)
     finalize_mesh("kura_namako", bm_namako, mats["NamakoKabe"], smooth=True, box_uv_scale=0.55)
     finalize_mesh("kura_charred", bm_charred, mats["CharredTimber"], smooth=True, box_uv_scale=0.45)
     finalize_mesh("kura_iron", bm_iron, mats["DarkIron"], smooth=True, box_uv_scale=0.60)
-    finalize_mesh("kura_kawara", bm_roof, mats["KawaraTile"], smooth=True, box_uv_scale=0.55)
+    finalize_mesh("kura_kawara", bm_roof, kura_roof_mat, smooth=True, box_uv_scale=0.55)
     finalize_mesh("kura_shoji", bm_shoji, mats["ShojiGlow"], smooth=False, box_uv_scale=None)
     export_glb(filename)
 
@@ -579,13 +637,29 @@ def build_yatai_variant(variant: int, filename: str) -> None:
         for nx in (-0.48, 0.0, 0.48):
             add_game_box(bm_cloth, nx, 1.88, d * 0.5 + 0.16, 0.38, 0.42, 0.02, bevel=0.004)
 
-    _add_chochin(bm_lantern, bm_iron, -w * 0.48, 1.86, d * 0.5 + 0.24, radius=0.11, h=0.25)
-    _add_chochin(bm_lantern, bm_iron, w * 0.48, 1.86, d * 0.5 + 0.24, radius=0.11, h=0.25)
+    if variant in (0, 2):
+        _add_chochin(bm_lantern, bm_iron, -w * 0.48, 1.86, d * 0.5 + 0.24, radius=0.11, h=0.25)
+    else:
+        _add_chochin(bm_lantern, bm_iron, w * 0.48, 1.86, d * 0.5 + 0.24, radius=0.11, h=0.25)
+    # Market wares cleanly perched >=5cm proud of counter top (y=0.98)
+    bm_wares = bmesh.new()
+    if variant in (0, 3):
+        for wx, wz in ((-0.42, 0.0), (0.04, 0.08)):
+            add_game_cylinder(bm_wares, wx, 1.03, wz, 0.17, 0.18, 0.32, segments=12)
+    else:
+        add_game_box(bm_wares, -0.35, 1.15, 0.0, 0.46, 0.26, 0.42, yaw=0.15, bevel=0.015)
+        add_game_box(bm_wares, 0.36, 1.13, -0.04, 0.38, 0.22, 0.38, yaw=-0.22, bevel=0.015)
 
-    cloth_mat = mats["ClothCrimson"] if variant in (1, 2) else mats["NorenIndigo"]
+    cloth_mat = (
+        mats["NorenIndigo"],
+        mats["ClothCrimson"],
+        mats["OchreCloth"],
+        mats["ClothCream"],
+    )[variant]
     finalize_mesh("yatai_cedar", bm_cedar, mats["CedarTimber"], smooth=True, box_uv_scale=0.55)
     finalize_mesh("yatai_charred", bm_charred, mats["CharredTimber"], smooth=True, box_uv_scale=0.55)
     finalize_mesh("yatai_cloth", bm_cloth, cloth_mat, smooth=True, box_uv_scale=0.5)
+    finalize_mesh("yatai_wares", bm_wares, mats["KayabukiThatch"] if variant in (0, 3) else mats["CedarTimber"], smooth=True, box_uv_scale=0.6)
     finalize_mesh("yatai_chochin", bm_lantern, mats["ChochinGlow"], smooth=True, box_uv_scale=0.5)
     finalize_mesh("yatai_iron", bm_iron, mats["DarkIron"], smooth=True, box_uv_scale=0.6)
     export_glb(filename)

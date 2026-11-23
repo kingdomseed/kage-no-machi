@@ -118,6 +118,16 @@ void main() {
         expect(quayY, closeTo(0.78, 0.12));
         expect(bayFloorY, lessThan(-2.0));
         expect(spitY, greaterThan(0.5));
+
+        for (final coveZ in const [-56.0, 52.0]) {
+          final cx = TerrainBuilder.minatoCoastlineX(coveZ);
+          final slope =
+              ((terrain.sampleGroundHeight(cx - 2.5, coveZ) -
+                          terrain.sampleGroundHeight(cx + 2.5, coveZ)) /
+                      5.0)
+                  .abs();
+          expect(slope, lessThan(0.45));
+        }
       },
     );
 
@@ -129,10 +139,18 @@ void main() {
 
         expect(graph.roads.length, greaterThanOrEqualTo(5));
         expect(graph.terraces.length, greaterThanOrEqualTo(2));
-        expect(graph.walls.length, greaterThanOrEqualTo(2));
+        expect(graph.walls.length, greaterThanOrEqualTo(4));
         expect(graph.structures.length, greaterThanOrEqualTo(30));
         expect(graph.lanternSpans.length, greaterThanOrEqualTo(8));
         expect(graph.structuralSightcones, isEmpty);
+        expect(
+          graph.structures.values.where((s) => s.kind.isBotanicalTree).length,
+          greaterThanOrEqualTo(90),
+        );
+        expect(
+          graph.structures.values.any((s) => s.kind == StructureKind.minka),
+          isTrue,
+        );
 
         for (final road in graph.roads) {
           expect(road.controlPoints.every(_isFiniteVec3), isTrue);
@@ -159,6 +177,8 @@ void main() {
         expect(paths, contains('assets/models/harbor_todai.glb'));
         expect(paths, contains('assets/models/ship_sengokubune.glb'));
         expect(paths, contains('assets/models/boat_wasen.glb'));
+        expect(paths, contains('assets/models/rock_coastal_shelf.glb'));
+        expect(paths, contains('assets/models/tree_shrub_cluster.glb'));
 
         for (final p in placements) {
           expect(p.x.isFinite && p.y.isFinite && p.z.isFinite, isTrue);
@@ -182,8 +202,18 @@ void main() {
           ),
           isTrue,
         );
-        expect(world.agents.length, greaterThanOrEqualTo(4));
+        expect(world.agents.length, greaterThanOrEqualTo(8));
         expect(world.activeLanternOrigins.length, greaterThan(10));
+
+        for (var i = 0; i < 40; i++) {
+          world.step(0.05, rig: TimeOfDayRig.goldenDusk);
+        }
+        expect(
+          world.agents.every(
+            (a) => _isFiniteVec3(a.position) && a.yawRadians.isFinite,
+          ),
+          isTrue,
+        );
 
         await world.switchRealm(ShowcaseRealm.shukubaValley);
         expect(world.realm, ShowcaseRealm.shukubaValley);

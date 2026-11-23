@@ -62,10 +62,11 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
       id: EntityId.validated('road_minato_boulevard'),
       widthMeters: 3.4,
       controlPoints: [
-        Vec3(-44, minatoY(-44, 14), 14),
-        Vec3(-28, minatoY(-28, 10), 10),
-        Vec3(-16, minatoY(-16, 7.2), 7.2),
-        Vec3(-6, minatoY(-6, 5.8), 5.8),
+        Vec3(-44, minatoY(-44, 15.2), 15.2),
+        Vec3(-32, minatoY(-32, 11.4), 11.4),
+        Vec3(-22, minatoY(-22, 10.6), 10.6),
+        Vec3(-14.5, minatoY(-14.5, 8.2), 8.2),
+        Vec3(-7.2, minatoY(-7.2, 6.2), 6.2),
         Vec3(3, minatoY(3, 5.5), 5.5),
       ],
     ),
@@ -74,29 +75,30 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
       widthMeters: 2.8,
       controlPoints: [
         Vec3(1.9, minatoY(1.9, -8.5), -8.5),
-        Vec3(1.9, minatoY(1.9, 5.5), 5.5),
-        Vec3(1.9, minatoY(1.9, 18), 18),
-        Vec3(1.9, minatoY(1.9, 29.5), 29.5),
+        Vec3(2, minatoY(2, 5.5), 5.5),
+        Vec3(2.1, minatoY(2.1, 17.4), 17.4),
+        Vec3(2.1, minatoY(2.1, 29.5), 29.5),
       ],
     ),
     RoadSpline.validated(
       id: EntityId.validated('road_castle_approach'),
       widthMeters: 2.8,
       controlPoints: [
-        Vec3(-10, minatoY(-10, 6.2), 6.2),
-        Vec3(-11.5, minatoY(-11.5, -3), -3),
-        Vec3(-10.5, minatoY(-10.5, -12.5), -12.5),
-        Vec3(-8.5, minatoY(-8.5, -19.5), -19.5),
-        Vec3(-5.8, minatoY(-5.8, -21), -21),
+        Vec3(-9.5, minatoY(-9.5, 6.8), 6.8),
+        Vec3(-11.2, minatoY(-11.2, -2.5), -2.5),
+        Vec3(-11.6, minatoY(-11.6, -11.5), -11.5),
+        Vec3(-12.8, minatoY(-12.8, -18.8), -18.8),
       ],
     ),
     RoadSpline.validated(
       id: EntityId.validated('road_south_port_alley'),
       widthMeters: 2.6,
       controlPoints: [
-        Vec3(-24, minatoY(-24, 20), 20),
-        Vec3(-12, minatoY(-12, 19.5), 19.5),
-        Vec3(1.9, minatoY(1.9, 18), 18),
+        Vec3(-25, minatoY(-25, 21), 21),
+        Vec3(-14.8, minatoY(-14.8, 19.8), 19.8),
+        Vec3(-6.2, minatoY(-6.2, 19.9), 19.9),
+        Vec3(-5.8, minatoY(-5.8, 17.6), 17.6),
+        Vec3(2, minatoY(2, 17.4), 17.4),
       ],
     ),
     RoadSpline.validated(
@@ -104,10 +106,11 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
       style: RoadStyle.gardenPath,
       widthMeters: 1.75,
       controlPoints: [
-        Vec3(-11.5, minatoY(-11.5, -3), -3),
-        Vec3(-19, minatoY(-19, -4.5), -4.5),
-        Vec3(-26.5, minatoY(-26.5, -6.5), -6.5),
-        Vec3(-27.2, minatoY(-27.2, -13.5), -13.5),
+        Vec3(-11.2, minatoY(-11.2, -2.5), -2.5),
+        Vec3(-11.8, minatoY(-11.8, -7.8), -7.8),
+        Vec3(-19.8, minatoY(-19.8, -7.8), -7.8),
+        Vec3(-22.6, minatoY(-22.6, -7.8), -7.8),
+        Vec3(-22.4, minatoY(-22.4, -13), -13),
       ],
     ),
     RoadSpline.validated(
@@ -115,9 +118,23 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
       style: RoadStyle.gardenPath,
       widthMeters: 1.7,
       controlPoints: [
-        Vec3(-5, minatoY(-5, 18.8), 18.8),
-        Vec3(-5.5, minatoY(-5.5, 25.5), 25.5),
-        Vec3(1.9, minatoY(1.9, 26.5), 26.5),
+        Vec3(-6.2, minatoY(-6.2, 19.9), 19.9),
+        Vec3(-6, minatoY(-6, 22.8), 22.8),
+        Vec3(-6, minatoY(-6, 26.6), 26.6),
+        Vec3(-8.2, minatoY(-8.2, 27), 27),
+      ],
+    ),
+    RoadSpline.validated(
+      id: EntityId.validated('road_jokamachi_upper_lane'),
+      style: RoadStyle.gardenPath,
+      widthMeters: 1.75,
+      controlPoints: [
+        Vec3(-19.2, minatoY(-19.2, 19.8), 19.8),
+        Vec3(-19.4, minatoY(-19.4, 12.6), 12.6),
+        Vec3(-19.4, minatoY(-19.4, 8), 8),
+        Vec3(-19.4, minatoY(-19.4, 2.6), 2.6),
+        Vec3(-19.6, minatoY(-19.6, -3.5), -3.5),
+        Vec3(-19.8, minatoY(-19.8, -7.8), -7.8),
       ],
     ),
   ];
@@ -126,17 +143,41 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
     CourtyardWall.validated(
       id: EntityId.validated('minato_wall_kura_yard'),
       controlPoints: [
-        Vec3(-14.2, minatoY(-14.2, 28.5), 28.5),
-        Vec3(-2.5, minatoY(-2.5, 28.5), 28.5),
-        Vec3(-2.5, minatoY(-2.5, 31.8), 31.8),
+        Vec3(-14.5, minatoY(-14.5, 29.8), 29.8),
+        Vec3(-2.6, minatoY(-2.6, 29.8), 29.8),
+        Vec3(-2.6, minatoY(-2.6, 32.8), 32.8),
       ],
     ),
     CourtyardWall.validated(
       id: EntityId.validated('minato_wall_shrine_garden'),
       controlPoints: [
-        Vec3(-30.7, minatoY(-30.7, -2.5), -2.5),
-        Vec3(-30.7, minatoY(-30.7, -16.8), -16.8),
-        Vec3(-24, minatoY(-24, -16.8), -16.8),
+        Vec3(-31.2, minatoY(-31.2, -2.8), -2.8),
+        Vec3(-31.2, minatoY(-31.2, -17), -17),
+        Vec3(-23.8, minatoY(-23.8, -17), -17),
+      ],
+    ),
+    CourtyardWall.validated(
+      id: EntityId.validated('minato_wall_samurai_compound'),
+      controlPoints: [
+        Vec3(-17, minatoY(-17, -0.5), -0.5),
+        Vec3(-12.8, minatoY(-12.8, -0.5), -0.5),
+        Vec3(-12.8, minatoY(-12.8, -1.6), -1.6),
+      ],
+    ),
+    CourtyardWall.validated(
+      id: EntityId.validated('minato_wall_midtown_courtyard'),
+      controlPoints: [
+        Vec3(-19.8, minatoY(-19.8, 28.2), 28.2),
+        Vec3(-14.6, minatoY(-14.6, 28.2), 28.2),
+        Vec3(-14.6, minatoY(-14.6, 24), 24),
+      ],
+    ),
+    CourtyardWall.validated(
+      id: EntityId.validated('minato_wall_upper_terrace'),
+      controlPoints: [
+        Vec3(-36.5, minatoY(-36.5, 4.8), 4.8),
+        Vec3(-36.5, minatoY(-36.5, -1.8), -1.8),
+        Vec3(-31.2, minatoY(-31.2, -1.8), -1.8),
       ],
     ),
   ];
@@ -150,150 +191,158 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
       yawRadians: math.pi / 2,
     ),
 
-    // Descending Sunset Boulevard — North Machiya Row facing south
+    // Asymmetric Eastern Throat & Waterfront Corner Machiya
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_w3'),
+      id: EntityId.validated('minato_machiya_quay_n'),
       kind: StructureKind.machiya,
-      position: Vec3(-41.5, minatoY(-41.5, 9.2), 9.2),
-      yawRadians: 0.18,
-      variant: 2,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_w2'),
-      kind: StructureKind.machiya,
-      position: Vec3(-34.8, minatoY(-34.8, 7.2), 7.2),
-      yawRadians: 0.16,
+      position: Vec3(-3.2, minatoY(-3.2, 0.2), 0.2),
+      yawRadians: math.pi / 2 + 0.14,
       variant: 1,
     ),
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_n1'),
+      id: EntityId.validated('minato_machiya_throat_n'),
       kind: StructureKind.machiya,
-      position: Vec3(-28, minatoY(-28, 5), 5),
-      yawRadians: 0.18,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_n2'),
-      kind: StructureKind.machiya,
-      position: Vec3(-22, minatoY(-22, 3.6), 3.6),
-      yawRadians: 0.20,
+      position: Vec3(-5.6, minatoY(-5.6, 1.4), 1.4),
+      yawRadians: 0.15,
       variant: 3,
     ),
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_n3'),
+      id: EntityId.validated('minato_machiya_throat_s'),
       kind: StructureKind.machiya,
-      position: Vec3(-16, minatoY(-16, 2.2), 2.2),
-      yawRadians: 0.16,
-      variant: 1,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_n4'),
-      kind: StructureKind.machiya,
-      position: Vec3(-4.8, minatoY(-4.8, 1.1), 1.1),
-      yawRadians: 0.10,
+      position: Vec3(-7.4, minatoY(-7.4, 11.4), 11.4),
+      yawRadians: math.pi - 0.18,
       variant: 2,
     ),
 
-    // Descending Sunset Boulevard — South Machiya Row facing north
+    // Mid-Town Market Square (Hiroba) Staggered Frontier — wide open center
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_w4'),
-      kind: StructureKind.machiya,
-      position: Vec3(-35.6, minatoY(-35.6, 16.8), 16.8),
-      yawRadians: math.pi + 0.16,
-      variant: 3,
+      id: EntityId.validated('minato_chaya_market_n'),
+      kind: StructureKind.chaya,
+      position: Vec3(-15.8, minatoY(-15.8, 3.2), 3.2),
+      yawRadians: 0.22,
     ),
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_s1'),
+      id: EntityId.validated('minato_machiya_market_nw'),
       kind: StructureKind.machiya,
-      position: Vec3(-29, minatoY(-29, 14.8), 14.8),
-      yawRadians: math.pi + 0.18,
+      position: Vec3(-23.4, minatoY(-23.4, 4.6), 4.6),
+      yawRadians: 0.34,
       variant: 1,
     ),
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_s2'),
+      id: EntityId.validated('minato_machiya_hiroba_sw'),
       kind: StructureKind.machiya,
-      position: Vec3(-23.2, minatoY(-23.2, 13.4), 13.4),
-      yawRadians: math.pi + 0.20,
+      position: Vec3(-22.6, minatoY(-22.6, 16.8), 16.8),
+      yawRadians: math.pi + 0.10,
     ),
+
+    // Western Ascending Ridge & Staggered Machiya / Minka Cottages
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_s3'),
+      id: EntityId.validated('minato_machiya_west_n1'),
       kind: StructureKind.machiya,
-      position: Vec3(-17.4, minatoY(-17.4, 12.1), 12.1),
-      yawRadians: math.pi + 0.16,
-      variant: 2,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_s4'),
-      kind: StructureKind.machiya,
-      position: Vec3(-11.4, minatoY(-11.4, 10.9), 10.9),
-      yawRadians: math.pi + 0.14,
+      position: Vec3(-28.8, minatoY(-28.8, 6.2), 6.2),
+      yawRadians: 0.14,
       variant: 3,
     ),
     PlacedStructure(
-      id: EntityId.validated('minato_machiya_bvd_s5'),
+      id: EntityId.validated('minato_machiya_west_n2'),
       kind: StructureKind.machiya,
-      position: Vec3(-5.4, minatoY(-5.4, 10.3), 10.3),
-      yawRadians: math.pi + 0.08,
+      position: Vec3(-35.2, minatoY(-35.2, 7.6), 7.6),
+      yawRadians: 0.24,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_machiya_west_n3'),
+      kind: StructureKind.machiya,
+      position: Vec3(-41.8, minatoY(-41.8, 9.8), 9.8),
+      yawRadians: 0.32,
+      variant: 2,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_machiya_west_s1'),
+      kind: StructureKind.machiya,
+      position: Vec3(-30.6, minatoY(-30.6, 16.4), 16.4),
+      yawRadians: math.pi + 0.18,
+      variant: 2,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_minka_west_ridge'),
+      kind: StructureKind.minka,
+      position: Vec3(-37.8, minatoY(-37.8, 18.2), 18.2),
+      yawRadians: math.pi + 0.30,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_minka_shrine_slope'),
+      kind: StructureKind.minka,
+      position: Vec3(-34.8, minatoY(-34.8, -9.4), -9.4),
+      yawRadians: 0.45,
+      variant: 1,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_minka_south_hill'),
+      kind: StructureKind.minka,
+      position: Vec3(-31.8, minatoY(-31.8, 26.8), 26.8),
+      yawRadians: math.pi + 0.42,
     ),
 
     // South Port Alley & Castle Approach Townhouses
     PlacedStructure(
       id: EntityId.validated('minato_machiya_south_1'),
       kind: StructureKind.machiya,
-      position: Vec3(-24.5, minatoY(-24.5, 25), 25),
-      yawRadians: math.pi,
+      position: Vec3(-24.8, minatoY(-24.8, 25.4), 25.4),
+      yawRadians: math.pi - 0.12,
       variant: 1,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_machiya_south_2'),
       kind: StructureKind.machiya,
-      position: Vec3(-17.5, minatoY(-17.5, 24.8), 24.8),
-      yawRadians: math.pi,
+      position: Vec3(-17.8, minatoY(-17.8, 24.4), 24.4),
+      yawRadians: math.pi + 0.15,
       variant: 2,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_machiya_castle_w'),
       kind: StructureKind.machiya,
-      position: Vec3(-16.4, minatoY(-16.4, -11.8), -11.8),
-      yawRadians: math.pi / 2,
+      position: Vec3(-16.2, minatoY(-16.2, -12), -12),
+      yawRadians: math.pi / 2 + 0.08,
       variant: 3,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_machiya_castle_e'),
       kind: StructureKind.machiya,
-      position: Vec3(-7.1, minatoY(-7.1, -9.6), -9.6),
-      yawRadians: -math.pi / 2,
+      position: Vec3(-7.2, minatoY(-7.2, -9.8), -9.8),
+      yawRadians: -math.pi / 2 - 0.10,
+      variant: 1,
     ),
 
-    // 4 Hero Chaya Teahouses (quay, boulevard, and castle approach)
+    // 4 Hero Chaya Teahouses (quay, market, castle approach)
     PlacedStructure(
       id: EntityId.validated('minato_chaya_north_quay'),
       kind: StructureKind.chaya,
-      position: Vec3(-2.4, minatoY(-2.4, -4.6), -4.6),
+      position: Vec3(-2.5, minatoY(-2.5, -5.2), -5.2),
       yawRadians: math.pi / 2,
       variant: 2,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_chaya_south_quay'),
       kind: StructureKind.chaya,
-      position: Vec3(-2.6, minatoY(-2.6, 15.8), 15.8),
-      yawRadians: math.pi / 2,
+      position: Vec3(-2.4, minatoY(-2.4, 13.2), 13.2),
+      yawRadians: math.pi / 2 - 0.16,
       variant: 1,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_chaya_castle_road'),
       kind: StructureKind.chaya,
-      position: Vec3(-15.8, minatoY(-15.8, -5), -5),
+      position: Vec3(-15.6, minatoY(-15.6, -4.4), -4.4),
       yawRadians: math.pi / 2,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_chaya_south_alley'),
       kind: StructureKind.chaya,
-      position: Vec3(-9.2, minatoY(-9.2, 16.1), 16.1),
-      yawRadians: 0,
+      position: Vec3(-8.4, minatoY(-8.4, 15.8), 15.8),
+      yawRadians: -0.25,
       variant: 2,
     ),
 
-    // 4 Hero Kura Warehouses (diamond namako-kabe vaults along port yard)
+    // 5 Hero Kura Storehouses (port yard, castle guardhouse, & west edge)
     PlacedStructure(
       id: EntityId.validated('minato_kura_quay_1'),
       kind: StructureKind.kura,
@@ -303,54 +352,73 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('minato_kura_quay_2'),
       kind: StructureKind.kura,
-      position: Vec3(-2.6, minatoY(-2.6, 27.6), 27.6),
-      yawRadians: math.pi / 2,
+      position: Vec3(-2.4, minatoY(-2.4, 27.2), 27.2),
+      yawRadians: math.pi / 2 + 0.12,
       variant: 1,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_kura_south_alley'),
       kind: StructureKind.kura,
-      position: Vec3(-11, minatoY(-11, 24.4), 24.4),
+      position: Vec3(-11.2, minatoY(-11.2, 24.6), 24.6),
       yawRadians: math.pi,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_kura_castle_guard'),
+      kind: StructureKind.kura,
+      position: Vec3(-7.4, minatoY(-7.4, -3.2), -3.2),
+      yawRadians: -math.pi / 2 + 0.14,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_kura_upper_west'),
       kind: StructureKind.kura,
-      position: Vec3(-42.5, minatoY(-42.5, 19), 19),
-      yawRadians: math.pi + 0.18,
+      position: Vec3(-43.8, minatoY(-43.8, 19.6), 19.6),
+      yawRadians: math.pi + 0.12,
       variant: 2,
     ),
 
-    // 4 Yatai Market Stalls along the Harbor Stone Quay Plaza
+    // Clustered Yatai Market Stalls split across Harbor Quay & Mid-Town Square
     PlacedStructure(
       id: EntityId.validated('minato_stall_quay_1'),
       kind: StructureKind.marketStall,
       position: Vec3(4.65, minatoY(4.65, -1.2), -1.2),
-      yawRadians: -math.pi / 2,
+      yawRadians: -math.pi / 2 + 0.15,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_stall_quay_2'),
       kind: StructureKind.marketStall,
-      position: Vec3(5.05, minatoY(5.05, 9.6), 9.6),
-      yawRadians: -math.pi / 2,
-      variant: 1,
+      position: Vec3(5.15, minatoY(5.15, 22.8), 22.8),
+      yawRadians: -math.pi / 2 - 0.12,
+      variant: 2,
     ),
     PlacedStructure(
       id: EntityId.validated('minato_stall_quay_3'),
       kind: StructureKind.marketStall,
-      position: Vec3(5.35, minatoY(5.35, 21.2), 21.2),
-      yawRadians: -math.pi / 2,
-      variant: 2,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_stall_quay_4'),
-      kind: StructureKind.marketStall,
-      position: Vec3(5.25, minatoY(5.25, 26.8), 26.8),
-      yawRadians: -math.pi / 2,
+      position: Vec3(4.95, minatoY(4.95, 26.2), 26.2),
+      yawRadians: -math.pi / 2 + 0.08,
       variant: 3,
     ),
+    PlacedStructure(
+      id: EntityId.validated('minato_stall_hiroba_1'),
+      kind: StructureKind.marketStall,
+      position: Vec3(-13.8, minatoY(-13.8, 12.2), 12.2),
+      yawRadians: -0.35,
+      variant: 1,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_stall_hiroba_2'),
+      kind: StructureKind.marketStall,
+      position: Vec3(-10.8, minatoY(-10.8, 13.4), 13.4),
+      yawRadians: -2.55,
+      variant: 3,
+    ),
+    PlacedStructure(
+      id: EntityId.validated('minato_stall_hiroba_3'),
+      kind: StructureKind.marketStall,
+      position: Vec3(-16.2, minatoY(-16.2, 13.8), 13.8),
+      yawRadians: 0.68,
+    ),
 
-    // Western Bluff Bell Pavilion, Zen Court, & Courtyard Well
+    // Western Bluff Bell Pavilion, Zen Court, & Courtyard Wells
     PlacedStructure(
       id: EntityId.validated('minato_shoro_bell'),
       kind: StructureKind.shoroBell,
@@ -366,110 +434,17 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('minato_stone_well'),
       kind: StructureKind.stoneWell,
-      position: Vec3(-7.2, minatoY(-7.2, 23.2), 23.2),
+      position: Vec3(-8.2, minatoY(-8.2, 23), 23),
       yawRadians: 0.4,
     ),
+    PlacedStructure(
+      id: EntityId.validated('minato_stone_well_market'),
+      kind: StructureKind.stoneWell,
+      position: Vec3(-13.2, minatoY(-13.2, 14.8), 14.8),
+      yawRadians: -0.5,
+    ),
 
-    // 45+ Botanical Trees & Coastal Rock Outcrops framing town and castle
-    // Foreground boulevard trees clear of the central street canyon ray
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_bvd_fg_left'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-25.5, minatoY(-25.5, 21), 21),
-      yawRadians: 0.35,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_bvd_fg_right'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-29.5, minatoY(-29.5, 1.5), 1.5),
-      yawRadians: -0.52,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_bvd_frame_south'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-21, minatoY(-21, 17.5), 17.5),
-      yawRadians: 0.45,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_bvd_frame_south'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-31.8, minatoY(-31.8, 22), 22),
-      yawRadians: -0.65,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_bvd_frame_north'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-22.5, minatoY(-22.5, -0.4), -0.4),
-      yawRadians: -0.42,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_quay_north'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-4.2, minatoY(-4.2, -13.2), -13.2),
-      yawRadians: 0.72,
-    ),
-    // Castle Honmaru / Ninomaru framing Maples & Pines (clear of Tenshukaku & yaguras)
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_castle_south_crest'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(9.5, minatoY(9.5, -18.5), -18.5),
-      yawRadians: 0.28,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_castle_sw'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(2.8, minatoY(2.8, -19), -19),
-      yawRadians: 0.55,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_castle_nw'),
-      kind: StructureKind.pineTree,
-      position: Vec3(1.5, minatoY(1.5, -36.5), -36.5),
-      yawRadians: 1.10,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_castle_north'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(14.5, minatoY(14.5, -40.5), -40.5),
-      yawRadians: -0.95,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_castle_ne'),
-      kind: StructureKind.pineTree,
-      position: Vec3(20.5, minatoY(20.5, -36.8), -36.8),
-      yawRadians: 0.25,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_castle_se'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(21.2, minatoY(21.2, -19.5), -19.5),
-      yawRadians: 1.35,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_otemon_s'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-12.5, minatoY(-12.5, -26.5), -26.5),
-      yawRadians: -0.48,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_otemon_nw'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-14.2, minatoY(-14.2, -34.5), -34.5),
-      yawRadians: 0.88,
-    ),
-    // Waterfront & Cove Trees + Rocks
-    PlacedStructure(
-      id: EntityId.validated('minato_willow_cove_south'),
-      kind: StructureKind.weepingWillow,
-      position: Vec3(3.5, minatoY(3.5, 33), 33),
-      yawRadians: 0.52,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_spit_west'),
-      kind: StructureKind.pineTree,
-      position: Vec3(11.5, minatoY(11.5, 33.8), 33.8),
-      yawRadians: -0.30,
-    ),
+    // Coastal Rock Outcrops & Prominent Landmark Accents
     PlacedStructure(
       id: EntityId.validated('minato_rock_spit_point'),
       kind: StructureKind.rockOutcrop,
@@ -494,182 +469,253 @@ ShukubaGraph buildMinatoJoGraph(GroundHeightSampler sampleGroundY) {
       position: Vec3(2.5, minatoY(2.5, 42.5), 42.5),
       yawRadians: 0.38,
     ),
-    // Western & North-Western Countryside Groves across x in [-72, -26]
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_nw_1'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-33.5, minatoY(-33.5, -24), -24),
-      yawRadians: 0.25,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_nw_1'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-39, minatoY(-39, -14.5), -14.5),
-      yawRadians: -0.70,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_bamboo_nw_1'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-44, minatoY(-44, -27), -27),
-      yawRadians: 0.42,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_nw_2'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-52, minatoY(-52, -18.5), -18.5),
-      yawRadians: 1.15,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_nw_2'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-48.5, minatoY(-48.5, -38), -38),
-      yawRadians: -0.45,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_nw_3'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-26, minatoY(-26, -42), -42),
-      yawRadians: 0.62,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_bamboo_nw_2'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-36.5, minatoY(-36.5, -52), -52),
-      yawRadians: -0.88,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_nw_4'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-12, minatoY(-12, -54), -54),
-      yawRadians: 0.94,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_n_headland'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(2.5, minatoY(2.5, -52.5), -52.5),
-      yawRadians: -0.55,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_w_ridge_1'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-54, minatoY(-54, 2.5), 2.5),
-      yawRadians: 0.35,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_bamboo_w_ridge_1'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-58, minatoY(-58, 18), 18),
-      yawRadians: -0.60,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_w_ridge_2'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-48.5, minatoY(-48.5, 29), 29),
-      yawRadians: 0.85,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_w_ridge_2'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-62, minatoY(-62, -8.5), -8.5),
-      yawRadians: -1.10,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_w_ridge_3'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-66, minatoY(-66, -32), -32),
-      yawRadians: 0.48,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_sw_1'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-34, minatoY(-34, 32.5), 32.5),
-      yawRadians: 1.02,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_bamboo_sw_1'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-22, minatoY(-22, 36), 36),
-      yawRadians: -0.35,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_sw_1'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-12.5, minatoY(-12.5, 37.5), 37.5),
-      yawRadians: 0.72,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_sw_2'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-4.5, minatoY(-4.5, 42), 42),
-      yawRadians: -0.82,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_sw_2'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-44, minatoY(-44, 44), 44),
-      yawRadians: 0.56,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_bamboo_sw_2'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-58, minatoY(-58, 38), 38),
-      yawRadians: 1.24,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_willow_sw_1'),
-      kind: StructureKind.weepingWillow,
-      position: Vec3(-38, minatoY(-38, -2), -2),
-      yawRadians: -0.45,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_far_nw_1'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-56, minatoY(-56, -54), -54),
-      yawRadians: 0.90,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_far_nw_2'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-28, minatoY(-28, -64), -64),
-      yawRadians: -0.72,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_far_sw_1'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-32, minatoY(-32, 56), 56),
-      yawRadians: 0.34,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_far_sw_2'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-14, minatoY(-14, 58), 58),
-      yawRadians: -1.05,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_bamboo_far_sw_3'),
-      kind: StructureKind.bambooGrove,
-      position: Vec3(-62, minatoY(-62, 58), 58),
-      yawRadians: 0.68,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_far_w_edge'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-72, minatoY(-72, 12), 12),
-      yawRadians: -0.25,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_maple_far_n_headland'),
-      kind: StructureKind.mapleCluster,
-      position: Vec3(-6, minatoY(-6, -66), -66),
-      yawRadians: 0.80,
-    ),
-    PlacedStructure(
-      id: EntityId.validated('minato_pine_far_s_cove'),
-      kind: StructureKind.pineTree,
-      position: Vec3(-18, minatoY(-18, -70), -70),
-      yawRadians: -0.62,
-    ),
   ];
+
+  void addTreeGroup(
+    String prefix,
+    List<({StructureKind kind, double x, double z, double yaw})> entries, {
+    double minGroundY = 0.88,
+  }) {
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      final y = minatoY(e.x, e.z);
+      if (y < minGroundY) {
+        continue;
+      }
+      structures.add(
+        PlacedStructure(
+          id: EntityId.validated('${prefix}_$i'),
+          kind: e.kind,
+          position: Vec3(e.x, y, e.z),
+          yawRadians: e.yaw,
+        ),
+      );
+    }
+  }
+
+  // 1. Courtyard & Pocket Town Trees (~15 trees, clear of camera rays)
+  addTreeGroup('minato_town_tree', const [
+    (kind: StructureKind.pineTree, x: -26.8, z: 22.8, yaw: 0.35),
+    (kind: StructureKind.mapleCluster, x: -29.5, z: 1.5, yaw: -0.52),
+    (
+      kind: StructureKind.mapleCluster,
+      x: -17.2,
+      z: -2.4,
+      yaw: 0.78,
+    ), // samurai compound courtyard
+    (
+      kind: StructureKind.mapleCluster,
+      x: -17.8,
+      z: 17.6,
+      yaw: -0.45,
+    ), // midtown courtyard garden
+    (
+      kind: StructureKind.pineTree,
+      x: -13.2,
+      z: 1.4,
+      yaw: 1.15,
+    ), // corner pocket behind throat machiya
+    (
+      kind: StructureKind.weepingWillow,
+      x: -4.4,
+      z: 21.2,
+      yaw: 0.62,
+    ), // quay yard corner tree
+    (
+      kind: StructureKind.mapleCluster,
+      x: -4.2,
+      z: -13.2,
+      yaw: 0.72,
+    ), // north quay cove edge
+    (
+      kind: StructureKind.pineTree,
+      x: -29.2,
+      z: -12.0,
+      yaw: -0.25,
+    ), // shrine garden backdrop
+    (
+      kind: StructureKind.pineTree,
+      x: -24.5,
+      z: -15.5,
+      yaw: 0.90,
+    ), // bell pavilion pine
+    (
+      kind: StructureKind.mapleCluster,
+      x: -33.2,
+      z: 1.5,
+      yaw: -0.82,
+    ), // upper terrace courtyard maple
+    (
+      kind: StructureKind.bambooGrove,
+      x: -21.6,
+      z: 29.4,
+      yaw: 0.42,
+    ), // south backyard bamboo
+    (
+      kind: StructureKind.pineTree,
+      x: -13.2,
+      z: 32.0,
+      yaw: -0.34,
+    ), // behind kura yard wall
+    (
+      kind: StructureKind.weepingWillow,
+      x: 3.5,
+      z: 33.0,
+      yaw: 0.52,
+    ), // south cove harbor edge
+    (
+      kind: StructureKind.pineTree,
+      x: 11.5,
+      z: 33.8,
+      yaw: -0.30,
+    ), // lighthouse spit pine
+    (
+      kind: StructureKind.mapleCluster,
+      x: -21.2,
+      z: -0.4,
+      yaw: 0.38,
+    ), // cross-lane junction shade
+  ], minGroundY: 0.72);
+
+  // 2. Castle Honmaru, Ninomaru & Cliff Flanks (clear of Keep & Yaguras)
+  addTreeGroup('minato_castle_tree', const [
+    (kind: StructureKind.mapleCluster, x: 9.5, z: -18.5, yaw: 0.28),
+    (kind: StructureKind.mapleCluster, x: 2.8, z: -19.0, yaw: 0.55),
+    (kind: StructureKind.pineTree, x: 1.5, z: -36.5, yaw: 1.10),
+    (kind: StructureKind.mapleCluster, x: 14.5, z: -40.5, yaw: -0.95),
+    (kind: StructureKind.pineTree, x: 20.5, z: -36.8, yaw: 0.25),
+    (kind: StructureKind.mapleCluster, x: 21.2, z: -19.5, yaw: 1.35),
+    (kind: StructureKind.mapleCluster, x: -12.5, z: -26.5, yaw: -0.48),
+    (kind: StructureKind.pineTree, x: -14.2, z: -34.5, yaw: 0.88),
+    (kind: StructureKind.pineTree, x: -16.8, z: -22.2, yaw: 0.15),
+    (kind: StructureKind.mapleCluster, x: -19.5, z: -28.0, yaw: 1.05),
+    (kind: StructureKind.pineTree, x: -17.5, z: -39.5, yaw: -0.62),
+    (kind: StructureKind.pineTree, x: -23.0, z: -23.5, yaw: 0.44),
+    (kind: StructureKind.mapleCluster, x: -23.5, z: -34.0, yaw: -1.12),
+    (kind: StructureKind.pineTree, x: -8.5, z: -42.5, yaw: 0.75),
+    (kind: StructureKind.pineTree, x: 4.5, z: -45.5, yaw: -0.35),
+    (kind: StructureKind.mapleCluster, x: 11.5, z: -45.2, yaw: 0.92),
+    (kind: StructureKind.pineTree, x: 17.8, z: -44.8, yaw: 1.40),
+    (kind: StructureKind.mapleCluster, x: -6.5, z: -14.8, yaw: -0.20),
+    (kind: StructureKind.pineTree, x: 4.5, z: -12.6, yaw: 0.68),
+    (kind: StructureKind.pineTree, x: 18.5, z: -13.2, yaw: -0.78),
+  ]);
+
+  // 3. Northern Headland & Pebble Cove Hillsides (~22 coastal trees)
+  addTreeGroup('minato_north_forest', const [
+    (kind: StructureKind.pineTree, x: -12.0, z: -54.0, yaw: 0.94),
+    (kind: StructureKind.mapleCluster, x: 2.5, z: -52.5, yaw: -0.55),
+    (kind: StructureKind.pineTree, x: -2.0, z: -58.0, yaw: 0.22),
+    (kind: StructureKind.mapleCluster, x: -6.0, z: -66.0, yaw: 0.80),
+    (kind: StructureKind.pineTree, x: -18.0, z: -70.0, yaw: -0.62),
+    (kind: StructureKind.pineTree, x: -24.5, z: -56.0, yaw: 0.48),
+    (kind: StructureKind.mapleCluster, x: -28.0, z: -64.0, yaw: -0.72),
+    (kind: StructureKind.pineTree, x: -34.0, z: -60.0, yaw: 1.18),
+    (kind: StructureKind.mapleCluster, x: -36.5, z: -52.0, yaw: -0.88),
+    (kind: StructureKind.pineTree, x: -21.0, z: -48.5, yaw: 0.35),
+    (kind: StructureKind.mapleCluster, x: -15.5, z: -47.0, yaw: -1.02),
+    (kind: StructureKind.pineTree, x: -8.5, z: -49.5, yaw: 0.56),
+    (kind: StructureKind.pineTree, x: -19.5, z: -62.0, yaw: -0.28),
+    (kind: StructureKind.mapleCluster, x: -12.5, z: -63.5, yaw: 1.10),
+    (kind: StructureKind.pineTree, x: -30.5, z: -54.5, yaw: -0.45),
+    (kind: StructureKind.mapleCluster, x: -28.5, z: -45.5, yaw: 0.72),
+    (kind: StructureKind.mapleCluster, x: -42.5, z: -58.5, yaw: -0.90),
+    (kind: StructureKind.pineTree, x: -46.0, z: -49.5, yaw: 0.30),
+    (kind: StructureKind.pineTree, x: -39.5, z: -44.0, yaw: 1.28),
+    (kind: StructureKind.mapleCluster, x: -25.0, z: -38.5, yaw: -0.52),
+    (kind: StructureKind.pineTree, x: -32.0, z: -36.0, yaw: 0.82),
+    (kind: StructureKind.pineTree, x: -43.0, z: -34.5, yaw: -0.18),
+  ]);
+
+  // 4. Western Ridge & Surround Hillside Forest (~58 trees, x in [-78, -26])
+  addTreeGroup('minato_west_forest', const [
+    (kind: StructureKind.pineTree, x: -33.5, z: -24.0, yaw: 0.25),
+    (kind: StructureKind.mapleCluster, x: -39.0, z: -14.5, yaw: -0.70),
+    (kind: StructureKind.pineTree, x: -44.0, z: -27.0, yaw: 0.42),
+    (kind: StructureKind.pineTree, x: -52.0, z: -18.5, yaw: 1.15),
+    (kind: StructureKind.mapleCluster, x: -48.5, z: -38.0, yaw: -0.45),
+    (kind: StructureKind.pineTree, x: -26.0, z: -42.0, yaw: 0.62),
+    (kind: StructureKind.pineTree, x: -56.0, z: -54.0, yaw: 0.90),
+    (kind: StructureKind.pineTree, x: -54.0, z: 2.5, yaw: 0.35),
+    (kind: StructureKind.mapleCluster, x: -58.0, z: 18.0, yaw: -0.60),
+    (kind: StructureKind.mapleCluster, x: -48.5, z: 29.0, yaw: 0.85),
+    (kind: StructureKind.pineTree, x: -62.0, z: -8.5, yaw: -1.10),
+    (kind: StructureKind.pineTree, x: -66.0, z: -32.0, yaw: 0.48),
+    (kind: StructureKind.weepingWillow, x: -38.0, z: -2.0, yaw: -0.45),
+    (kind: StructureKind.pineTree, x: -72.0, z: 12.0, yaw: -0.25),
+    (kind: StructureKind.mapleCluster, x: -44.5, z: -8.5, yaw: 0.65),
+    (kind: StructureKind.pineTree, x: -49.5, z: -11.5, yaw: -0.82),
+    (kind: StructureKind.mapleCluster, x: -46.0, z: 4.5, yaw: 1.25),
+    (kind: StructureKind.mapleCluster, x: -50.5, z: 12.5, yaw: -0.35),
+    (kind: StructureKind.pineTree, x: -55.0, z: 26.5, yaw: 0.92),
+    (kind: StructureKind.mapleCluster, x: -51.5, z: 19.5, yaw: -1.05),
+    (kind: StructureKind.pineTree, x: -42.5, z: 27.5, yaw: 0.55),
+    (kind: StructureKind.pineTree, x: -49.0, z: -22.5, yaw: -0.68),
+    (kind: StructureKind.mapleCluster, x: -57.5, z: -28.0, yaw: 1.02),
+    (kind: StructureKind.pineTree, x: -62.0, z: -42.0, yaw: -0.22),
+    (kind: StructureKind.pineTree, x: -58.5, z: -6.0, yaw: 0.74),
+    (kind: StructureKind.mapleCluster, x: -64.5, z: 4.0, yaw: -0.94),
+    (kind: StructureKind.pineTree, x: -66.0, z: 22.0, yaw: 0.40),
+    (kind: StructureKind.mapleCluster, x: -69.5, z: -18.5, yaw: -0.58),
+    (kind: StructureKind.mapleCluster, x: -70.5, z: 32.0, yaw: 1.15),
+    (kind: StructureKind.pineTree, x: -35.0, z: 21.5, yaw: -0.75),
+    (kind: StructureKind.mapleCluster, x: -39.5, z: 25.0, yaw: 0.30),
+    (kind: StructureKind.pineTree, x: -47.0, z: 1.5, yaw: -1.18),
+    (kind: StructureKind.pineTree, x: -41.0, z: -19.5, yaw: 0.88),
+    (kind: StructureKind.mapleCluster, x: -53.5, z: -46.5, yaw: -0.42),
+    (kind: StructureKind.pineTree, x: -64.5, z: -21.0, yaw: 0.60),
+    (kind: StructureKind.mapleCluster, x: -37.5, z: -29.5, yaw: -0.85),
+    (kind: StructureKind.mapleCluster, x: -45.5, z: -44.0, yaw: 0.45),
+    (kind: StructureKind.pineTree, x: -51.0, z: -31.5, yaw: 1.32),
+    (kind: StructureKind.mapleCluster, x: -60.0, z: 9.5, yaw: -0.28),
+    (kind: StructureKind.pineTree, x: -67.5, z: -2.0, yaw: 0.72),
+    (kind: StructureKind.pineTree, x: -56.0, z: -14.0, yaw: -0.96),
+    (kind: StructureKind.mapleCluster, x: -32.0, z: 32.5, yaw: 0.50),
+    (kind: StructureKind.pineTree, x: -27.5, z: 31.5, yaw: -0.62),
+    (kind: StructureKind.pineTree, x: -68.0, z: 42.0, yaw: 0.95),
+    (kind: StructureKind.pineTree, x: -75.0, z: -35.0, yaw: 0.32),
+    (kind: StructureKind.mapleCluster, x: -76.0, z: -22.0, yaw: -0.78),
+    (kind: StructureKind.pineTree, x: -74.0, z: -10.0, yaw: 1.12),
+    (kind: StructureKind.mapleCluster, x: -73.0, z: 4.0, yaw: -0.40),
+    (kind: StructureKind.pineTree, x: -68.0, z: -40.0, yaw: 0.68),
+    (kind: StructureKind.mapleCluster, x: -64.0, z: -12.0, yaw: -1.04),
+    (kind: StructureKind.pineTree, x: -61.0, z: -36.0, yaw: 0.24),
+    (kind: StructureKind.mapleCluster, x: -59.0, z: -20.0, yaw: 0.86),
+    (kind: StructureKind.pineTree, x: -55.0, z: -41.0, yaw: -0.52),
+    (kind: StructureKind.mapleCluster, x: -53.0, z: -5.0, yaw: 1.30),
+    (kind: StructureKind.pineTree, x: -48.0, z: -16.0, yaw: -0.66),
+    (kind: StructureKind.mapleCluster, x: -45.0, z: -38.0, yaw: 0.48),
+    (kind: StructureKind.pineTree, x: -43.0, z: -22.0, yaw: -0.90),
+    (kind: StructureKind.pineTree, x: -78.0, z: -28.0, yaw: 0.72),
+  ]);
+
+  // 5. Southern Bay & Pebble Cove Foothills (~24 trees framing south peninsula)
+  addTreeGroup('minato_south_forest', const [
+    (kind: StructureKind.mapleCluster, x: -34.0, z: 32.5, yaw: 1.02),
+    (kind: StructureKind.pineTree, x: -22.0, z: 36.0, yaw: -0.35),
+    (kind: StructureKind.pineTree, x: -12.5, z: 37.5, yaw: 0.72),
+    (kind: StructureKind.mapleCluster, x: -4.5, z: 42.0, yaw: -0.82),
+    (kind: StructureKind.pineTree, x: -44.0, z: 44.0, yaw: 0.56),
+    (kind: StructureKind.mapleCluster, x: -58.0, z: 38.0, yaw: 1.24),
+    (kind: StructureKind.pineTree, x: -32.0, z: 56.0, yaw: 0.34),
+    (kind: StructureKind.mapleCluster, x: -14.0, z: 58.0, yaw: -1.05),
+    (kind: StructureKind.pineTree, x: -62.0, z: 58.0, yaw: 0.68),
+    (kind: StructureKind.pineTree, x: -26.5, z: 44.5, yaw: -0.48),
+    (kind: StructureKind.mapleCluster, x: -18.5, z: 45.0, yaw: 0.92),
+    (kind: StructureKind.pineTree, x: -9.5, z: 47.0, yaw: -0.70),
+    (kind: StructureKind.mapleCluster, x: -36.5, z: 40.5, yaw: 0.38),
+    (kind: StructureKind.mapleCluster, x: -38.5, z: 50.0, yaw: 1.18),
+    (kind: StructureKind.pineTree, x: -49.5, z: 52.0, yaw: -0.25),
+    (kind: StructureKind.mapleCluster, x: -52.5, z: 34.0, yaw: 0.64),
+    (kind: StructureKind.pineTree, x: -22.5, z: 53.5, yaw: -0.92),
+    (kind: StructureKind.weepingWillow, x: 1.8, z: 37.5, yaw: 0.45),
+    (kind: StructureKind.pineTree, x: 6.5, z: 38.5, yaw: -0.55),
+    (kind: StructureKind.mapleCluster, x: -3.5, z: 50.5, yaw: 0.82),
+    (kind: StructureKind.pineTree, x: -15.5, z: 39.5, yaw: -1.10),
+    (kind: StructureKind.pineTree, x: -45.5, z: 60.0, yaw: 0.28),
+    (kind: StructureKind.mapleCluster, x: -28.0, z: 62.5, yaw: -0.60),
+    (kind: StructureKind.pineTree, x: -8.0, z: 59.5, yaw: 1.05),
+  ], minGroundY: 0.85);
 
   return ShukubaGraph(
     roads: roads,
@@ -685,7 +731,7 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
   double groundPlus(double x, double z, [double dy = 0.02]) =>
       sampleGroundY(x, z) + dy;
 
-  return <MinatoHeroPlacement>[
+  final items = <MinatoHeroPlacement>[
     // Monumental 5-Tier Honmaru Keep
     (
       name: 'minato_castle_tenshukaku',
@@ -958,7 +1004,7 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
       x: 23.36,
       z: 5.53,
       yaw: math.pi / 2,
-      y: -0.52,
+      y: -0.59,
     ),
     (
       name: 'minato_pier_south_market',
@@ -1076,9 +1122,9 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
       name: 'minato_cargo_quay_2',
       assetPath: 'assets/models/harbor_cargo.glb',
       x: 0.3,
-      z: 19.2,
+      z: 20.6,
       yaw: -0.28,
-      y: groundPlus(0.3, 19.2),
+      y: groundPlus(0.3, 20.6),
     ),
     (
       name: 'minato_cargo_quay_3',
@@ -1115,10 +1161,10 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
     (
       name: 'minato_sake_barrels_2',
       assetPath: 'assets/models/edo_sake_barrels.glb',
-      x: -0.5,
-      z: 14.5,
+      x: 0.35,
+      z: 15.2,
       yaw: -0.4,
-      y: groundPlus(-0.5, 14.5),
+      y: groundPlus(0.35, 15.2),
     ),
     (
       name: 'minato_handcart_quay',
@@ -1131,10 +1177,10 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
     (
       name: 'minato_handcart_bvd',
       assetPath: 'assets/models/edo_handcart.glb',
-      x: -13.2,
-      z: 8.6,
-      yaw: -0.25,
-      y: groundPlus(-13.2, 8.6),
+      x: -15.5,
+      z: 10.6,
+      yaw: -0.35,
+      y: groundPlus(-15.5, 10.6),
     ),
     (
       name: 'minato_lantern_torii_n',
@@ -1184,7 +1230,7 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
       x: 26.2,
       z: 5.5,
       yaw: math.pi / 2 + 0.14,
-      y: 0.77,
+      y: 0.73,
     ),
     (
       name: 'minato_crane_south_pier',
@@ -1285,14 +1331,14 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
       y: -0.45,
     ),
 
-    // Minato Boulevard & Quay Props (Wagons, Wagasa, Fence, Banners, Andon)
+    // Minato Boulevard, Market Square & Quay Props
     (
       name: 'minato_wagon_west_bvd',
       assetPath: 'assets/models/edo_wagon.glb',
-      x: -20.2,
-      z: 9.6,
-      yaw: 1.32,
-      y: groundPlus(-20.2, 9.6, 0),
+      x: -23,
+      z: 13,
+      yaw: 1.38,
+      y: groundPlus(-23, 13, 0),
     ),
     (
       name: 'minato_wagon_quay_plaza',
@@ -1313,10 +1359,10 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
     (
       name: 'minato_wagasa_midtown',
       assetPath: 'assets/models/edo_wagasa_bench.glb',
-      x: -18.2,
-      z: 16.5,
-      yaw: -1.35,
-      y: groundPlus(-18.2, 16.5, 0),
+      x: -17.2,
+      z: 11.4,
+      yaw: -1.10,
+      y: groundPlus(-17.2, 11.4, 0),
     ),
     (
       name: 'minato_bamboo_fence_castle_edge',
@@ -1345,12 +1391,307 @@ List<MinatoHeroPlacement> buildMinatoCastleAndHarborPlacements(
     (
       name: 'minato_andon_boulevard',
       assetPath: 'assets/models/edo_andon_lantern.glb',
-      x: -9.5,
-      z: 10.2,
+      x: -9.4,
+      z: 9.6,
       yaw: 0,
-      y: groundPlus(-9.5, 10.2, 0),
+      y: groundPlus(-9.4, 9.6, 0),
+    ),
+    (
+      name: 'minato_fence_gate_castle',
+      assetPath: 'assets/models/edo_wooden_fence_gate.glb',
+      x: -16.2,
+      z: -16.8,
+      yaw: 0.20,
+      y: groundPlus(-16.2, -16.8, 0),
+    ),
+    (
+      name: 'minato_fence_gate_kura',
+      assetPath: 'assets/models/edo_wooden_fence_gate.glb',
+      x: -9.6,
+      z: 28.2,
+      yaw: 0.05,
+      y: groundPlus(-9.6, 28.2, 0),
+    ),
+    (
+      name: 'minato_fence_gate_shrine',
+      assetPath: 'assets/models/edo_wooden_fence_gate.glb',
+      x: -24.8,
+      z: -11.4,
+      yaw: math.pi / 2 - 0.15,
+      y: groundPlus(-24.8, -11.4, 0),
+    ),
+    (
+      name: 'minato_clutter_hiroba_w',
+      assetPath: 'assets/models/edo_street_clutter.glb',
+      x: -17.2,
+      z: 14.2,
+      yaw: 0.55,
+      y: groundPlus(-17.2, 14.2, 0),
+    ),
+    (
+      name: 'minato_clutter_quay_south',
+      assetPath: 'assets/models/edo_street_clutter.glb',
+      x: -0.8,
+      z: 23.8,
+      yaw: -0.82,
+      y: groundPlus(-0.8, 23.8, 0),
+    ),
+    (
+      name: 'minato_clutter_south_alley',
+      assetPath: 'assets/models/edo_street_clutter.glb',
+      x: -14.8,
+      z: 21.8,
+      yaw: 1.45,
+      y: groundPlus(-14.8, 21.8, 0),
+    ),
+    (
+      name: 'minato_clutter_north_quay',
+      assetPath: 'assets/models/edo_street_clutter.glb',
+      x: -0.6,
+      z: -7.2,
+      yaw: 0.25,
+      y: groundPlus(-0.6, -7.2, 0),
     ),
   ];
+
+  // Anchor seawall shoulders and natural cove shorelines along tidal contours.
+  double? findShoreX(
+    double z, {
+    double xMin = -35.0,
+    double xMax = 26.0,
+    double targetY = 0.22,
+  }) {
+    for (var x = xMax; x >= xMin; x -= 0.5) {
+      if (sampleGroundY(x, z) >= targetY) {
+        return x;
+      }
+    }
+    return null;
+  }
+
+  const shoreShelves =
+      <
+        ({
+          String name,
+          String asset,
+          double z,
+          double targetY,
+          double dy,
+          double yaw,
+        })
+      >[
+        (
+          name: 'minato_seawall_shoulder_n1',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: -11.4,
+          targetY: 0.30,
+          dy: -0.22,
+          yaw: 0.32,
+        ),
+        (
+          name: 'minato_seawall_shoulder_n2',
+          asset: 'assets/models/rock_shore_riprap.glb',
+          z: -13.2,
+          targetY: 0.12,
+          dy: -0.32,
+          yaw: -0.55,
+        ),
+        (
+          name: 'minato_seawall_shoulder_s1',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: 32.0,
+          targetY: 0.30,
+          dy: -0.22,
+          yaw: -0.28,
+        ),
+        (
+          name: 'minato_seawall_shoulder_s2',
+          asset: 'assets/models/rock_river_boulder.glb',
+          z: 33.4,
+          targetY: 0.14,
+          dy: -0.18,
+          yaw: 0.88,
+        ),
+        (
+          name: 'minato_shore_shelf_n3',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: -47.5,
+          targetY: 0.24,
+          dy: -0.20,
+          yaw: 0.65,
+        ),
+        (
+          name: 'minato_shore_boulder_n4',
+          asset: 'assets/models/rock_river_boulder.glb',
+          z: -50.2,
+          targetY: 0.08,
+          dy: -0.14,
+          yaw: -1.10,
+        ),
+        (
+          name: 'minato_shore_shelf_n5',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: -53.8,
+          targetY: 0.22,
+          dy: -0.20,
+          yaw: -0.42,
+        ),
+        (
+          name: 'minato_shore_riprap_n6',
+          asset: 'assets/models/rock_shore_riprap.glb',
+          z: -58.2,
+          targetY: 0.12,
+          dy: -0.28,
+          yaw: 1.05,
+        ),
+        (
+          name: 'minato_shore_shelf_n7',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: -63.0,
+          targetY: 0.24,
+          dy: -0.20,
+          yaw: 0.18,
+        ),
+        (
+          name: 'minato_shore_shelf_s3',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: 35.8,
+          targetY: 0.22,
+          dy: -0.18,
+          yaw: 0.74,
+        ),
+        (
+          name: 'minato_shore_boulder_s4',
+          asset: 'assets/models/rock_river_boulder.glb',
+          z: 39.2,
+          targetY: 0.08,
+          dy: -0.14,
+          yaw: -0.92,
+        ),
+        (
+          name: 'minato_shore_shelf_s5',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: 43.4,
+          targetY: 0.22,
+          dy: -0.20,
+          yaw: 1.38,
+        ),
+        (
+          name: 'minato_shore_riprap_s6',
+          asset: 'assets/models/rock_shore_riprap.glb',
+          z: 47.8,
+          targetY: 0.12,
+          dy: -0.26,
+          yaw: -0.30,
+        ),
+        (
+          name: 'minato_shore_shelf_s7',
+          asset: 'assets/models/rock_coastal_shelf.glb',
+          z: 52.6,
+          targetY: 0.24,
+          dy: -0.20,
+          yaw: 0.52,
+        ),
+        (
+          name: 'minato_shore_boulder_s8',
+          asset: 'assets/models/rock_river_boulder.glb',
+          z: 57.5,
+          targetY: 0.10,
+          dy: -0.15,
+          yaw: -1.25,
+        ),
+        (
+          name: 'minato_shore_stairs_n',
+          asset: 'assets/models/edo_river_stairs.glb',
+          z: -48.6,
+          targetY: 0.45,
+          dy: -0.08,
+          yaw: 1.45,
+        ),
+        (
+          name: 'minato_shore_stairs_s',
+          asset: 'assets/models/edo_river_stairs.glb',
+          z: 34.4,
+          targetY: 0.45,
+          dy: -0.08,
+          yaw: 1.72,
+        ),
+      ];
+
+  for (final s in shoreShelves) {
+    final sx = findShoreX(s.z, targetY: s.targetY);
+    if (sx == null) {
+      continue;
+    }
+    items.add((
+      name: s.name,
+      assetPath: s.asset,
+      x: sx,
+      z: s.z,
+      yaw: s.yaw,
+      y: groundPlus(sx, s.z, s.dy),
+    ));
+  }
+
+  // Dense lush coastal & hillside shrub clusters anchored on firm upper slopes.
+  const shrubCoords = <({double x, double z, double yaw})>[
+    (x: -24.2, z: 18.8, yaw: 0.4),
+    (x: -17.6, z: -1.5, yaw: 1.2),
+    (x: -16.8, z: 18.8, yaw: -0.6),
+    (x: -10.8, z: 1.4, yaw: 2.1),
+    (x: -25.2, z: -12.6, yaw: 0.8),
+    (x: -31.8, z: -4.5, yaw: -1.4),
+    (x: -32.4, z: 3.2, yaw: 1.9),
+    (x: -13.6, z: 30.8, yaw: 0.3),
+    (x: -5.2, z: -14.2, yaw: -0.9),
+    (x: -14.8, z: -24.8, yaw: 1.5),
+    (x: -16.4, z: -33.2, yaw: -0.4),
+    (x: -18.2, z: -41.5, yaw: 2.4),
+    (x: 3.2, z: -44.2, yaw: 0.7),
+    (x: 13.8, z: -44.0, yaw: -1.2),
+    (x: 5.5, z: -13.6, yaw: 1.1),
+    (x: 16.5, z: -14.2, yaw: -0.5),
+    (x: -9.8, z: -46.8, yaw: 2.0),
+    (x: -18.5, z: -51.5, yaw: 0.2),
+    (x: -26.5, z: -53.0, yaw: -1.8),
+    (x: -34.0, z: -48.0, yaw: 0.9),
+    (x: -35.8, z: -22.5, yaw: -0.7),
+    (x: -41.5, z: -15.5, yaw: 1.6),
+    (x: -46.5, z: -29.0, yaw: -2.2),
+    (x: -50.0, z: -16.0, yaw: 0.5),
+    (x: -45.0, z: 6.5, yaw: 1.3),
+    (x: -48.0, z: 22.5, yaw: -0.8),
+    (x: -53.5, z: 4.5, yaw: 2.6),
+    (x: -55.0, z: 16.5, yaw: -1.1),
+    (x: -37.5, z: 24.5, yaw: 0.6),
+    (x: -30.5, z: 31.2, yaw: 1.8),
+    (x: -21.5, z: 34.5, yaw: -0.3),
+    (x: -11.5, z: 36.2, yaw: 2.2),
+    (x: -3.2, z: 35.5, yaw: -1.5),
+    (x: 9.8, z: 33.0, yaw: 0.4),
+    (x: 1.5, z: 40.5, yaw: 1.4),
+    (x: -16.5, z: 43.2, yaw: -0.9),
+    (x: -34.5, z: 42.5, yaw: 2.0),
+    (x: -41.8, z: 34.5, yaw: -0.2),
+  ];
+
+  for (var i = 0; i < shrubCoords.length; i++) {
+    final s = shrubCoords[i];
+    final gy = sampleGroundY(s.x, s.z);
+    if (gy < 0.70) {
+      continue;
+    }
+    items.add((
+      name: 'minato_shrub_cluster_$i',
+      assetPath: 'assets/models/tree_shrub_cluster.glb',
+      x: s.x,
+      z: s.z,
+      yaw: s.yaw,
+      y: gy - 0.03,
+    ));
+  }
+
+  return items;
 }
 
 List<
@@ -1368,61 +1709,166 @@ buildMinatoStreetAgents(GroundHeightSampler sampleGroundY) => [
   (
     id: EntityId.validated('minato_dockworker_1'),
     role: StreetAgentRole.townsfolk,
-    position: Vec3(1.9, sampleGroundY(1.9, 0), 0),
+    position: Vec3(1.9, sampleGroundY(1.9, -6.5), -6.5),
     waypoints: [
       Vec3(1.9, sampleGroundY(1.9, -6.5), -6.5),
       Vec3(1.9, sampleGroundY(1.9, 5.5), 5.5),
-      Vec3(1.9, sampleGroundY(1.9, 22), 22),
+      Vec3(2, sampleGroundY(2, 17.4), 17.4),
+      Vec3(2, sampleGroundY(2, 25.5), 25.5),
+      Vec3(2, sampleGroundY(2, 17.4), 17.4),
       Vec3(1.9, sampleGroundY(1.9, 5.5), 5.5),
     ],
     carriesLantern: false,
-    speed: 1.55,
-    bobPhase: 0.0,
+    speed: 1.50,
+    bobPhase: 0,
   ),
   (
     id: EntityId.validated('minato_watchman_quay'),
     role: StreetAgentRole.lanternWatchman,
-    position: Vec3(-14, sampleGroundY(-14, 6.9), 6.9),
+    position: Vec3(-14.5, sampleGroundY(-14.5, 8.2), 8.2),
     waypoints: [
-      Vec3(-28, sampleGroundY(-28, 10), 10),
-      Vec3(-16, sampleGroundY(-16, 7.2), 7.2),
-      Vec3(-6, sampleGroundY(-6, 5.8), 5.8),
-      Vec3(1.9, sampleGroundY(1.9, 5.5), 5.5),
-      Vec3(-6, sampleGroundY(-6, 5.8), 5.8),
-      Vec3(-16, sampleGroundY(-16, 7.2), 7.2),
+      Vec3(-32, sampleGroundY(-32, 11.4), 11.4),
+      Vec3(-22, sampleGroundY(-22, 10.6), 10.6),
+      Vec3(-14.5, sampleGroundY(-14.5, 8.2), 8.2),
+      Vec3(-7.2, sampleGroundY(-7.2, 6.2), 6.2),
+      Vec3(1.8, sampleGroundY(1.8, 5.5), 5.5),
+      Vec3(-7.2, sampleGroundY(-7.2, 6.2), 6.2),
+      Vec3(-14.5, sampleGroundY(-14.5, 8.2), 8.2),
+      Vec3(-22, sampleGroundY(-22, 10.6), 10.6),
     ],
     carriesLantern: true,
-    speed: 1.4,
+    speed: 1.35,
     bobPhase: 1.2,
   ),
   (
     id: EntityId.validated('minato_castle_courier'),
     role: StreetAgentRole.nightSmuggler,
-    position: Vec3(-11, sampleGroundY(-11, -5), -5),
+    position: Vec3(-11.2, sampleGroundY(-11.2, -2.5), -2.5),
     waypoints: [
-      Vec3(-10, sampleGroundY(-10, 5), 5),
-      Vec3(-11.5, sampleGroundY(-11.5, -3), -3),
-      Vec3(-10.5, sampleGroundY(-10.5, -12.5), -12.5),
-      Vec3(-8.5, sampleGroundY(-8.5, -19.5), -19.5),
-      Vec3(-10.5, sampleGroundY(-10.5, -12.5), -12.5),
+      Vec3(-9.5, sampleGroundY(-9.5, 6.8), 6.8),
+      Vec3(-11.2, sampleGroundY(-11.2, -2.5), -2.5),
+      Vec3(-11.6, sampleGroundY(-11.6, -11.5), -11.5),
+      Vec3(-12.8, sampleGroundY(-12.8, -16.8), -16.8),
+      Vec3(-11.6, sampleGroundY(-11.6, -11.5), -11.5),
+      Vec3(-11.2, sampleGroundY(-11.2, -2.5), -2.5),
     ],
-    carriesLantern: true,
-    speed: 1.5,
+    carriesLantern: false,
+    speed: 1.48,
     bobPhase: 2.3,
   ),
   (
     id: EntityId.validated('minato_merchant_alley'),
     role: StreetAgentRole.townsfolk,
-    position: Vec3(-12, sampleGroundY(-12, 19.5), 19.5),
+    position: Vec3(-14.8, sampleGroundY(-14.8, 19.8), 19.8),
     waypoints: [
-      Vec3(-22, sampleGroundY(-22, 20), 20),
-      Vec3(-12, sampleGroundY(-12, 19.5), 19.5),
-      Vec3(1.9, sampleGroundY(1.9, 18), 18),
-      Vec3(-12, sampleGroundY(-12, 19.5), 19.5),
+      Vec3(-24.2, sampleGroundY(-24.2, 20.8), 20.8),
+      Vec3(-14.8, sampleGroundY(-14.8, 19.8), 19.8),
+      Vec3(-6.2, sampleGroundY(-6.2, 19.9), 19.9),
+      Vec3(-5.8, sampleGroundY(-5.8, 17.6), 17.6),
+      Vec3(1.9, sampleGroundY(1.9, 17.4), 17.4),
+      Vec3(-5.8, sampleGroundY(-5.8, 17.6), 17.6),
+      Vec3(-6.2, sampleGroundY(-6.2, 19.9), 19.9),
+      Vec3(-14.8, sampleGroundY(-14.8, 19.8), 19.8),
     ],
     carriesLantern: false,
-    speed: 1.35,
+    speed: 1.32,
     bobPhase: 0.7,
+  ),
+  (
+    id: EntityId.validated('minato_hiroba_shopper'),
+    role: StreetAgentRole.townsfolk,
+    position: Vec3(-15.5, sampleGroundY(-15.5, 8.6), 8.6),
+    waypoints: [
+      Vec3(-15.5, sampleGroundY(-15.5, 8.6), 8.6),
+      Vec3(-12.8, sampleGroundY(-12.8, 9.6), 9.6),
+      Vec3(-11.2, sampleGroundY(-11.2, 8.2), 8.2),
+      Vec3(-13.6, sampleGroundY(-13.6, 7.6), 7.6),
+    ],
+    carriesLantern: false,
+    speed: 1.15,
+    bobPhase: 3.1,
+  ),
+  (
+    id: EntityId.validated('minato_porter_warehouse'),
+    role: StreetAgentRole.nightSmuggler,
+    position: Vec3(-6, sampleGroundY(-6, 26.5), 26.5),
+    waypoints: [
+      Vec3(-6, sampleGroundY(-6, 26.5), 26.5),
+      Vec3(-6, sampleGroundY(-6, 22.8), 22.8),
+      Vec3(-6.2, sampleGroundY(-6.2, 19.9), 19.9),
+      Vec3(-5.8, sampleGroundY(-5.8, 17.6), 17.6),
+      Vec3(2, sampleGroundY(2, 17.4), 17.4),
+      Vec3(2, sampleGroundY(2, 26.5), 26.5),
+      Vec3(2, sampleGroundY(2, 17.4), 17.4),
+      Vec3(-5.8, sampleGroundY(-5.8, 17.6), 17.6),
+      Vec3(-6.2, sampleGroundY(-6.2, 19.9), 19.9),
+      Vec3(-6, sampleGroundY(-6, 22.8), 22.8),
+    ],
+    carriesLantern: false,
+    speed: 1.25,
+    bobPhase: 4,
+  ),
+  (
+    id: EntityId.validated('minato_shrine_monk'),
+    role: StreetAgentRole.townsfolk,
+    position: Vec3(-19.8, sampleGroundY(-19.8, -7.8), -7.8),
+    waypoints: [
+      Vec3(-19.8, sampleGroundY(-19.8, -7.8), -7.8),
+      Vec3(-22.6, sampleGroundY(-22.6, -7.8), -7.8),
+      Vec3(-22.4, sampleGroundY(-22.4, -13), -13),
+      Vec3(-22.6, sampleGroundY(-22.6, -7.8), -7.8),
+    ],
+    carriesLantern: false,
+    speed: 1.12,
+    bobPhase: 1.8,
+  ),
+  (
+    id: EntityId.validated('minato_watchman_upper'),
+    role: StreetAgentRole.lanternWatchman,
+    position: Vec3(-22, sampleGroundY(-22, 10.6), 10.6),
+    waypoints: [
+      Vec3(-41.5, sampleGroundY(-41.5, 14.5), 14.5),
+      Vec3(-32, sampleGroundY(-32, 11.4), 11.4),
+      Vec3(-22, sampleGroundY(-22, 10.6), 10.6),
+      Vec3(-19.4, sampleGroundY(-19.4, 12.6), 12.6),
+      Vec3(-19.2, sampleGroundY(-19.2, 19.6), 19.6),
+      Vec3(-19.4, sampleGroundY(-19.4, 12.6), 12.6),
+      Vec3(-22, sampleGroundY(-22, 10.6), 10.6),
+      Vec3(-32, sampleGroundY(-32, 11.4), 11.4),
+    ],
+    carriesLantern: true,
+    speed: 1.30,
+    bobPhase: 2.9,
+  ),
+  (
+    id: EntityId.validated('minato_samurai_otemon'),
+    role: StreetAgentRole.nightSmuggler,
+    position: Vec3(-13, sampleGroundY(-13, -18.8), -18.8),
+    waypoints: [
+      Vec3(-12.6, sampleGroundY(-12.6, -13.8), -13.8),
+      Vec3(-13, sampleGroundY(-13, -18.8), -18.8),
+      Vec3(-13, sampleGroundY(-13, -22.2), -22.2),
+      Vec3(-13, sampleGroundY(-13, -18.8), -18.8),
+    ],
+    carriesLantern: false,
+    speed: 1.22,
+    bobPhase: 0.4,
+  ),
+  (
+    id: EntityId.validated('minato_townswoman_cross'),
+    role: StreetAgentRole.townsfolk,
+    position: Vec3(-19.4, sampleGroundY(-19.4, 2.6), 2.6),
+    waypoints: [
+      Vec3(-19.6, sampleGroundY(-19.6, -3.5), -3.5),
+      Vec3(-19.4, sampleGroundY(-19.4, 2.6), 2.6),
+      Vec3(-19.4, sampleGroundY(-19.4, 8.4), 8.4),
+      Vec3(-14.5, sampleGroundY(-14.5, 8.2), 8.2),
+      Vec3(-19.4, sampleGroundY(-19.4, 8.4), 8.4),
+      Vec3(-19.4, sampleGroundY(-19.4, 2.6), 2.6),
+    ],
+    carriesLantern: false,
+    speed: 1.28,
+    bobPhase: 5.1,
   ),
 ];
 

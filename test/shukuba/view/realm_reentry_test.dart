@@ -47,24 +47,25 @@ void main() {
     test(
       'ShukubaController.detachFromScene resets ready state safely',
       () async {
-      final look = FakeLookDriver();
-      final world = EdoWorldDriver();
-      final audio = FakeAudioDriver();
-      final controller = ShukubaController(
-        look: look,
-        world: world,
-        audio: audio,
-      );
+        final look = FakeLookDriver();
+        final world = EdoWorldDriver();
+        final audio = FakeAudioDriver();
+        final controller = ShukubaController(
+          look: look,
+          world: world,
+          audio: audio,
+        );
 
-      await controller.initialize();
-      expect(controller.isReady, isTrue);
+        await controller.initialize();
+        expect(controller.isReady, isTrue);
 
-      controller.detachFromScene();
-      expect(controller.isReady, isFalse);
-      expect(audio.isDisposed, isTrue);
+        controller.detachFromScene();
+        expect(controller.isReady, isFalse);
+        expect(audio.isDisposed, isTrue);
 
-      controller.dispose();
-    });
+        controller.dispose();
+      },
+    );
 
     testWidgets(
       'LoadingCurtainOverlay renders active realm name and subtitle',
@@ -154,45 +155,41 @@ void main() {
       },
     );
 
-    test(
-      'EdoWorldDriver and EdoLookDriver re-attach cleanly across multiple '
-      'Scenes (GPU)',
-      () async {
-        final look = EdoLookDriver(allowHeadlessFallback: true);
-        final world = EdoWorldDriver();
-        final scene1 = Scene();
-        final scene2 = Scene();
+    test('EdoWorldDriver and EdoLookDriver re-attach cleanly across multiple '
+        'Scenes (GPU)', () async {
+      final look = EdoLookDriver(allowHeadlessFallback: true);
+      final world = EdoWorldDriver();
+      final scene1 = Scene();
+      final scene2 = Scene();
 
-        await look.attach(scene1);
-        await world.attachStaged(scene1, resolveMaterial: look.materialFor);
-        expect(scene1.root.children, isNotEmpty);
-        expect(world.graph.structures, isNotEmpty);
+      await look.attach(scene1);
+      await world.attachStaged(scene1, resolveMaterial: look.materialFor);
+      expect(scene1.root.children, isNotEmpty);
+      expect(world.graph.structures, isNotEmpty);
 
-        world.detach();
-        look.detach();
-        scene1.dispose();
+      world.detach();
+      look.detach();
+      scene1.dispose();
 
-        await world.switchRealm(ShowcaseRealm.minatoJo);
-        await look.attach(scene2);
-        await world.attachStaged(scene2, resolveMaterial: look.materialFor);
-        expect(world.realm, ShowcaseRealm.minatoJo);
-        expect(world.graph.structures, isNotEmpty);
-        expect(scene2.root.children, isNotEmpty);
+      await world.switchRealm(ShowcaseRealm.minatoJo);
+      await look.attach(scene2);
+      await world.attachStaged(scene2, resolveMaterial: look.materialFor);
+      expect(world.realm, ShowcaseRealm.minatoJo);
+      expect(world.graph.structures, isNotEmpty);
+      expect(scene2.root.children, isNotEmpty);
 
-        final secondAttachChildCount = scene2.root.children.length;
-        // Re-attaching directly to a fresh scene without explicit detach first
-        // must still detach cleanly instead of throwing or duplicating decals.
-        final scene3 = Scene();
-        await look.attach(scene3);
-        await world.attachStaged(scene3, resolveMaterial: look.materialFor);
-        expect(scene3.root.children.length, secondAttachChildCount);
+      final secondAttachChildCount = scene2.root.children.length;
+      // Re-attaching directly to a fresh scene without explicit detach first
+      // must still detach cleanly instead of throwing or duplicating decals.
+      final scene3 = Scene();
+      await look.attach(scene3);
+      await world.attachStaged(scene3, resolveMaterial: look.materialFor);
+      expect(scene3.root.children.length, secondAttachChildCount);
 
-        world.dispose();
-        look.dispose();
-        scene2.dispose();
-        scene3.dispose();
-      },
-      skip: !gpuAvailable ? 'Requires Impeller/Flutter GPU backend' : false,
-    );
+      world.dispose();
+      look.dispose();
+      scene2.dispose();
+      scene3.dispose();
+    }, skip: !gpuAvailable ? 'Requires Impeller/Flutter GPU backend' : false);
   });
 }

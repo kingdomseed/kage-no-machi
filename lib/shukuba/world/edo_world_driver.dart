@@ -1,7 +1,7 @@
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:flutter_scene/kit.dart' show Steering;
 import 'package:flutter_scene/scene.dart'
     show
@@ -38,6 +38,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         Vec3,
         WatchSightcone,
         defaultShukubaMaterial;
+import 'package:kage_no_machi/shukuba/world/agent_navigation.dart';
 import 'package:kage_no_machi/shukuba/world/atmosphere_builder.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart';
 import 'package:kage_no_machi/shukuba/world/flora_scatter_builder.dart';
@@ -47,6 +48,20 @@ import 'package:kage_no_machi/shukuba/world/starter_ward.dart';
 import 'package:kage_no_machi/shukuba/world/terrain_builder.dart';
 import 'package:vector_math/vector_math.dart'
     show Aabb2, Quaternion, Vector2, Vector3;
+
+class _AgentRig {
+  new({required this.legL, required this.legR, required this.upper})
+    : baseLegLRot = legL?.rotation.clone() ?? Quaternion.identity(),
+      baseLegRRot = legR?.rotation.clone() ?? Quaternion.identity(),
+      baseUpperRot = upper?.rotation.clone() ?? Quaternion.identity();
+
+  final Node? legL;
+  final Node? legR;
+  final Node? upper;
+  final Quaternion baseLegLRot;
+  final Quaternion baseLegRRot;
+  final Quaternion baseUpperRot;
+}
 
 class _SimAgent {
   new({
@@ -59,7 +74,34 @@ class _SimAgent {
     this.bobPhase = 0,
   }) : currentWaypointIndex = 0,
        yawRadians = 0,
-       velocity = Vector3.zero();
+       dwellSeconds = 0,
+       stuckSeconds = 0,
+       directionSign = 1,
+       velocity = Vector3.zero() {
+    for (var i = 0; i < waypoints.length; i++) {
+      if (waypoints[i].horizontalDistanceTo(position) <= 0.65) {
+        currentWaypointIndex = (i + 1) % waypoints.length;
+        break;
+      }
+    }
+    if (waypoints.isNotEmpty) {
+      var target = waypoints[currentWaypointIndex];
+      if (target.horizontalDistanceTo(position) <= 0.65) {
+        for (var i = 0; i < waypoints.length; i++) {
+          if (waypoints[i].horizontalDistanceTo(position) > 0.65) {
+            currentWaypointIndex = i;
+            target = waypoints[i];
+            break;
+          }
+        }
+      }
+      final dx = target.x - position.x;
+      final dz = target.z - position.z;
+      if (dx * dx + dz * dz > 1e-6) {
+        yawRadians = math.atan2(dx, dz);
+      }
+    }
+  }
 
   final EntityId id;
   final StreetAgentRole role;
@@ -70,6 +112,9 @@ class _SimAgent {
   final double bobPhase;
   int currentWaypointIndex;
   double yawRadians;
+  double dwellSeconds;
+  double stuckSeconds;
+  int directionSign;
   Vector3 velocity;
 
   StreetAgentSnapshot toSnapshot() => StreetAgentSnapshot(
@@ -167,7 +212,25 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
   final List<_SimAgent> _simAgents = [];
   final Map<EntityId, Node> _agentNodes = {};
+  final Map<EntityId, _AgentRig> _agentRigs = {};
+  AgentObstacleMap? _agentObstacles;
   double _walkTime = 0;
+
+  @visibleForTesting
+  AgentObstacleMap get agentObstacles =>
+      _agentObstacles ??= AgentObstacleMap.build(
+        graph: _graph,
+        realm: _realm,
+        sampleGroundHeight: sampleGroundHeight,
+      );
+
+  void _rebuildAgentObstacles() {
+    _agentObstacles = AgentObstacleMap.build(
+      graph: _graph,
+      realm: _realm,
+      sampleGroundHeight: sampleGroundHeight,
+    );
+  }
 
   @override
   ShukubaGraph get graph => _graph;
@@ -462,6 +525,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _airborneMotesNode = null;
     _lastAtmosphereGraph = null;
     _agentNodes.clear();
+    _agentRigs.clear();
+    _agentObstacles = null;
     _agentsNode.removeAll();
     _seenEmissives.clear();
     _cachedShojiEmissives.clear();
@@ -470,6 +535,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   }
 
   void _initAgents({bool rebuildNodes = true}) {
+    _rebuildAgentObstacles();
     if (_realm == ShowcaseRealm.minatoJo) {
       final minatoAgents = buildMinatoStreetAgents(sampleGroundHeight);
       _simAgents
@@ -509,6 +575,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
             Vec3(15.3, sampleGroundHeight(15.3, -0.15), -0.15),
             Vec3(12.6, sampleGroundHeight(12.6, -0.12), -0.12),
             Vec3(0, sampleGroundHeight(0, 0), 0),
+            Vec3(-6, sampleGroundHeight(-6, -0.05), -0.05),
           ],
           speed: 1.65,
         ),
@@ -518,11 +585,15 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           position: Vec3(-9.5, sampleGroundHeight(-9.5, -0.16), -0.16),
           waypoints: [
             Vec3(-9.5, sampleGroundHeight(-9.5, -0.16), -0.16),
-            Vec3(0, sampleGroundHeight(0, 0.2), 0.2),
-            Vec3(9, sampleGroundHeight(9, 0.3), 0.3),
-            Vec3(9.3, sampleGroundHeight(9.3, 8.2), 8.2),
-            Vec3(9, sampleGroundHeight(9, 0.3), 0.3),
-            Vec3(0, sampleGroundHeight(0, 0.2), 0.2),
+            Vec3(0, sampleGroundHeight(0, 0.15), 0.15),
+            Vec3(10.6, sampleGroundHeight(10.6, 0.25), 0.25),
+            Vec3(10.6, sampleGroundHeight(10.6, 3.6), 3.6),
+            Vec3(9.2, sampleGroundHeight(9.2, 6.2), 6.2),
+            Vec3(9.2, sampleGroundHeight(9.2, 8.8), 8.8),
+            Vec3(9.2, sampleGroundHeight(9.2, 6.2), 6.2),
+            Vec3(10.6, sampleGroundHeight(10.6, 3.6), 3.6),
+            Vec3(10.6, sampleGroundHeight(10.6, 0.25), 0.25),
+            Vec3(0, sampleGroundHeight(0, 0.15), 0.15),
           ],
           carriesLantern: true,
           speed: 1.35,
@@ -531,14 +602,26 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         _SimAgent(
           id: EntityId.validated('merchant_traveler'),
           role: StreetAgentRole.nightSmuggler,
-          position: Vec3(9.2, sampleGroundHeight(9.2, 11.5), 11.5),
+          position: Vec3(9.1, sampleGroundHeight(9.1, 12.2), 12.2),
           waypoints: [
-            Vec3(9, sampleGroundHeight(9, 12), 12),
-            Vec3(9, sampleGroundHeight(9, 1.8), 1.8),
-            Vec3(0, sampleGroundHeight(0, -0.3), -0.3),
-            Vec3(-7.8, sampleGroundHeight(-7.8, -2), -2),
-            Vec3(-8.4, sampleGroundHeight(-8.4, -9.2), -9.2),
-            Vec3(-7.8, sampleGroundHeight(-7.8, -2), -2),
+            Vec3(9.1, sampleGroundHeight(9.1, 12.2), 12.2),
+            Vec3(9.2, sampleGroundHeight(9.2, 8.8), 8.8),
+            Vec3(9.2, sampleGroundHeight(9.2, 6.2), 6.2),
+            Vec3(10.6, sampleGroundHeight(10.6, 3.6), 3.6),
+            Vec3(10.6, sampleGroundHeight(10.6, 0.2), 0.2),
+            Vec3(0, sampleGroundHeight(0, -0.2), -0.2),
+            Vec3(-8.2, sampleGroundHeight(-8.2, -0.4), -0.4),
+            Vec3(-8.3, sampleGroundHeight(-8.3, -5.4), -5.4),
+            Vec3(-8.9, sampleGroundHeight(-8.9, -8.9), -8.9),
+            Vec3(-10.4, sampleGroundHeight(-10.4, -10.8), -10.8),
+            Vec3(-8.9, sampleGroundHeight(-8.9, -8.9), -8.9),
+            Vec3(-8.3, sampleGroundHeight(-8.3, -5.4), -5.4),
+            Vec3(-8.2, sampleGroundHeight(-8.2, -0.4), -0.4),
+            Vec3(0, sampleGroundHeight(0, -0.2), -0.2),
+            Vec3(10.6, sampleGroundHeight(10.6, 0.2), 0.2),
+            Vec3(10.6, sampleGroundHeight(10.6, 3.6), 3.6),
+            Vec3(9.2, sampleGroundHeight(9.2, 6.2), 6.2),
+            Vec3(9.2, sampleGroundHeight(9.2, 8.8), 8.8),
           ],
           speed: 1.55,
           bobPhase: 2.8,
@@ -550,21 +633,91 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
+  static Node? _findNodeByName(Node root, String targetName) {
+    if (root.name == targetName || root.name.contains(targetName)) {
+      return root;
+    }
+    for (final child in root.children) {
+      final found = _findNodeByName(child, targetName);
+      if (found != null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  static const List<String> _heroAgentAssetPaths = <String>[
+    'assets/models/edo_person_merchant.glb',
+    'assets/models/edo_person_townswoman.glb',
+    'assets/models/edo_person_porter.glb',
+    'assets/models/edo_person_watchman.glb',
+    'assets/models/edo_person_samurai.glb',
+    'assets/models/edo_person_monk.glb',
+  ];
+
+  static String _heroAgentAssetFor(_SimAgent agent) {
+    if (agent.role == StreetAgentRole.lanternWatchman || agent.carriesLantern) {
+      return 'assets/models/edo_person_watchman.glb';
+    }
+    final name = agent.id.value.toLowerCase();
+    if (name.contains('samurai') ||
+        name.contains('courier') ||
+        name.contains('guard')) {
+      return 'assets/models/edo_person_samurai.glb';
+    }
+    if (name.contains('monk') || name.contains('shrine')) {
+      return 'assets/models/edo_person_monk.glb';
+    }
+    if (name.contains('porter') || name.contains('dock')) {
+      return 'assets/models/edo_person_porter.glb';
+    }
+    if (name.contains('townswoman') || name.contains('shopper')) {
+      return 'assets/models/edo_person_townswoman.glb';
+    }
+    if (name.contains('merchant')) {
+      return 'assets/models/edo_person_merchant.glb';
+    }
+    if (agent.role == StreetAgentRole.nightSmuggler) {
+      return agent.id.value.hashCode.abs().isEven
+          ? 'assets/models/edo_person_samurai.glb'
+          : 'assets/models/edo_person_porter.glb';
+    }
+    return switch (agent.id.value.hashCode.abs() % 4) {
+      0 => 'assets/models/edo_person_merchant.glb',
+      1 => 'assets/models/edo_person_townswoman.glb',
+      2 => 'assets/models/edo_person_porter.glb',
+      _ => 'assets/models/edo_person_monk.glb',
+    };
+  }
+
   void _rebuildAgentNodes() {
     if (_scene == null) {
       return;
     }
     _agentsNode.removeAll();
     _agentNodes.clear();
+    _agentRigs.clear();
 
     for (final agent in _simAgents) {
-      final node =
-          _kitBuilder.buildStreetAgentNode(agent.role, _resolveMaterial)
-            ..position = agent.position.toVector3()
-            ..rotation = Quaternion.axisAngle(
-              Vector3(0, 1, 0),
-              agent.yawRadians,
-            );
+      final heroAsset = _heroAgentAssetFor(agent);
+      final proto = _heroStructurePrototypes[heroAsset];
+      late final Node node;
+      if (proto != null) {
+        final cloned = proto.clone();
+        _agentRigs[agent.id] = _AgentRig(
+          legL: _findNodeByName(cloned, 'person_leg_l'),
+          legR: _findNodeByName(cloned, 'person_leg_r'),
+          upper: _findNodeByName(cloned, 'person_upper'),
+        );
+        node = Node(name: 'hero_agent_${agent.id.value}')
+          ..position = agent.position.toVector3()
+          ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians)
+          ..add(cloned);
+      } else {
+        node = _kitBuilder.buildStreetAgentNode(agent.role, _resolveMaterial)
+          ..position = agent.position.toVector3()
+          ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
+      }
 
       _agentNodes[agent.id] = node;
       _agentsNode.add(node);
@@ -579,6 +732,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     _markGraphDeltaDirty(_graph, nextGraph);
     _graph = nextGraph;
+    _rebuildAgentObstacles();
     _rebuildGraphNodes();
   }
 
@@ -1113,51 +1267,129 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _rebuildFloraAtmosphereAndPreviewNodes();
   }
 
+  static double _lerpAngle(double a, double b, double t) {
+    var diff = (b - a) % (math.pi * 2);
+    if (diff > math.pi) {
+      diff -= math.pi * 2;
+    } else if (diff < -math.pi) {
+      diff += math.pi * 2;
+    }
+    return a + diff * t;
+  }
+
   @override
   void step(double dtSeconds, {required TimeOfDayRig rig}) {
     syncEmissives(rig);
     if (_simAgents.isEmpty) return;
     _walkTime += dtSeconds;
+    final obstacles = agentObstacles;
 
     for (final agent in _simAgents) {
       final target = agent.waypoints[agent.currentWaypointIndex];
-      final currentPosV = agent.position.toVector3();
-      final targetPosV = target.toVector3();
+      final prevX = agent.position.x;
+      final prevZ = agent.position.z;
 
-      final steering = Steering.arrive(
-        currentPosV,
-        agent.velocity,
-        targetPosV,
-        slowingRadius: 2,
-        maxSpeed: agent.speed,
-      );
+      if (agent.dwellSeconds > 0) {
+        agent.dwellSeconds = math.max(0, agent.dwellSeconds - dtSeconds);
+        agent.velocity *= (1.0 - dtSeconds * 6.0).clamp(0.0, 1.0);
+        final resolved = obstacles.resolvePosition(prevX, prevZ, prevX, prevZ);
+        if (resolved.hit) {
+          agent.position = Vec3(
+            resolved.x,
+            sampleGroundHeight(resolved.x, resolved.z),
+            resolved.z,
+          );
+        }
+      } else {
+        final currentPosV = Vector3(prevX, agent.position.y, prevZ);
+        final targetPosV = Vector3(target.x, agent.position.y, target.z);
+        final steering = Steering.arrive(
+          currentPosV,
+          agent.velocity,
+          targetPosV,
+          slowingRadius: 1.35,
+          maxSpeed: agent.speed,
+          maxForce: 14,
+        );
+        final avoid = obstacles.computeAvoidanceForce(
+          prevX,
+          prevZ,
+          target.x,
+          target.z,
+        );
 
-      agent.velocity += steering * dtSeconds;
-      var velLen = agent.velocity.length;
-      if (velLen > agent.speed) {
-        agent.velocity = agent.velocity * (agent.speed / velLen);
-        velLen = agent.speed;
+        agent.velocity = Vector3(
+          agent.velocity.x + (steering.x + avoid.fx) * dtSeconds,
+          0,
+          agent.velocity.z + (steering.z + avoid.fz) * dtSeconds,
+        );
+        final velLen = agent.velocity.length;
+        if (velLen > agent.speed) {
+          agent.velocity *= agent.speed / velLen;
+        }
+
+        final candX = prevX + agent.velocity.x * dtSeconds;
+        final candZ = prevZ + agent.velocity.z * dtSeconds;
+        final resolved = obstacles.resolvePosition(prevX, prevZ, candX, candZ);
+        final groundY = sampleGroundHeight(resolved.x, resolved.z);
+        agent.position = Vec3(resolved.x, groundY, resolved.z);
+
+        final dx = resolved.x - prevX;
+        final dz = resolved.z - prevZ;
+        final moveDist = math.sqrt(dx * dx + dz * dz);
+        if (resolved.hit && dtSeconds > 1e-6) {
+          agent.velocity = Vector3(dx / dtSeconds, 0, dz / dtSeconds);
+        }
+
+        if (moveDist < agent.speed * dtSeconds * 0.18) {
+          agent.stuckSeconds += dtSeconds;
+          if (agent.stuckSeconds > 1.4) {
+            final len = agent.waypoints.length;
+            final nextSign = -agent.directionSign;
+            agent
+              ..directionSign = nextSign
+              ..currentWaypointIndex =
+                  (agent.currentWaypointIndex + nextSign + len) % len
+              ..stuckSeconds = 0
+              ..velocity = Vector3.zero();
+          }
+        } else {
+          agent.stuckSeconds = math.max(0, agent.stuckSeconds - dtSeconds * 2);
+        }
+
+        if (dtSeconds > 1e-6 && moveDist / dtSeconds > 0.08) {
+          final desiredYaw = math.atan2(dx, dz);
+          agent.yawRadians = _lerpAngle(
+            agent.yawRadians,
+            desiredYaw,
+            (dtSeconds * 8.5).clamp(0.0, 1.0),
+          );
+        }
+
+        if (agent.position.horizontalDistanceTo(target) < 0.65) {
+          final len = agent.waypoints.length;
+          agent.currentWaypointIndex =
+              (agent.currentWaypointIndex + agent.directionSign + len) % len;
+          if ((agent.currentWaypointIndex + agent.id.value.hashCode).isEven) {
+            agent.dwellSeconds =
+                0.9 +
+                ((agent.id.value.hashCode + agent.currentWaypointIndex * 13)
+                            .abs() %
+                        5) *
+                    0.45;
+          }
+        }
       }
 
-      final nextPosV = currentPosV + agent.velocity * dtSeconds;
-      final groundY = sampleGroundHeight(nextPosV.x, nextPosV.z);
-      agent.position = Vec3(nextPosV.x, groundY, nextPosV.z);
-
-      if (velLen > 1e-2) {
-        agent.yawRadians = math.atan2(agent.velocity.x, agent.velocity.z);
-      }
-
-      if (agent.position.horizontalDistanceTo(target) < 1) {
-        agent.currentWaypointIndex =
-            (agent.currentWaypointIndex + 1) % agent.waypoints.length;
-      }
-
+      final velLen = agent.velocity.length;
       final node = _agentNodes[agent.id];
       if (node != null) {
-        final speedRatio = agent.speed > 0 ? velLen / agent.speed : 0.0;
+        final speedRatio = agent.speed > 0
+            ? (velLen / agent.speed).clamp(0.0, 1.0)
+            : 0.0;
         final phase = _walkTime * 7.2 + agent.bobPhase;
-        final bob = math.sin(phase).abs() * 0.034 * speedRatio;
-        final strideRoll = math.sin(phase) * 0.042 * speedRatio;
+        final bob = math.sin(phase).abs() * 0.028 * speedRatio;
+        final strideRoll = math.sin(phase) * 0.036 * speedRatio;
         final yawRot = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
         final cadenceRot = Quaternion.axisAngle(Vector3(0, 0, 1), strideRoll);
         node
@@ -1167,6 +1399,30 @@ class EdoWorldDriver implements ShukubaWorldDriver {
             agent.position.z,
           )
           ..rotation = yawRot * cadenceRot;
+
+        final rigState = _agentRigs[agent.id];
+        if (rigState != null) {
+          if (speedRatio > 0.05) {
+            final legSwing = math.sin(phase) * 0.40 * speedRatio;
+            rigState.legL?.rotation =
+                rigState.baseLegLRot *
+                Quaternion.axisAngle(Vector3(1, 0, 0), legSwing);
+            rigState.legR?.rotation =
+                rigState.baseLegRRot *
+                Quaternion.axisAngle(Vector3(1, 0, 0), -legSwing);
+            rigState.upper?.rotation =
+                rigState.baseUpperRot *
+                Quaternion.axisAngle(Vector3(0, 1, 0), legSwing * 0.14) *
+                Quaternion.axisAngle(Vector3(0, 0, 1), strideRoll * 0.55);
+          } else {
+            final idleSway = math.sin(_walkTime * 1.8 + agent.bobPhase) * 0.025;
+            rigState.legL?.rotation = rigState.baseLegLRot;
+            rigState.legR?.rotation = rigState.baseLegRRot;
+            rigState.upper?.rotation =
+                rigState.baseUpperRot *
+                Quaternion.axisAngle(Vector3(0, 0, 1), idleSway);
+          }
+        }
       }
     }
   }
@@ -1324,12 +1580,18 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     if (proto != null) {
       if (structure.kind.isBotanicalTree) {
         final hash = structure.id.value.hashCode.abs();
-        final uniformScale = 0.90 + (hash % 29) * 0.01;
+        final isBamboo = structure.kind == StructureKind.bambooGrove;
+        final uniformScale = isBamboo
+            ? 0.90 + (hash % 29) * 0.01
+            : 0.78 + (hash % 59) * 0.01;
+        final heightScale = isBamboo
+            ? uniformScale
+            : uniformScale * (0.94 + ((hash >> 4) % 13) * 0.01);
         final yaw = structure.yawRadians + ((hash % 628) * 0.01);
         final wrapper = Node(name: 'hero_tree_${structure.id.value}')
           ..position = structure.position.toVector3()
           ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), yaw)
-          ..scale = Vector3(uniformScale, uniformScale, uniformScale)
+          ..scale = Vector3(uniformScale, heightScale, uniformScale)
           ..add(proto.clone());
         return markSubtreeShadowStatic(wrapper);
       }
@@ -1445,6 +1707,16 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
         return;
       }
+    }
+
+    for (final agentAsset in _heroAgentAssetPaths) {
+      await _loadCachedGlbPrototype(agentAsset);
+      if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
+        return;
+      }
+    }
+    if (_scene != null) {
+      _rebuildAgentNodes();
     }
 
     if (_heroStructurePrototypes.isNotEmpty) {
@@ -1567,283 +1839,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         _heroPropsNode.add(propNode);
       }
     } else {
-      double rx(double z, double dx) => TerrainConfig.riverCenterX(z) + dx;
-
-      final heroPlacements =
-          <
-            ({
-              String name,
-              String assetPath,
-              double x,
-              double z,
-              double yaw,
-              double yOffset,
-            })
-          >[
-            (
-              name: 'hero_distant_pagoda',
-              assetPath: 'assets/models/edo_distant_pagoda.glb',
-              x: 68.0,
-              z: -21.0,
-              yaw: 0.42,
-              yOffset: -0.35,
-            ),
-            (
-              name: 'hero_stone_lantern_bridge_w',
-              assetPath: 'assets/models/edo_stone_lantern.glb',
-              x: -6.35,
-              z: 2.35,
-              yaw: 0.0,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_stone_lantern_bridge_e',
-              assetPath: 'assets/models/edo_stone_lantern.glb',
-              x: 6.15,
-              z: 2.30,
-              yaw: 3.14,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_stone_lantern_torii_n',
-              assetPath: 'assets/models/edo_stone_lantern.glb',
-              x: -22.8,
-              z: 2.85,
-              yaw: 0.10,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_stone_lantern_torii_s',
-              assetPath: 'assets/models/edo_stone_lantern.glb',
-              x: -22.8,
-              z: -2.85,
-              yaw: -0.10,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_handcart_west',
-              assetPath: 'assets/models/edo_handcart.glb',
-              x: -14.8,
-              z: -2.35,
-              yaw: 0.25,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_handcart_east',
-              assetPath: 'assets/models/edo_handcart.glb',
-              x: 22.6,
-              z: 2.15,
-              yaw: -0.35,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_sake_barrels_chaya',
-              assetPath: 'assets/models/edo_sake_barrels.glb',
-              x: -8.5,
-              z: 3.35,
-              yaw: 0.40,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_sake_barrels_market',
-              assetPath: 'assets/models/edo_sake_barrels.glb',
-              x: 10.4,
-              z: -2.55,
-              yaw: -0.30,
-              yOffset: 0.0,
-            ),
-            // Stone water-stairs seated along upper west bank to shallow edge
-            (
-              name: 'hero_river_stairs_nw',
-              assetPath: 'assets/models/edo_river_stairs.glb',
-              x: rx(-14.6, -3.55),
-              z: -14.6,
-              yaw: -0.18,
-              yOffset: sampleGroundHeight(rx(-14.6, -4.65), -14.6) -
-                  sampleGroundHeight(rx(-14.6, -3.55), -14.6) +
-                  0.04,
-            ),
-            (
-              name: 'hero_river_stairs_sw',
-              assetPath: 'assets/models/edo_river_stairs.glb',
-              x: rx(11.4, -3.55),
-              z: 11.4,
-              yaw: -0.22,
-              yOffset: sampleGroundHeight(rx(11.4, -4.65), 11.4) -
-                  sampleGroundHeight(rx(11.4, -3.55), 11.4) +
-                  0.04,
-            ),
-            // Sculpted mossy shoreline boulders & mid-stream whitewater shoals
-            (
-              name: 'hero_shore_boulder_w1',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(-10.2, -2.95),
-              z: -10.2,
-              yaw: 0.42,
-              yOffset: -0.16,
-            ),
-            (
-              name: 'hero_shore_boulder_w2',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(15.6, -3.05),
-              z: 15.6,
-              yaw: -1.15,
-              yOffset: -0.16,
-            ),
-            (
-              name: 'hero_shore_boulder_e1',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(-7.2, 3.15),
-              z: -7.2,
-              yaw: 1.85,
-              yOffset: -0.16,
-            ),
-            (
-              name: 'hero_shore_boulder_e2',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(9.4, 3.05),
-              z: 9.4,
-              yaw: -0.45,
-              yOffset: -0.16,
-            ),
-            (
-              name: 'hero_shore_riprap_w1',
-              assetPath: 'assets/models/rock_shore_riprap.glb',
-              x: rx(-5.8, -2.65),
-              z: -5.8,
-              yaw: 0.28,
-              yOffset: -0.12,
-            ),
-            (
-              name: 'hero_shore_riprap_w2',
-              assetPath: 'assets/models/rock_shore_riprap.glb',
-              x: rx(7.2, -2.70),
-              z: 7.2,
-              yaw: 1.55,
-              yOffset: -0.12,
-            ),
-            (
-              name: 'hero_shore_riprap_e1',
-              assetPath: 'assets/models/rock_shore_riprap.glb',
-              x: rx(-13.8, 2.85),
-              z: -13.8,
-              yaw: -0.82,
-              yOffset: -0.12,
-            ),
-            (
-              name: 'hero_shore_riprap_e2',
-              assetPath: 'assets/models/rock_shore_riprap.glb',
-              x: rx(14.8, 2.80),
-              z: 14.8,
-              yaw: 2.15,
-              yOffset: -0.12,
-            ),
-            (
-              name: 'hero_stream_shoal_n',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(-9.4, -0.92),
-              z: -9.4,
-              yaw: 0.58,
-              yOffset: 1.18,
-            ),
-            (
-              name: 'hero_stream_shoal_s',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(6.8, 1.02),
-              z: 6.8,
-              yaw: -0.78,
-              yOffset: 1.16,
-            ),
-            (
-              name: 'hero_stream_shoal_n2',
-              assetPath: 'assets/models/rock_river_boulder.glb',
-              x: rx(-18.5, -0.45),
-              z: -18.5,
-              yaw: 1.25,
-              yOffset: 1.16,
-            ),
-            // Street life props (wagons, wagasa benches, fences, andon, nobori)
-            (
-              name: 'hero_wagon_west',
-              assetPath: 'assets/models/edo_wagon.glb',
-              x: -20.4,
-              z: -2.45,
-              yaw: 1.42,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_wagon_east',
-              assetPath: 'assets/models/edo_wagon.glb',
-              x: 16.4,
-              z: 2.45,
-              yaw: -1.52,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_wagasa_west_chaya',
-              assetPath: 'assets/models/edo_wagasa_bench.glb',
-              x: -8.6,
-              z: 4.15,
-              yaw: 0.35,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_wagasa_east_alley',
-              assetPath: 'assets/models/edo_wagasa_bench.glb',
-              x: 10.2,
-              z: 7.5,
-              yaw: -1.25,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_bamboo_fence_nw',
-              assetPath: 'assets/models/edo_bamboo_fence.glb',
-              x: rx(-8.4, -4.15),
-              z: -8.4,
-              yaw: 1.52,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_bamboo_fence_sw',
-              assetPath: 'assets/models/edo_bamboo_fence.glb',
-              x: rx(8.6, -4.15),
-              z: 8.6,
-              yaw: 1.62,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_andon_west_1',
-              assetPath: 'assets/models/edo_andon_lantern.glb',
-              x: -14.2,
-              z: 2.95,
-              yaw: 0.0,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_andon_east_1',
-              assetPath: 'assets/models/edo_andon_lantern.glb',
-              x: 10.2,
-              z: -2.95,
-              yaw: 3.14,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_nobori_west',
-              assetPath: 'assets/models/edo_nobori_banner.glb',
-              x: -14.0,
-              z: 4.25,
-              yaw: 0.12,
-              yOffset: 0.0,
-            ),
-            (
-              name: 'hero_nobori_east',
-              assetPath: 'assets/models/edo_nobori_banner.glb',
-              x: 9.8,
-              z: 2.85,
-              yaw: 3.05,
-              yOffset: 0.0,
-            ),
-          ];
+      final heroPlacements = buildShukubaHeroPropPlacements(sampleGroundHeight);
 
       for (final item in heroPlacements) {
         final proto = await _loadCachedGlbPrototype(item.assetPath);
@@ -1857,6 +1853,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         final propNode = Node(name: item.name)
           ..position = Vector3(item.x, y, item.z)
           ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), item.yaw)
+          ..scale = Vector3.all(item.scale)
           ..add(proto.clone());
         _heroPropsNode.add(propNode);
       }
@@ -1870,6 +1867,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
     _collectEmissiveMaterials(_structuresNode, hintName: 'structures');
     _collectEmissiveMaterials(_heroPropsNode, hintName: 'hero_props');
+    _collectEmissiveMaterials(_agentsNode, hintName: 'agents');
     syncEmissives(_lastEmissiveRig);
   }
 
