@@ -74,8 +74,8 @@ void main() {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('PhysicalSkySource('), isTrue);
-        expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-        expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionRadius: 1.25'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 1.15'), isTrue);
 
         final floraSummaries = const FloraScatterBuilder()
             .computeChunkSummaries(

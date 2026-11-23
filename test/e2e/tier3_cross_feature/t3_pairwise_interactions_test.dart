@@ -192,7 +192,7 @@ void main() {
     );
 
     test('7. F4 x F7: Stepped rock sedimentary shelves trigger crisp sumi ink '
-        'normal creases at smoothstep(0.18, 0.68)', () async {
+        'normal creases at smoothstep(0.24, 0.78)', () async {
       final fragFile = File('shaders/sumi_ink.frag');
       expect(fragFile.existsSync(), isTrue);
       final fragSource = await fragFile.readAsString();
@@ -201,16 +201,16 @@ void main() {
       expect(fragSource.contains('normalCrease'), isTrue);
 
       double evaluateCrease(double x) {
-        const edge0 = 0.18;
-        const edge1 = 0.68;
+        const edge0 = 0.24;
+        const edge1 = 0.78;
         final t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
         return t * t * (3.0 - 2.0 * t);
       }
 
       expect(evaluateCrease(0.10), closeTo(0.0, 1e-5));
-      expect(evaluateCrease(0.18), closeTo(0.0, 1e-5));
-      expect(evaluateCrease(0.43), closeTo(0.5, 0.05));
-      expect(evaluateCrease(0.68), closeTo(1.0, 1e-5));
+      expect(evaluateCrease(0.24), closeTo(0.0, 1e-5));
+      expect(evaluateCrease(0.51), closeTo(0.5, 0.05));
+      expect(evaluateCrease(0.78), closeTo(1.0, 1e-5));
       expect(evaluateCrease(0.90), closeTo(1.0, 1e-5));
     });
 
@@ -258,12 +258,12 @@ void main() {
       expect(fmatSrc.contains('material.occlusion = finalOcclusion;'), isTrue);
     });
 
-    test('10. F6 x F10: Wide GTAO (radius: 1.05, intensity: 0.92), <= 12 '
+    test('10. F6 x F10: Wide GTAO (radius: 1.25, intensity: 1.15), <= 12 '
         'lanterns, 4x4 flora_tile_* chunks, and river caustics', () {
       final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
           .readAsStringSync();
-      expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-      expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
+      expect(lookSrc.contains('ambientOcclusionRadius: 1.25'), isTrue);
+      expect(lookSrc.contains('ambientOcclusionIntensity: 1.15'), isTrue);
       expect(lookSrc.contains('ambientOcclusionBentNormals: true'), isTrue);
 
       final world = EdoWorldDriver()..initSimulation();

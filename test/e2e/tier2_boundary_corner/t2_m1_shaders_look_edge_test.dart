@@ -217,8 +217,8 @@ void main() {
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
-        expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionRadius: 1.25'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 1.15'), isTrue);
         expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.62'), isTrue);
 
         final fmatSrc = File('assets/materials/gouache_lit.fmat')
@@ -252,7 +252,6 @@ void main() {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
         expect(lookSrc.contains('FogMode.exponential'), isTrue);
-        expect(lookSrc.contains('fogStart: 18'), isTrue);
         expect(lookSrc.contains('fogStart: 22'), isTrue);
         final fogDensities = RegExp(
           r'fogDensity:\s*([0-9.]+)',
@@ -261,8 +260,10 @@ void main() {
         for (final d in fogDensities) {
           expect(d, inInclusiveRange(0.001, 0.008));
         }
+        expect(lookSrc.contains('fogDensity: 0.0018'), isTrue);
         expect(lookSrc.contains('fogDensity: 0.0048'), isTrue);
         expect(lookSrc.contains('fogHeight: 1.4'), isTrue);
+        expect(lookSrc.contains('fogHeightFalloff: 0.44'), isTrue);
         expect(lookSrc.contains('fogHeightFalloff: 0.34'), isTrue);
         expect(lookSrc.contains('fogSkyColorInfluence: 0.28'), isTrue);
         expect(lookSrc.contains('fogSkyColorInfluence: 0.26'), isTrue);

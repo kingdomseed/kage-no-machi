@@ -98,8 +98,8 @@ void main() {
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc, contains('ambientOcclusionIntensity: 0.92'));
-        expect(lookSrc, contains('ambientOcclusionRadius: 1.05'));
+        expect(lookSrc, contains('ambientOcclusionIntensity: 1.15'));
+        expect(lookSrc, contains('ambientOcclusionRadius: 1.25'));
         expect(lookSrc, contains('ambientOcclusionMultiBounce: 0.62'));
         expect(lookSrc, contains('ambientOcclusionBentNormals: true'));
         expect(lookSrc, contains('SpecularAmbientOcclusionMode.bentCone'));
@@ -124,25 +124,25 @@ void main() {
       },
     );
 
-    test('Sumi ink crease smoothstep(0.18, 0.68) mathematical bounds', () {
+    test('Sumi ink crease smoothstep(0.24, 0.78) mathematical bounds', () {
       double smoothstep(double edge0, double edge1, double x) {
         final t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
         return t * t * (3.0 - 2.0 * t);
       }
 
-      expect(smoothstep(0.18, 0.68, 0), equals(0.0));
-      expect(smoothstep(0.18, 0.68, 0.179), equals(0.0));
-      expect(smoothstep(0.18, 0.68, 0.18), equals(0.0));
+      expect(smoothstep(0.24, 0.78, 0), equals(0.0));
+      expect(smoothstep(0.24, 0.78, 0.239), equals(0.0));
+      expect(smoothstep(0.24, 0.78, 0.24), equals(0.0));
 
-      expect(smoothstep(0.18, 0.68, 0.43), closeTo(0.50, 1e-4));
+      expect(smoothstep(0.24, 0.78, 0.51), closeTo(0.50, 1e-4));
 
-      expect(smoothstep(0.18, 0.68, 0.68), equals(1.0));
-      expect(smoothstep(0.18, 0.68, 0.95), equals(1.0));
-      expect(smoothstep(0.18, 0.68, 5), equals(1.0));
+      expect(smoothstep(0.24, 0.78, 0.78), equals(1.0));
+      expect(smoothstep(0.24, 0.78, 0.95), equals(1.0));
+      expect(smoothstep(0.24, 0.78, 5), equals(1.0));
 
       var prev = 0.0;
-      for (var i = 181; i < 680; i++) {
-        final val = smoothstep(0.18, 0.68, i / 1000.0);
+      for (var i = 241; i < 780; i++) {
+        final val = smoothstep(0.24, 0.78, i / 1000.0);
         expect(val, greaterThan(prev));
         prev = val;
       }
@@ -150,7 +150,7 @@ void main() {
 
     test('Sumi ink shader source contains exact crease threshold', () {
       final shaderSource = File('shaders/sumi_ink.frag').readAsStringSync();
-      expect(shaderSource, contains('smoothstep(0.18, 0.68, scaledCrease)'));
+      expect(shaderSource, contains('smoothstep(0.24, 0.78, scaledCrease)'));
       expect(
         shaderSource,
         contains(
@@ -160,7 +160,8 @@ void main() {
       expect(
         shaderSource,
         contains(
-          'float distAtten = clamp(1.20 - centerDepth * 0.0046, 0.50, 1.0)',
+          'float distAtten = clamp(1.0 - smoothstep(24.0, 82.0, centerDepth) '
+          '* 0.85, 0.15, 1.0)',
         ),
       );
     });

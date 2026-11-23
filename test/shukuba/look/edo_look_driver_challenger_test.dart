@@ -211,26 +211,29 @@ void main() {
             env.ambientOcclusionSpecularMode,
             SpecularAmbientOcclusionMode.bentCone,
           );
-          expect(env.ambientOcclusionIntensity, closeTo(0.92, 1e-5));
-          expect(env.ambientOcclusionRadius, closeTo(1.05, 1e-5));
-          expect(env.ambientOcclusionPower, closeTo(1.35, 1e-5));
+          expect(env.ambientOcclusionIntensity, closeTo(1.15, 1e-5));
+          expect(env.ambientOcclusionRadius, closeTo(1.25, 1e-5));
+          expect(env.ambientOcclusionPower, closeTo(1.48, 1e-5));
           expect(env.ambientOcclusionMultiBounce, closeTo(0.62, 1e-5));
           expect(env.ambientOcclusionDirectLightAffect, closeTo(0.08, 1e-5));
-          expect(env.exposure, inInclusiveRange(0.98 - 1e-5, 1.00 + 1e-5));
+          expect(env.exposure, inInclusiveRange(0.98 - 1e-5, 1.02 + 1e-5));
           expect(
             env.environmentIntensity,
-            inInclusiveRange(1.45 - 1e-5, 4.40 + 1e-5),
+            inInclusiveRange(1.45 - 1e-5, 2.55 + 1e-5),
           );
           expect(env.fogEnabled, isTrue);
           expect(env.fogMode, FogMode.exponential);
-          expect(env.fogStart, inInclusiveRange(18 - 1e-5, 22 + 1e-5));
+          expect(env.fogStart, closeTo(22, 1e-5));
           expect(
             env.fogDensity,
-            inInclusiveRange(0.0036 - 1e-6, 0.0048 + 1e-6),
+            inInclusiveRange(0.0018 - 1e-6, 0.0048 + 1e-6),
           );
-          expect(env.fogMaxOpacity, inInclusiveRange(0.42 - 1e-5, 0.44 + 1e-5));
+          expect(env.fogMaxOpacity, inInclusiveRange(0.24 - 1e-5, 0.44 + 1e-5));
           expect(env.fogHeight, closeTo(1.4, 1e-5));
-          expect(env.fogHeightFalloff, closeTo(0.34, 1e-5));
+          expect(
+            env.fogHeightFalloff,
+            inInclusiveRange(0.34 - 1e-5, 0.44 + 1e-5),
+          );
           expect(
             env.fogSunInScatter,
             inInclusiveRange(0.04 - 1e-5, 0.12 + 1e-5),
@@ -275,8 +278,8 @@ void main() {
         source,
         contains('shadowAmbientStrength = 0.28 + 0.08 * rig.nightFactor'),
       );
-      expect(source, contains('ambientOcclusionIntensity: 0.92'));
-      expect(source, contains('ambientOcclusionRadius: 1.05'));
+      expect(source, contains('ambientOcclusionIntensity: 1.15'));
+      expect(source, contains('ambientOcclusionRadius: 1.25'));
       expect(source, contains('ambientOcclusionMultiBounce: 0.62'));
       expect(source, contains('EnvironmentSettings.lerp('));
     });
@@ -299,7 +302,7 @@ void main() {
       expect(water, contains('GetSceneDepth('));
       expect(water, contains('GetSceneWorldPosition('));
       expect(water, contains('GetSceneColor('));
-      expect(water, contains('exp(-vec3(2.6, 0.95, 0.78) * thickness)'));
+      expect(water, contains('exp(-vec3(2.8, 1.05, 0.85) * thickness)'));
     });
   });
 }

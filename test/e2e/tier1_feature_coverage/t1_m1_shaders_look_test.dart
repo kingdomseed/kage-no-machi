@@ -170,22 +170,22 @@ void main() {
     });
 
     test(
-      'EnvironmentSettings ambientOcclusionRadius is configured to 1.05',
+      'EnvironmentSettings ambientOcclusionRadius is configured to 1.25',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc.contains('ambientOcclusionRadius: 1.05'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionRadius: 1.25'), isTrue);
         expect(lookSrc.contains('ambientOcclusionMultiBounce: 0.62'), isTrue);
       },
     );
 
     test(
-      'EnvironmentSettings ambientOcclusionIntensity is 0.92 and river water '
+      'EnvironmentSettings ambientOcclusionIntensity is 1.15 and river water '
       'declares scene_color + scene_depth caustics',
       () {
         final lookSrc = File('lib/shukuba/look/edo_look_driver.dart')
             .readAsStringSync();
-        expect(lookSrc.contains('ambientOcclusionIntensity: 0.92'), isTrue);
+        expect(lookSrc.contains('ambientOcclusionIntensity: 1.15'), isTrue);
 
         final waterSrc = File('assets/materials/river_water.fmat')
             .readAsStringSync();
@@ -247,7 +247,7 @@ void main() {
     });
 
     test(
-      'Normal crease threshold smoothstep bounds are set to (0.18, 0.68)',
+      'Normal crease threshold smoothstep bounds are set to (0.24, 0.78)',
       () {
         expect(fragSource, contains('normalCrease'));
         expect(fragSource, contains('smoothstep('));
@@ -256,8 +256,8 @@ void main() {
 
     test('Sumi ink edge attenuation scales smoothly with depth distance', () {
       const snippet =
-          'distAtten = clamp(1.20 - centerDepth * 0.0046, '
-          '0.50, 1.0)';
+          'distAtten = clamp(1.0 - smoothstep(24.0, 82.0, centerDepth) * '
+          '0.85, 0.15, 1.0)';
       expect(fragSource, contains(snippet));
       expect(fragSource, contains('skyFade'));
     });
