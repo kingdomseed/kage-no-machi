@@ -16,11 +16,11 @@ class SumiInkParams {
     this.normalWeight = defaultNormalWeight,
     this.washiGrainStrength = defaultWashiGrainStrength,
     this.skyFadeDistance = defaultSkyFadeDistance,
-  }) : inkColor = inkColor ?? Vector4(0.07, 0.08, 0.15, 0.58);
+  }) : inkColor = inkColor ?? Vector4(0.09, 0.08, 0.14, 0.24);
 
-  static const double defaultDepthWeight = 2.35;
-  static const double defaultNormalWeight = 1.55;
-  static const double defaultWashiGrainStrength = 0.014;
+  static const double defaultDepthWeight = 1.15;
+  static const double defaultNormalWeight = 1.15;
+  static const double defaultWashiGrainStrength = 0.010;
   static const double defaultSkyFadeDistance = 165;
 
   final Vector4 inkColor;

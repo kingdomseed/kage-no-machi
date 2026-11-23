@@ -77,29 +77,32 @@ fragment {
     float valleyMist = exp(-max(P.y + 4.0, 0.0) * 0.075) * smoothstep(84.0, 126.0, dist);
     float crestFade = smoothstep(0.35, 0.92, normElev);
 
+    vec3 coolMist = vec3(0.18, 0.18, 0.26);
+    vec3 warmMist = vec3(0.40, 0.26, 0.22);
     vec3 baseHaze = mix(
-      material_params.haze_color.rgb,
-      material_params.sun_rim_color.rgb,
-      pow(sunAlign, 1.6) * (0.28 + 0.52 * outerTier) * (0.45 + 0.55 * crestFade)
+      coolMist,
+      warmMist,
+      pow(sunAlign, 1.45) * (0.32 + 0.55 * outerTier) * (0.45 + 0.55 * crestFade)
     );
     vec3 nightHaze = vec3(0.045, 0.082, 0.165);
     vec3 activeHaze = mix(baseHaze, nightHaze, night);
 
     float mistWeight = clamp(
-      mix(0.18, 0.52, outerTier) + valleyMist * 0.28,
+      mix(0.24, 0.60, outerTier) + valleyMist * 0.32,
       0.0,
-      0.66
+      0.74
     );
     vec3 surfaceRgb = mix(ridgeBase, activeHaze, mistWeight);
 
-    vec3 duskCrestGlow = material_params.sun_rim_color.rgb *
-        (sunRim * pow(sunAlign, 2.0) * mix(0.025, 0.095, outerTier) * (1.0 - night));
+    vec3 duskCrestGlow = warmMist *
+        (sunRim * pow(sunAlign, 1.8) * mix(0.03, 0.11, outerTier) * (1.0 - night));
 
     material.base_color = vec4(surfaceRgb, 1.0);
     material.emissive = duskCrestGlow;
     material.normal = perturbedN;
     material.metallic = 0.0;
-    material.roughness = 0.99;
+    material.roughness = 1.0;
+    material.specular = 0.0;
     material.occlusion = mix(gullyAo, 0.94, outerTier * 0.50);
 
     PrepareMaterial(material);

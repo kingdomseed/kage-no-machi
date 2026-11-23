@@ -2300,7 +2300,7 @@ class TimeOfDayRig {
   Vec3 get celestialSkyDirection => (celestialRayDirection * -1).normalized();
 
   Vec3 get celestialLinearRgb => Vec3.lerp(
-    const Vec3(1, 0.72, 0.44),
+    const Vec3(1, 0.74, 0.46),
     const Vec3(0.46, 0.64, 0.96),
     nightFactor,
   );
@@ -2308,7 +2308,7 @@ class TimeOfDayRig {
   Color get celestialHudColor =>
       isMoonlit ? const Color(0xFF8AB4F8) : const Color(0xFFFFB86C);
 
-  double get celestialIntensity => 3.85 - 2.85 * nightFactor;
+  double get celestialIntensity => 4.95 - 3.65 * nightFactor;
 
   double get shojiEmissiveGain => 0.12 + 2.55 * nightFactor;
 

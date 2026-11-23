@@ -86,9 +86,9 @@ void main() {
 
   vec2 d = frame_info.texel_size;
   float inkWarpX =
-      sin(v_uv.y * frame_info.resolution.y * 0.055 + v_uv.x * 19.0) * 0.45 * d.x;
+      sin(v_uv.y * frame_info.resolution.y * 0.055 + v_uv.x * 19.0) * 0.35 * d.x;
   float inkWarpY =
-      cos(v_uv.x * frame_info.resolution.x * 0.055 - v_uv.y * 17.0) * 0.45 * d.y;
+      cos(v_uv.x * frame_info.resolution.x * 0.055 - v_uv.y * 17.0) * 0.35 * d.y;
   vec2 edgeUv = v_uv + vec2(inkWarpX, inkWarpY);
 
   vec4 sLeft = texture(scene_depth_linear, edgeUv - vec2(d.x, 0.0));
@@ -96,12 +96,28 @@ void main() {
   vec4 sBottom = texture(scene_depth_linear, edgeUv - vec2(0.0, d.y));
   vec4 sTop = texture(scene_depth_linear, edgeUv + vec2(0.0, d.y));
 
+  // Prevent huge depth jumps onto distant sky/ocean horizons from tracing heavy black contours.
+  float maxNeighborDepth = max(
+    max(sLeft.r, sRight.r),
+    max(sBottom.r, sTop.r)
+  );
+  float horizonMask = clamp(
+    (skyDistance * 0.78 - maxNeighborDepth) / max(skyDistance * 0.16, 1.0),
+    0.0,
+    1.0
+  );
+  float dLeft = min(sLeft.r, centerDepth + 12.0);
+  float dRight = min(sRight.r, centerDepth + 12.0);
+  float dBottom = min(sBottom.r, centerDepth + 12.0);
+  float dTop = min(sTop.r, centerDepth + 12.0);
+
   float denom = max(centerDepth, 1.2);
-  float distAtten = clamp(1.20 - centerDepth * 0.0046, 0.50, 1.0);
-  float lapH = abs(sLeft.r + sRight.r - 2.0 * centerDepth) / denom;
-  float lapV = abs(sTop.r + sBottom.r - 2.0 * centerDepth) / denom;
+  float distAtten = clamp(1.0 - smoothstep(24.0, 82.0, centerDepth) * 0.85, 0.15, 1.0);
+  float lapH = abs(dLeft + dRight - 2.0 * centerDepth) / denom;
+  float lapV = abs(dTop + dBottom - 2.0 * centerDepth) / denom;
   float laplacian = (lapH + lapV) * ink_params.weights.x;
-  float depthEdge = smoothstep(0.015, 0.058, laplacian) * skyFade * distAtten;
+  float depthEdge =
+      smoothstep(0.022, 0.075, laplacian) * skyFade * distAtten * horizonMask;
 
   vec3 nCenter = DecodeDepthPrepassNormal(centerSample.gb);
   vec3 nLeft = DecodeDepthPrepassNormal(sLeft.gb);
@@ -114,9 +130,9 @@ void main() {
       (1.0 - dot(nCenter, nRight)) +
       (1.0 - dot(nCenter, nBottom)) +
       (1.0 - dot(nCenter, nTop));
-  float scaledCrease = creaseRaw * ink_params.weights.y * 0.62;
+  float scaledCrease = creaseRaw * ink_params.weights.y * 0.56;
   float normalCrease =
-      smoothstep(0.18, 0.68, scaledCrease) * skyFade * distAtten;
+      smoothstep(0.24, 0.78, scaledCrease) * skyFade * distAtten * horizonMask;
 
   float maxRough = max(
     centerSample.a,
@@ -126,8 +142,7 @@ void main() {
       - 0.78 * smoothstep(0.960, 0.980, maxRough)
       - 0.16 * smoothstep(0.986, 0.992, maxRough);
   float edge =
-      clamp(max(depthEdge, normalCrease * 0.82), 0.0, 1.0) * botanicalDamp;
-  edge *= clamp(1.0 - smoothstep(45.0, 115.0, centerDepth) * 0.72, 0.25, 1.0);
+      clamp(max(depthEdge, normalCrease * 0.78), 0.0, 1.0) * botanicalDamp;
 
   float depthTol = max(0.25, centerDepth * 0.035);
   float v0;
@@ -153,7 +168,7 @@ void main() {
     kuwaharaRgb = m3;
   }
 
-  float kuwaharaMix = 0.42 * skyFade * distAtten * (1.0 - edge * 0.85);
+  float kuwaharaMix = 0.14 * skyFade * distAtten * (1.0 - edge * 0.85);
   vec3 painterlyRgb = mix(base.rgb, kuwaharaRgb, kuwaharaMix);
 
   float luma = dot(painterlyRgb, vec3(0.2126, 0.7152, 0.0722));
@@ -162,10 +177,11 @@ void main() {
   painterlyRgb += vec3(0.005, 0.014, 0.036) * shadowLift;
   painterlyRgb *= mix(vec3(1.0), vec3(1.05, 1.00, 0.93), warmGlaze);
 
+  float brightDamp = 1.0 - smoothstep(0.55, 0.92, luma) * 0.45;
   vec3 inkModulated = mix(
     painterlyRgb,
     painterlyRgb * ink_params.ink_color.rgb,
-    edge * ink_params.ink_color.a
+    edge * brightDamp * ink_params.ink_color.a
   );
 
   vec2 px = gl_FragCoord.xy;

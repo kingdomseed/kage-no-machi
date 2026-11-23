@@ -359,7 +359,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('bamboo_west_gorge'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(-5.6, wardY(-5.6, -9.4), -9.4),
+      position: Vec3(-7.4, wardY(-7.4, -10.2), -10.2),
       yawRadians: -0.45,
     ),
     PlacedStructure(
@@ -466,7 +466,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('bamboo_east_tanada'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(36.6, wardY(36.6, 11.2) + 0.04, 11.2),
+      position: Vec3(34.8, wardY(34.8, 12.6), 12.6),
       yawRadians: -0.40,
     ),
     PlacedStructure(
@@ -580,7 +580,7 @@ ShukubaGraph buildStarterShukubaGraph(GroundHeightSampler sampleGroundY) {
     PlacedStructure(
       id: EntityId.validated('bamboo_east_pasture'),
       kind: StructureKind.bambooGrove,
-      position: Vec3(39.2, wardY(39.2, -10.8), -10.8),
+      position: Vec3(36.5, wardY(36.5, -5.8), -5.8),
       yawRadians: 0.56,
     ),
     PlacedStructure(

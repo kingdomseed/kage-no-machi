@@ -67,6 +67,9 @@ class ShukubaController extends ChangeNotifier {
       await world.attach(scene, resolveMaterial: look.materialFor);
       await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
     }
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.syncEmissives(_timeOfDay);
+    }
     look.syncFrame(
       rig: _timeOfDay,
       vision: effectiveVision,
@@ -134,6 +137,9 @@ class ShukubaController extends ChangeNotifier {
     await audio.attach(scene, loopAnchors: world.ambientLoopAnchors);
 
     stageSw.reset();
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.syncEmissives(_timeOfDay);
+    }
     look.syncFrame(
       rig: _timeOfDay,
       vision: effectiveVision,
@@ -200,6 +206,9 @@ class ShukubaController extends ChangeNotifier {
       loopAnchors: world.ambientLoopAnchors,
     );
     if (_isReady) {
+      if (world case final EdoWorldDriver edoWorld) {
+        edoWorld.syncEmissives(_timeOfDay);
+      }
       look.syncFrame(
         rig: _timeOfDay,
         vision: effectiveVision,
@@ -705,6 +714,9 @@ class ShukubaController extends ChangeNotifier {
   void _syncLookImmediate() {
     if (!_isReady) {
       return;
+    }
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.syncEmissives(_timeOfDay);
     }
     look.syncFrame(
       rig: _timeOfDay,

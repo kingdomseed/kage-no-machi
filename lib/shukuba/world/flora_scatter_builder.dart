@@ -417,20 +417,20 @@ class _FloraExclusionIndex {
 
   double sampleHabitatAffinity(double x, double z) {
     final wallDist = minWallOrTerraceDistance(x, z);
-    final wallPocket = wallDist < 3.6
-        ? math.exp(-math.pow((wallDist - 1.15) / 1.15, 2)) * 0.94
+    final wallPocket = wallDist < 3.8
+        ? math.exp(-math.pow((wallDist - 1.10) / 1.25, 2)) * 0.96
         : 0.0;
 
     final bankPocket =
         realm == ShowcaseRealm.shukubaValley &&
-            (x - TerrainConfig.riverCenterX(z)).abs() < 7.2
+            (x - TerrainConfig.riverCenterX(z)).abs() < 7.8
         ? math.exp(
                 -math.pow(
-                  ((x - TerrainConfig.riverCenterX(z)).abs() - 3.55) / 1.95,
+                  ((x - TerrainConfig.riverCenterX(z)).abs() - 3.70) / 2.15,
                   2,
                 ),
               ) *
-              0.92
+              0.96
         : 0.0;
 
     final roadEdge = minRoadEdgeDistance(x, z);
@@ -1199,17 +1199,17 @@ class FloraScatterBuilder {
     }
 
     if (realm == ShowcaseRealm.shukubaValley) {
-      const reedCandidates = 520;
+      const reedCandidates = 640;
       final placedReeds = <Vector2>[];
       for (var i = 0; i < reedCandidates; i++) {
         final side = i.isEven ? -1.0 : 1.0;
         final u = ((i + 1) * 0.6180339887498949) % 1.0;
         final z = -84.5 + (i / reedCandidates) * 169.0 + (u - 0.5) * 0.92;
-        if (math.sin(z * 0.55 + side * 1.4) <= 0.15) {
+        if (math.sin(z * 0.55 + side * 1.4) <= 0.10) {
           continue;
         }
         final goldenMix = (i * 0.38196601125) % 1.0;
-        final bankDist = 2.42 + 2.05 * goldenMix;
+        final bankDist = 2.60 + 2.30 * goldenMix;
         final x = TerrainConfig.riverCenterX(z) + side * bankDist;
         if (!index.isClear(x, z, roadMargin: 0.44, minRiverDist: 2.34)) {
           continue;

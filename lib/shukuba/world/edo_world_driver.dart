@@ -9,6 +9,7 @@ import 'package:flutter_scene/scene.dart'
         Material,
         Mesh,
         Node,
+        PhysicallyBasedMaterial,
         Scene,
         ShadowCastingMode,
         loadScene,
@@ -124,6 +125,14 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   bool _heroBridgeAttached = false;
   final Map<String, Node> _heroStructurePrototypes = <String, Node>{};
   final List<String> _loadedScenePaths = <String>[];
+  final Set<PhysicallyBasedMaterial> _seenEmissives =
+      Set<PhysicallyBasedMaterial>.identity();
+  final List<PhysicallyBasedMaterial> _cachedShojiEmissives =
+      <PhysicallyBasedMaterial>[];
+  final List<PhysicallyBasedMaterial> _cachedLanternEmissives =
+      <PhysicallyBasedMaterial>[];
+  TimeOfDayRig _lastEmissiveRig = TimeOfDayRig.goldenDusk;
+  double _lastSyncedEmissiveNightFactor = double.nan;
 
   final Set<int> _dirtyFloraChunkIndices = <int>{
     for (var i = 0; i < TerrainConfig.chunkCount; i++) i,
@@ -400,6 +409,10 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _lastAtmosphereGraph = null;
     _agentNodes.clear();
     _agentsNode.removeAll();
+    _seenEmissives.clear();
+    _cachedShojiEmissives.clear();
+    _cachedLanternEmissives.clear();
+    _lastSyncedEmissiveNightFactor = double.nan;
   }
 
   void _initAgents({bool rebuildNodes = true}) {
@@ -1048,6 +1061,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
   @override
   void step(double dtSeconds, {required TimeOfDayRig rig}) {
+    syncEmissives(rig);
     if (_simAgents.isEmpty) return;
     _walkTime += dtSeconds;
 
@@ -1110,26 +1124,75 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     'assets/models/tree_willow_weeping.glb',
     'assets/models/tree_bamboo_clump.glb',
     'assets/models/machiya_hero.glb',
+    'assets/models/machiya_hero_v1.glb',
+    'assets/models/machiya_hero_v2.glb',
+    'assets/models/machiya_hero_v3.glb',
     'assets/models/kura_warehouse_hero.glb',
+    'assets/models/kura_warehouse_hero_v1.glb',
     'assets/models/teahouse_hero.glb',
+    'assets/models/teahouse_hero_v1.glb',
+    'assets/models/teahouse_hero_v2.glb',
+    'assets/models/minka_hero_v0.glb',
+    'assets/models/minka_hero_v1.glb',
+    'assets/models/yatai_stall_v0.glb',
+    'assets/models/yatai_stall_v1.glb',
+    'assets/models/yatai_stall_v2.glb',
+    'assets/models/yatai_stall_v3.glb',
+    'assets/models/rock_cliff_a.glb',
+    'assets/models/rock_cliff_b.glb',
   ];
 
-  static String? _heroStructureAssetFor(PlacedStructure structure) =>
-      switch (structure.kind) {
-        StructureKind.mapleCluster =>
-          ((structure.variant + structure.id.value.hashCode) & 1) == 0
-              ? 'assets/models/tree_maple_hero.glb'
-              : 'assets/models/tree_maple_gold.glb',
-        StructureKind.pineTree => 'assets/models/tree_pine_bonsai.glb',
-        StructureKind.weepingWillow => 'assets/models/tree_willow_weeping.glb',
-        StructureKind.bambooGrove => 'assets/models/tree_bamboo_clump.glb',
-        StructureKind.machiya => 'assets/models/machiya_hero.glb',
-        StructureKind.kura => 'assets/models/kura_warehouse_hero.glb',
-        StructureKind.chaya => 'assets/models/teahouse_hero.glb',
-        _ => null,
-      };
+  static String? _heroStructureAssetFor(PlacedStructure structure) {
+    final hash = structure.id.value.hashCode.abs();
+    return switch (structure.kind) {
+      StructureKind.mapleCluster =>
+        ((structure.variant + hash) & 1) == 0
+            ? 'assets/models/tree_maple_hero.glb'
+            : 'assets/models/tree_maple_gold.glb',
+      StructureKind.pineTree => 'assets/models/tree_pine_bonsai.glb',
+      StructureKind.weepingWillow => 'assets/models/tree_willow_weeping.glb',
+      StructureKind.bambooGrove => 'assets/models/tree_bamboo_clump.glb',
+      StructureKind.machiya => switch ((structure.variant + hash) & 3) {
+        0 => 'assets/models/machiya_hero.glb',
+        1 => 'assets/models/machiya_hero_v1.glb',
+        2 => 'assets/models/machiya_hero_v2.glb',
+        _ => 'assets/models/machiya_hero_v3.glb',
+      },
+      StructureKind.kura =>
+        ((structure.variant + hash) & 1) == 0
+            ? 'assets/models/kura_warehouse_hero.glb'
+            : 'assets/models/kura_warehouse_hero_v1.glb',
+      StructureKind.chaya => switch ((structure.variant + hash) % 3) {
+        0 => 'assets/models/teahouse_hero.glb',
+        1 => 'assets/models/teahouse_hero_v1.glb',
+        _ => 'assets/models/teahouse_hero_v2.glb',
+      },
+      StructureKind.minka =>
+        ((structure.variant + hash) & 1) == 0
+            ? 'assets/models/minka_hero_v0.glb'
+            : 'assets/models/minka_hero_v1.glb',
+      StructureKind.marketStall => switch ((structure.variant + hash) & 3) {
+        0 => 'assets/models/yatai_stall_v0.glb',
+        1 => 'assets/models/yatai_stall_v1.glb',
+        2 => 'assets/models/yatai_stall_v2.glb',
+        _ => 'assets/models/yatai_stall_v3.glb',
+      },
+      StructureKind.rockOutcrop =>
+        ((structure.variant + hash) & 1) == 0
+            ? 'assets/models/rock_cliff_a.glb'
+            : 'assets/models/rock_cliff_b.glb',
+      _ => null,
+    };
+  }
 
-  static void _overrideSubtreeMaterial(Node root, Material material) {
+  static void _overrideSubtreeMaterial(
+    Node root,
+    Material material, {
+    bool skipPineNodes = false,
+  }) {
+    if (skipPineNodes && root.name.contains('IslandPine')) {
+      return;
+    }
     final mesh = root.mesh;
     if (mesh != null) {
       for (final prim in mesh.primitives) {
@@ -1137,7 +1200,58 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       }
     }
     for (final child in root.children) {
-      _overrideSubtreeMaterial(child, material);
+      _overrideSubtreeMaterial(child, material, skipPineNodes: skipPineNodes);
+    }
+  }
+
+  /// Registers mutable GLTF emissive materials (paper shoji panels vs glowing
+  /// paper lanterns) so dusk frames do not blast full midnight HDR emission.
+  void _collectEmissiveMaterials(Node root, {String hintName = ''}) {
+    final mesh = root.mesh;
+    final combinedHint = '${hintName}_${root.name}'.toLowerCase();
+    if (mesh != null) {
+      for (final prim in mesh.primitives) {
+        final mat = prim.material;
+        if (mat is PhysicallyBasedMaterial &&
+            mat.emissiveFactor.length2 > 1e-4 &&
+            mat.emissiveStrength > 0 &&
+            _seenEmissives.add(mat)) {
+          final isLantern =
+              combinedHint.contains('lantern') ||
+              combinedHint.contains('chochin') ||
+              combinedHint.contains('beacon') ||
+              combinedHint.contains('fire') ||
+              (mat.emissiveFactor.x > 0.70 && mat.emissiveFactor.y < 0.48) ||
+              mat.emissiveStrength >= 2.2;
+          if (isLantern) {
+            _cachedLanternEmissives.add(mat);
+          } else {
+            _cachedShojiEmissives.add(mat);
+          }
+          _lastSyncedEmissiveNightFactor = double.nan;
+        }
+      }
+    }
+    for (final child in root.children) {
+      _collectEmissiveMaterials(child, hintName: combinedHint);
+    }
+  }
+
+  /// Scales cached GLTF shoji window and lantern emissives with [rig].
+  void syncEmissives(TimeOfDayRig rig) {
+    _lastEmissiveRig = rig;
+    if ((_lastSyncedEmissiveNightFactor - rig.nightFactor).abs() < 1e-4 &&
+        _seenEmissives.isNotEmpty) {
+      return;
+    }
+    _lastSyncedEmissiveNightFactor = rig.nightFactor;
+    final shojiStrength = 0.36 + 1.88 * rig.nightFactor;
+    final lanternStrength = 1.15 + 2.35 * rig.nightFactor;
+    for (final mat in _cachedShojiEmissives) {
+      mat.emissiveStrength = shojiStrength;
+    }
+    for (final mat in _cachedLanternEmissives) {
+      mat.emissiveStrength = lanternStrength;
     }
   }
 
@@ -1165,6 +1279,19 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           ..add(proto.clone());
         return markSubtreeShadowStatic(wrapper);
       }
+      if (structure.kind == StructureKind.rockOutcrop) {
+        final hash = structure.id.value.hashCode.abs();
+        final uniformScale = 0.92 + (hash % 24) * 0.01;
+        final wrapper = Node(name: 'hero_rock_${structure.id.value}')
+          ..position = structure.position.toVector3()
+          ..rotation = Quaternion.axisAngle(
+            Vector3(0, 1, 0),
+            structure.yawRadians,
+          )
+          ..scale = Vector3(uniformScale, uniformScale, uniformScale)
+          ..add(proto.clone());
+        return markSubtreeShadowStatic(wrapper);
+      }
       final wrapper = Node(name: 'hero_structure_${structure.id.value}')
         ..position = structure.position.toVector3()
         ..rotation = Quaternion.axisAngle(
@@ -1173,6 +1300,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         )
         ..scale = Vector3(1, 1, 1)
         ..add(proto.clone());
+      _collectEmissiveMaterials(wrapper, hintName: structure.id.value);
+      syncEmissives(_lastEmissiveRig);
       return markSubtreeShadowStatic(wrapper);
     }
     return markSubtreeShadowStatic(
@@ -1224,6 +1353,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _overrideSubtreeMaterial(
         vistaMountains,
         _resolveMaterial(ShukubaSurfaceRole.mountainVista),
+        skipPineNodes: true,
       );
       _setSubtreeShadowCasting(vistaMountains, ShadowCastingMode.off);
       _horizonRidgesNode.visible = false;
@@ -1381,7 +1511,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         _heroPropsNode.add(propNode);
       }
     } else {
-      const heroPlacements =
+      double rx(double z, double dx) => TerrainConfig.riverCenterX(z) + dx;
+
+      final heroPlacements =
           <
             ({
               String name,
@@ -1464,6 +1596,197 @@ class EdoWorldDriver implements ShukubaWorldDriver {
               yaw: -0.30,
               yOffset: 0.0,
             ),
+            // Stone water-stairs seated along upper west bank to shallow edge
+            (
+              name: 'hero_river_stairs_nw',
+              assetPath: 'assets/models/edo_river_stairs.glb',
+              x: rx(-14.6, -3.55),
+              z: -14.6,
+              yaw: -0.18,
+              yOffset: sampleGroundHeight(rx(-14.6, -4.65), -14.6) -
+                  sampleGroundHeight(rx(-14.6, -3.55), -14.6) +
+                  0.04,
+            ),
+            (
+              name: 'hero_river_stairs_sw',
+              assetPath: 'assets/models/edo_river_stairs.glb',
+              x: rx(11.4, -3.55),
+              z: 11.4,
+              yaw: -0.22,
+              yOffset: sampleGroundHeight(rx(11.4, -4.65), 11.4) -
+                  sampleGroundHeight(rx(11.4, -3.55), 11.4) +
+                  0.04,
+            ),
+            // Sculpted mossy shoreline boulders & mid-stream whitewater shoals
+            (
+              name: 'hero_shore_boulder_w1',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(-10.2, -2.95),
+              z: -10.2,
+              yaw: 0.42,
+              yOffset: -0.16,
+            ),
+            (
+              name: 'hero_shore_boulder_w2',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(15.6, -3.05),
+              z: 15.6,
+              yaw: -1.15,
+              yOffset: -0.16,
+            ),
+            (
+              name: 'hero_shore_boulder_e1',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(-7.2, 3.15),
+              z: -7.2,
+              yaw: 1.85,
+              yOffset: -0.16,
+            ),
+            (
+              name: 'hero_shore_boulder_e2',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(9.4, 3.05),
+              z: 9.4,
+              yaw: -0.45,
+              yOffset: -0.16,
+            ),
+            (
+              name: 'hero_shore_riprap_w1',
+              assetPath: 'assets/models/rock_shore_riprap.glb',
+              x: rx(-5.8, -2.65),
+              z: -5.8,
+              yaw: 0.28,
+              yOffset: -0.12,
+            ),
+            (
+              name: 'hero_shore_riprap_w2',
+              assetPath: 'assets/models/rock_shore_riprap.glb',
+              x: rx(7.2, -2.70),
+              z: 7.2,
+              yaw: 1.55,
+              yOffset: -0.12,
+            ),
+            (
+              name: 'hero_shore_riprap_e1',
+              assetPath: 'assets/models/rock_shore_riprap.glb',
+              x: rx(-13.8, 2.85),
+              z: -13.8,
+              yaw: -0.82,
+              yOffset: -0.12,
+            ),
+            (
+              name: 'hero_shore_riprap_e2',
+              assetPath: 'assets/models/rock_shore_riprap.glb',
+              x: rx(14.8, 2.80),
+              z: 14.8,
+              yaw: 2.15,
+              yOffset: -0.12,
+            ),
+            (
+              name: 'hero_stream_shoal_n',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(-9.4, -0.92),
+              z: -9.4,
+              yaw: 0.58,
+              yOffset: 1.18,
+            ),
+            (
+              name: 'hero_stream_shoal_s',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(6.8, 1.02),
+              z: 6.8,
+              yaw: -0.78,
+              yOffset: 1.16,
+            ),
+            (
+              name: 'hero_stream_shoal_n2',
+              assetPath: 'assets/models/rock_river_boulder.glb',
+              x: rx(-18.5, -0.45),
+              z: -18.5,
+              yaw: 1.25,
+              yOffset: 1.16,
+            ),
+            // Street life props (wagons, wagasa benches, fences, andon, nobori)
+            (
+              name: 'hero_wagon_west',
+              assetPath: 'assets/models/edo_wagon.glb',
+              x: -20.4,
+              z: -2.45,
+              yaw: 1.42,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_wagon_east',
+              assetPath: 'assets/models/edo_wagon.glb',
+              x: 16.4,
+              z: 2.45,
+              yaw: -1.52,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_wagasa_west_chaya',
+              assetPath: 'assets/models/edo_wagasa_bench.glb',
+              x: -8.6,
+              z: 4.15,
+              yaw: 0.35,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_wagasa_east_alley',
+              assetPath: 'assets/models/edo_wagasa_bench.glb',
+              x: 10.2,
+              z: 7.5,
+              yaw: -1.25,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_bamboo_fence_nw',
+              assetPath: 'assets/models/edo_bamboo_fence.glb',
+              x: rx(-8.4, -4.15),
+              z: -8.4,
+              yaw: 1.52,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_bamboo_fence_sw',
+              assetPath: 'assets/models/edo_bamboo_fence.glb',
+              x: rx(8.6, -4.15),
+              z: 8.6,
+              yaw: 1.62,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_andon_west_1',
+              assetPath: 'assets/models/edo_andon_lantern.glb',
+              x: -14.2,
+              z: 2.95,
+              yaw: 0.0,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_andon_east_1',
+              assetPath: 'assets/models/edo_andon_lantern.glb',
+              x: 10.2,
+              z: -2.95,
+              yaw: 3.14,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_nobori_west',
+              assetPath: 'assets/models/edo_nobori_banner.glb',
+              x: -14.0,
+              z: 4.25,
+              yaw: 0.12,
+              yOffset: 0.0,
+            ),
+            (
+              name: 'hero_nobori_east',
+              assetPath: 'assets/models/edo_nobori_banner.glb',
+              x: 9.8,
+              z: 2.85,
+              yaw: 3.05,
+              yOffset: 0.0,
+            ),
           ];
 
       for (final item in heroPlacements) {
@@ -1486,6 +1809,12 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     if (_heroPropsNode.children.isNotEmpty) {
       markSubtreeShadowStatic(_heroPropsNode);
     }
+    for (final proto in _heroStructurePrototypes.entries) {
+      _collectEmissiveMaterials(proto.value, hintName: proto.key);
+    }
+    _collectEmissiveMaterials(_structuresNode, hintName: 'structures');
+    _collectEmissiveMaterials(_heroPropsNode, hintName: 'hero_props');
+    syncEmissives(_lastEmissiveRig);
   }
 
   @override

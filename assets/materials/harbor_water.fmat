@@ -6,9 +6,9 @@ material {
   depth_write: false,
   engine_inputs: [scene_color, scene_depth, planar_reflection],
   parameters: [
-    { type: vec4, name: shallow_color, hint: source_color, default: [0.026, 0.088, 0.118, 0.88] },
-    { type: vec4, name: deep_color, hint: source_color, default: [0.008, 0.022, 0.052, 0.98] },
-    { type: vec4, name: foam_color, hint: source_color, default: [0.92, 0.88, 0.82, 0.92] },
+    { type: vec4, name: shallow_color, hint: source_color, default: [0.022, 0.088, 0.112, 0.90] },
+    { type: vec4, name: deep_color, hint: source_color, default: [0.008, 0.024, 0.056, 0.98] },
+    { type: vec4, name: foam_color, hint: source_color, default: [0.92, 0.89, 0.84, 0.94] },
     { type: float, name: gust_strength, default: 1.0 },
     { type: float, name: time_sec, default: 0.0 },
     { type: float, name: night_mix, default: 0.0 }
@@ -25,41 +25,31 @@ fragment {
     float gust,
     float mipFade
   ) {
-    const vec2 dirs[4] = vec2[4](
-      vec2(-0.88, 0.47),
-      vec2(-0.64, -0.77),
-      vec2(-0.96, 0.28),
-      vec2(-0.42, 0.91)
-    );
-    const float kLens[4] = float[4](0.65, 1.35, 2.75, 5.20);
-    const float amps[4] = float[4](0.044, 0.028, 0.0155, 0.0085);
-    const float speeds[4] = float[4](1.25, 1.75, 2.40, 3.20);
-    const float steepness[4] = float[4](0.46, 0.40, 0.34, 0.28);
+    // Organic domain-warped swells + non-collinear cross waves (eliminates diagonal banding)
+    vec2 eddyWarp = vec2(
+      NoiseFbm2(p * 0.075 + vec2(0.0, t * 0.045), 311, 2, 2.0, 0.5),
+      NoiseFbm2(p * 0.075 + vec2(11.3, -t * 0.038), 419, 2, 2.0, 0.5)
+    ) * 1.95;
+    vec2 wp = p + eddyWarp;
 
-    vec2 warpedP = p;
-    for (int i = 0; i < 4; i++) {
-      float w = i >= 2 ? mipFade : 1.0;
-      float amp = amps[i] * w;
-      float phase = dot(p, dirs[i]) * kLens[i] - t * speeds[i];
-      warpedP -= dirs[i] * (steepness[i] * amp * sin(phase));
-    }
+    const vec2 d0 = vec2(-0.721, 0.693);
+    const vec2 d1 = vec2(-0.342, -0.940);
+    float ph0 = dot(wp, d0) * 0.52 - t * 1.05;
+    float ph1 = dot(wp, d1) * 0.88 - t * 1.38;
+    vec2 grad = d0 * (0.015 * 0.52 * cos(ph0)) + d1 * (0.011 * 0.88 * cos(ph1));
 
-    vec2 grad = vec2(0.0);
-    for (int i = 0; i < 4; i++) {
-      float w = i >= 2 ? mipFade : 1.0;
-      float amp = amps[i] * w;
-      float k = kLens[i];
-      float phase = dot(warpedP, dirs[i]) * k - t * speeds[i];
-      float denom = max(1.0 - steepness[i] * k * amp * sin(phase), 0.38);
-      grad += dirs[i] * ((k * amp * cos(phase)) / denom);
-    }
+    // Organic multi-scale capillary chop via finite differences
+    const vec2 eps = vec2(0.08, 0.0);
+    vec2 cpA = wp * 0.72 + vec2(-t * 0.42, t * 0.24);
+    vec2 cpB = wp * 1.68 + vec2(t * 0.35, -t * 0.52);
+    float hC = NoiseSimplex2(cpA, 733) * 0.60 + NoiseSimplex2(cpB, 617) * 0.40 * mipFade;
+    float hX = NoiseSimplex2(cpA + eps.xy, 733) * 0.60 + NoiseSimplex2(cpB + eps.xy * 1.3, 617) * 0.40 * mipFade;
+    float hY = NoiseSimplex2(cpA + eps.yx, 733) * 0.60 + NoiseSimplex2(cpB + eps.yx * 1.3, 617) * 0.40 * mipFade;
+    vec2 chopGrad = vec2(hX - hC, hY - hC) / eps.x;
 
-    const vec2 windDir = vec2(0.76, -0.65);
-    float gustEnv = 0.55 + 0.45 * sin(dot(p, windDir) * 0.11 - t * 0.65);
-    float capA = NoiseSimplex2(warpedP * 2.6 - windDir * (t * 1.15), 733);
-    float capB = NoiseSimplex2(warpedP * 5.8 + vec2(1.4, -t * 1.65), 617) * mipFade;
-    float capAmp = 0.040 * (0.55 + 0.45 * gust * gustEnv) * mix(0.35, 1.0, mipFade);
-    grad += vec2(capA + capB * 0.55, capA - capB * 0.55) * capAmp;
+    float gustEnv = 0.62 + 0.38 * NoiseSimplex2(p * 0.045 + vec2(t * 0.06, -t * 0.04), 211);
+    float chopGain = 0.032 * (0.58 + 0.42 * gust * gustEnv) * mix(0.35, 1.0, mipFade);
+    grad += chopGrad * chopGain;
     return grad;
   }
 
@@ -73,13 +63,9 @@ fragment {
     float footprint = clamp(length(fwidth(wp)), 0.002, 2.0);
     float mipFade = 1.0 - smoothstep(0.06, 0.42, footprint);
 
-    vec2 swellWarp = vec2(
-      NoiseSimplex2(wp.xz * 0.042, 311),
-      NoiseSimplex2(wp.xz * 0.042 + vec2(17.3, -9.1), 419)
-    ) * 2.6;
-    float distFade = mix(0.38, 1.0, 1.0 - smoothstep(45.0, 175.0, length(wp.xz)));
+    float distFade = mix(0.36, 1.0, 1.0 - smoothstep(45.0, 175.0, length(wp.xz)));
     vec2 waveGrad = EvaluateHarborSwell(
-      wp.xz + swellWarp,
+      wp.xz,
       t,
       material_params.gust_strength,
       mipFade
@@ -94,7 +80,7 @@ fragment {
     float viewCosY = clamp(abs(viewDir.y) * 1.15, 0.42, 1.0);
     float preThickness = hasSceneDepth ? max(0.0, unrefractedDepth - fragDepth) * viewCosY : 3.0;
 
-    float refractStrength = clamp(preThickness * 0.042, 0.0, 0.016);
+    float refractStrength = clamp(preThickness * 0.040, 0.0, 0.015);
     vec2 candidateOffset = rippledNormal.xz * refractStrength;
     float candidateDepth = hasSceneDepth ? GetSceneDepth(candidateOffset) : unrefractedDepth;
     bool foregroundBlocked = candidateDepth < fragDepth + 0.005;
@@ -103,83 +89,84 @@ fragment {
 
     float rawThickness = validSceneDepth < 1.0e5 ? max(0.0, validSceneDepth - fragDepth) : 12.0;
     float thickness = hasSceneDepth ? clamp(rawThickness * viewCosY, 0.0, 12.0) : 3.0;
-    float shoreFeather = hasSceneDepth ? smoothstep(0.012, 0.16, thickness) : 1.0;
-    float glintGate = smoothstep(0.04, 0.24, thickness);
+    float shoreNoise = NoiseFbm2(wp.xz * 0.45 + vec2(t * 0.08, -t * 0.05), 577, 2, 2.0, 0.5);
+    float organicThickness = max(0.0, thickness + shoreNoise * 0.14);
+    float shoreFeather = hasSceneDepth ? smoothstep(0.0, 0.32, organicThickness) : 1.0;
+    float glintGate = smoothstep(0.05, 0.28, organicThickness);
 
     // Beer-Lambert shallow jade harbor transitioning to deep Prussian bay indigo
-    vec3 activeTransmittance = exp(-vec3(2.2, 0.95, 0.72) * thickness);
-    float depthT = clamp(1.0 - exp(-thickness * 1.15), 0.0, 1.0);
+    vec3 activeTransmittance = exp(-vec3(2.4, 1.05, 0.78) * thickness);
+    float depthT = clamp(1.0 - exp(-thickness * 1.25), 0.0, 1.0);
 
     vec3 shallowJade = material_params.shallow_color.rgb;
     vec3 deepPrussian = material_params.deep_color.rgb;
-    vec3 nightPrussian = vec3(0.010, 0.026, 0.064);
+    vec3 nightPrussian = vec3(0.006, 0.016, 0.042);
     vec3 waterBodyColor = mix(shallowJade, mix(deepPrussian, nightPrussian, night), depthT);
 
-    // Gentle wave-lap foam against quay stone seawalls, ship hulls, and piling shorelines
-    float lapMask = (1.0 - smoothstep(0.06, 0.24, thickness)) * smoothstep(0.010, 0.035, thickness);
-    float foamNoiseA = NoiseSimplex2(wp.xz * 2.8 + vec2(t * 0.35, -t * 0.25), 503) * 0.5 + 0.5;
-    float foamNoiseB = NoiseSimplex2(wp.xz * 6.4 - vec2(t * 0.55, t * 0.30), 521) * 0.5 + 0.5;
-    float foamPattern = smoothstep(0.42, 0.85, foamNoiseA * 0.65 + foamNoiseB * 0.35);
-    float foamStrength = clamp(lapMask * foamPattern * 0.52 * glintGate, 0.0, 0.45);
+    // Crisp organic surf foam collar against coastal rocks, seawalls, pilings, and ship hulls
+    float lapMask = (1.0 - smoothstep(0.08, 0.34, organicThickness)) *
+        smoothstep(0.010, 0.048, organicThickness);
+    float foamNoiseA = NoiseSimplex2(wp.xz * 2.4 + vec2(t * 0.32, -t * 0.22), 503) * 0.5 + 0.5;
+    float foamNoiseB = NoiseSimplex2(wp.xz * 5.8 - vec2(t * 0.48, t * 0.28), 521) * 0.5 + 0.5;
+    float foamPattern = smoothstep(0.34, 0.82, foamNoiseA * 0.62 + foamNoiseB * 0.38);
+    float foamStrength = clamp(lapMask * foamPattern * 0.85 * glintGate, 0.0, 0.78);
 
-    // Planar reflection + Fresnel sunset sky & sun glitter path
+    // Sun direction & subdued sky Fresnel (keeps deep Prussian shadow troughs contrasty)
     vec3 rawLD = frag_info.directional_light_direction.xyz;
     float lenLD2 = dot(rawLD, rawLD);
     vec3 toSun = (frag_info.has_directional_light > 0.5 && lenLD2 > 1e-6)
         ? (-rawLD * inversesqrt(lenLD2))
         : normalize(vec3(0.855, 0.23, -0.437));
     vec3 sunTint = frag_info.has_directional_light > 0.5
-        ? clamp(frag_info.directional_light_color.rgb, vec3(0.18), vec3(1.6, 1.25, 0.95))
-        : vec3(1.0, 0.68, 0.36);
+        ? clamp(frag_info.directional_light_color.rgb, vec3(0.18), vec3(1.45, 1.15, 0.88))
+        : vec3(1.0, 0.72, 0.42);
 
     float nDotV = clamp(dot(rippledNormal, viewDir), 0.0, 1.0);
-    float fresnel = 0.03 + 0.97 * pow(1.0 - nDotV, 5.0);
+    float fresnel = 0.02 + 0.98 * pow(1.0 - nDotV, 5.0);
 
     vec2 sunXZ = length(toSun.xz) > 1e-4 ? normalize(toSun.xz) : vec2(0.89, -0.45);
-    float waveFacet = clamp(dot(waveGrad, sunXZ) * 2.8, -0.35, 0.55);
-    waterBodyColor *= (1.0 + waveFacet * 0.45);
+    float waveFacet = clamp(dot(waveGrad, sunXZ) * 2.4, -0.28, 0.38);
+    waterBodyColor *= (1.0 + waveFacet * 0.42);
 
     vec3 reflDir = reflect(-viewDir, rippledNormal);
-    float horizonWarm = pow(clamp(dot(reflDir, toSun) * 0.5 + 0.5, 0.0, 1.0), 3.0);
-    vec3 duskSkyRefl = mix(vec3(0.065, 0.095, 0.175), sunTint * vec3(0.58, 0.36, 0.22), horizonWarm);
-    vec3 nightSkyRefl = mix(vec3(0.035, 0.070, 0.145), vec3(0.28, 0.42, 0.68), horizonWarm * 0.65);
+    float horizonWarm = pow(clamp(dot(reflDir, toSun) * 0.5 + 0.5, 0.0, 1.0), 3.4);
+    vec3 duskSkyRefl = mix(vec3(0.032, 0.058, 0.115), sunTint * vec3(0.32, 0.21, 0.14), horizonWarm);
+    vec3 nightSkyRefl = mix(vec3(0.022, 0.046, 0.098), vec3(0.18, 0.28, 0.48), horizonWarm * 0.55);
     vec3 skyReflectColor = mix(duskSkyRefl, nightSkyRefl, night);
 
     vec4 planarRefl = GetPlanarReflection();
-    float rippleDamp = clamp(1.0 - length(waveGrad) * 4.5, 0.60, 1.0);
-    vec3 softPlanar = planarRefl.rgb / (vec3(1.0) + planarRefl.rgb * 0.90);
+    float rippleDamp = clamp(1.0 - length(waveGrad) * 4.2, 0.58, 1.0);
+    vec3 softPlanar = planarRefl.rgb / (vec3(1.0) + planarRefl.rgb * 1.15);
     vec3 envReflection = planarRefl.a > 0.5
-        ? mix(skyReflectColor, softPlanar * rippleDamp, 0.54)
+        ? mix(skyReflectColor, softPlanar * rippleDamp, 0.42)
         : skyReflectColor;
     vec3 reflectedRadiance = envReflection *
-        (fresnel * mix(0.34, 0.58, night) + pow(1.0 - nDotV, 4.0) * 0.10) *
+        (fresnel * mix(0.22, 0.44, night) + pow(1.0 - nDotV, 5.0) * 0.04) *
         glintGate;
 
-    // Signature sunset / moonlight water glitter path across harbor waves
+    // Crisp sun-glitter sparkle path confined to reflected sun column
     vec3 halfVec = normalize(toSun + viewDir);
     float nDotH = max(dot(rippledNormal, halfVec), 0.0);
-    float sunGlintTight = pow(nDotH, 360.0) * 1.85;
-    float sparkleBand = smoothstep(
-      0.28,
-      0.84,
-      NoiseSimplex2(vec2(wp.x * 0.32, wp.z * 1.55 - t * 0.35), 811) * 0.5 + 0.5
-    );
-    float sunSatin = pow(nDotH, 108.0) * (0.18 + 0.58 * sparkleBand);
-    float broadSheen = pow(max(dot(reflDir, toSun), 0.0), 14.0) * 0.06;
-    float elevGate = smoothstep(-0.02, 0.12, toSun.y);
+    float glintCellA = NoiseSimplex2(wp.xz * 1.45 + vec2(t * 0.38, -t * 0.28), 811) * 0.5 + 0.5;
+    float glintCellB = NoiseSimplex2(wp.xz * 3.60 - vec2(t * 0.52, t * 0.44), 853) * 0.5 + 0.5;
+    float sparkleMask = smoothstep(0.56, 0.88, glintCellA * 0.55 + glintCellB * 0.45);
+    float sunGlintPin = pow(nDotH, 520.0) * (0.45 + 1.45 * sparkleMask);
+    float sunGlintTight = pow(nDotH, 300.0) * (0.09 + 0.56 * sparkleMask);
+    float broadSheen = pow(max(dot(reflDir, toSun), 0.0), 26.0) * 0.025;
+    float elevGate = smoothstep(-0.02, 0.14, toSun.y);
 
     vec3 glitterTint = mix(
-      sunTint * vec3(1.22, 0.74, 0.30),
+      sunTint * vec3(1.25, 0.78, 0.34),
       vec3(0.45, 0.65, 0.95),
       night
     );
     vec3 sunPath = glitterTint *
-        (sunGlintTight + sunSatin + broadSheen) *
-        mix(1.0, 0.42, night) *
+        (sunGlintPin + sunGlintTight + broadSheen) *
+        mix(1.0, 0.40, night) *
         elevGate *
-        (1.0 - foamStrength * 0.75) *
+        (1.0 - foamStrength * 0.80) *
         glintGate;
-    sunPath = sunPath / (vec3(1.0) + sunPath * 0.55);
+    sunPath = sunPath / (vec3(1.0) + sunPath * 0.72);
 
     vec3 outBaseRgb;
     vec3 outEmissive;
@@ -187,34 +174,35 @@ fragment {
 
     if (frag_info.scene_inputs.x > 0.5) {
       vec3 sceneBedColor = GetSceneColor(refractUvOffset);
-      float bedFade = smoothstep(3.2, 0.35, thickness);
+      float bedFade = smoothstep(2.6, 0.25, thickness);
       vec3 transmittedBed = sceneBedColor *
           activeTransmittance *
           (1.0 - fresnel * 0.85) *
           (1.0 - foamStrength) *
           bedFade;
       vec3 inScatteredBody = waterBodyColor * (vec3(1.0) - activeTransmittance);
-      outBaseRgb = mix(inScatteredBody, material_params.foam_color.rgb * 0.86, foamStrength);
-      outAlpha = clamp(mix(max(0.84, fresnel), 0.99, depthT), 0.0, 1.0);
-      outAlpha = mix(outAlpha, max(outAlpha, 0.94), foamStrength);
-      outEmissive = transmittedBed * mix(0.75, 1.0, depthT) + reflectedRadiance + sunPath;
+      outBaseRgb = mix(inScatteredBody, material_params.foam_color.rgb * 0.90, foamStrength);
+      outAlpha = clamp(mix(max(0.86, fresnel), 0.99, depthT), 0.0, 1.0);
+      outAlpha = mix(outAlpha, max(outAlpha, 0.95), foamStrength);
+      outEmissive = transmittedBed * mix(0.72, 1.0, depthT) + reflectedRadiance + sunPath;
     } else {
-      outBaseRgb = mix(waterBodyColor, material_params.foam_color.rgb * 0.86, foamStrength);
-      outAlpha = clamp(mix(max(0.62, fresnel), 0.98, depthT), 0.0, 1.0);
-      outAlpha = mix(outAlpha, max(outAlpha, 0.94), foamStrength);
+      outBaseRgb = mix(waterBodyColor, material_params.foam_color.rgb * 0.90, foamStrength);
+      outAlpha = clamp(mix(max(0.68, fresnel), 0.98, depthT), 0.0, 1.0);
+      outAlpha = mix(outAlpha, max(outAlpha, 0.95), foamStrength);
       outEmissive = reflectedRadiance + sunPath;
     }
 
-    float horizonMist = smoothstep(95.0, 195.0, length(wp.xz));
+    float distXZ = length(wp.xz);
+    float horizonMist = smoothstep(130.0, 360.0, distXZ);
     vec3 activeHorizon = mix(
-      mix(vec3(0.24, 0.18, 0.22), sunTint * vec3(0.46, 0.29, 0.20), horizonWarm),
-      vec3(0.025, 0.048, 0.105),
+      mix(vec3(0.15, 0.13, 0.19), vec3(0.38, 0.24, 0.20), pow(horizonWarm, 1.15)),
+      vec3(0.018, 0.036, 0.082),
       night
     );
-    outEmissive = mix(outEmissive, activeHorizon, horizonMist * 0.78);
-    outBaseRgb = mix(outBaseRgb, activeHorizon * 0.35, horizonMist * 0.78);
+    outEmissive = mix(outEmissive, activeHorizon, horizonMist * 0.85);
+    outBaseRgb = mix(outBaseRgb, activeHorizon * 0.55, horizonMist * 0.85);
 
-    float horizonAlpha = 1.0 - smoothstep(185.0, 238.0, length(wp.xz));
+    float horizonAlpha = 1.0 - smoothstep(320.0, 520.0, distXZ);
     outAlpha *= shoreFeather * horizonAlpha;
     outEmissive *= shoreFeather * horizonAlpha;
 
@@ -222,8 +210,8 @@ fragment {
     material.emissive = outEmissive;
     material.normal = rippledNormal;
     material.metallic = 0.0;
-    material.roughness = mix(0.38, 0.58, foamStrength);
-    material.specular = mix(0.22, 0.14, foamStrength);
+    material.roughness = mix(0.42, 0.62, foamStrength);
+    material.specular = mix(0.18, 0.10, foamStrength);
     material.occlusion = mix(0.92, 1.0, 1.0 - depthT * 0.22);
 
     PrepareMaterial(material);

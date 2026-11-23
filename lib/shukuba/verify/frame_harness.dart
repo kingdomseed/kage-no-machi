@@ -23,6 +23,8 @@ import 'package:kage_no_machi/shukuba/audio/edo_audio_driver.dart'
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:kage_no_machi/shukuba/world/edo_kit_builder.dart'
     show EdoKitBuilder;
+import 'package:kage_no_machi/shukuba/world/edo_world_driver.dart'
+    show EdoWorldDriver;
 import 'package:vector_math/vector_math.dart' show Vector3, Vector4;
 
 const String kShukubaCaptureDir = String.fromEnvironment('SHUKUBA_CAPTURE_DIR');
@@ -631,6 +633,9 @@ class ShukubaFrameHarness {
         world.step(1 / 60, rig: preset.timeOfDay);
       }
     }
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.syncEmissives(preset.timeOfDay);
+    }
     look.syncFrame(
       rig: preset.timeOfDay,
       vision: preset.visionState,
@@ -833,7 +838,7 @@ class ShukubaFrameHarness {
       int resolvePumpCount(CameraPreset preset) {
         final changed = (preset.timeOfDay.value - lastTimeValue).abs() > 0.008;
         lastTimeValue = preset.timeOfDay.value;
-        return changed ? 18 : 2;
+        return changed ? 26 : 2;
       }
 
       for (var i = 0; i < valleyPresets.length; i++) {
@@ -983,6 +988,9 @@ class ShukubaFrameHarness {
             lanternSpans: world.graph.previewLanternSpansFor(candidate),
           ),
         );
+        if (world case final EdoWorldDriver edoWorld) {
+          edoWorld.syncEmissives(hoverPreset.timeOfDay);
+        }
         look.syncFrame(
           rig: hoverPreset.timeOfDay,
           vision: MagistrateVisionState.hidden,
@@ -1034,6 +1042,9 @@ class ShukubaFrameHarness {
         world.applyGraph(savedBenchGraph);
       } else if (specimenPlans.isNotEmpty) {
         applyPreset(CameraPreset.duskOverview);
+        if (world case final EdoWorldDriver edoWorld) {
+          edoWorld.syncEmissives(CameraPreset.duskOverview.timeOfDay);
+        }
         look.syncFrame(
           rig: CameraPreset.duskOverview.timeOfDay,
           vision: MagistrateVisionState.hidden,
@@ -1216,6 +1227,9 @@ class ShukubaFrameHarness {
         elapsedSeconds += stepSeconds;
         world.step(stepSeconds, rig: initialPreset.timeOfDay);
       }
+      if (world case final EdoWorldDriver edoWorld) {
+        edoWorld.syncEmissives(initialPreset.timeOfDay);
+      }
       look.syncFrame(
         rig: initialPreset.timeOfDay,
         vision: MagistrateVisionState.hidden,
@@ -1258,6 +1272,9 @@ class ShukubaFrameHarness {
         applyPreset(framePreset);
         elapsedSeconds += stepSeconds;
         world.step(stepSeconds, rig: rig);
+        if (world case final EdoWorldDriver edoWorld) {
+          edoWorld.syncEmissives(rig);
+        }
         look.syncFrame(
           rig: rig,
           vision: MagistrateVisionState.hidden,

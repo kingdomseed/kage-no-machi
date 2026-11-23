@@ -270,10 +270,18 @@ class TerrainBuilder {
     final breakwaterSpit = spitEnter * spitExit;
 
     final northRetreat = _quintic((-46.0 - z) / 28.0);
+    // Natural cove undulations only north of castle and south of quay
+    final naturalShoreMask =
+        (1.0 - _quintic((z - (-42.5)) / 3.5)) +
+        _quintic((z - 31.0) / 4.5);
+    final shoreUndulation =
+        (1.15 * math.sin(z * 0.14 + 0.5) + 0.65 * math.cos(z * 0.29 - 0.8)) *
+        naturalShoreMask.clamp(0.0, 1.0);
     return coveBase +
         castlePromontory * 17.6 +
         breakwaterSpit * 18.2 -
-        northRetreat * 24.0;
+        northRetreat * 24.0 +
+        shoreUndulation;
   }
 
   double sampleMinatoRawTerrain(double x, double z) {
@@ -331,13 +339,14 @@ class TerrainBuilder {
       landY = landY + (0.86 - landY) * spitW;
     }
 
-    // Steep seawall drop / rocky coastal cliff -> deep harbor seabed (-4.5m)
+    // Steep seawall drop / wider sloped rocky coastal shelf -> deep harbor seabed (-4.5m)
     final seaward = x - coastX;
     if (seaward <= 0.0) {
       return landY;
     }
     const seaFloorY = -4.50;
-    final dropSpan = 1.5 + 1.1 * castleZMask;
+    final engineeredEdge = math.max(quayZMask, castleZMask);
+    final dropSpan = 1.5 + 0.35 * castleZMask + 2.4 * (1.0 - engineeredEdge);
     if (seaward >= dropSpan) {
       final shoal =
           0.14 * math.sin(x * 0.16 + z * 0.11) +
@@ -394,20 +403,32 @@ class TerrainBuilder {
       eastSlope += outerEastRise - eastRoadNotch;
     }
 
-    if (dist <= TerrainConfig.riverBankHalfWidth) {
+    final bridgeCalm = _quintic(((z.abs() - 3.6) / 3.8).clamp(0.0, 1.0));
+    final bankWave =
+        (0.62 * math.sin(z * 0.14 + (signed < 0 ? 0.4 : 1.7)) +
+            0.38 * math.cos(z * 0.29 - (signed < 0 ? 0.9 : 0.2)) +
+            0.22 * math.sin(z * 0.53 + x * 0.18)) *
+        bridgeCalm;
+    final effectiveHalfWidth = TerrainConfig.riverBankHalfWidth + bankWave;
+    final effectiveTransition =
+        TerrainConfig.riverTransitionWidth + 0.75 * bridgeCalm;
+
+    if (dist <= effectiveHalfWidth) {
       final shoal = 0.11 * math.sin(z * 0.34) * math.cos(x * 0.44);
       return TerrainConfig.riverBedElevation + shoal;
     }
 
     final bankTarget = signed < 0 ? westPlain : eastSlope;
-    final rampFrac =
-        (dist - TerrainConfig.riverBankHalfWidth) /
-        TerrainConfig.riverTransitionWidth;
+    final rampFrac = (dist - effectiveHalfWidth) / effectiveTransition;
     if (rampFrac >= 1) {
       return bankTarget;
     }
 
-    const benchY = -0.34;
+    final benchY =
+        -0.34 +
+        0.09 *
+            math.sin(z * 0.22 + (signed < 0 ? 0.0 : 1.3)) *
+            bridgeCalm;
     if (rampFrac < 0.42) {
       final u = _quintic(rampFrac / 0.42);
       return TerrainConfig.riverBedElevation +
@@ -1653,10 +1674,10 @@ class TerrainBuilder {
     const minZ = -176.0;
     const maxZ = 176.0;
     const lengthSegs = 240;
-    const crossSegs = 4;
+    const crossSegs = 8;
     const zStep = (maxZ - minZ) / lengthSegs;
     const waterY = TerrainConfig.waterSurfaceElevation;
-    const halfWidth = 3.40;
+    const halfWidth = 4.65;
     const cols = crossSegs + 1;
 
     for (var i = 0; i <= lengthSegs; i++) {
@@ -1700,7 +1721,6 @@ class TerrainBuilder {
   }) {
     const halfExtents = <double>[88, 92, 98, 108, 122, 138, 158, 182, 212, 252];
     const segPerSide = 44;
-    const colsPerSide = segPerSide + 1;
 
     double outerCoastX(double z) {
       if (z < -88.0) {
@@ -1857,51 +1877,76 @@ class TerrainBuilder {
     }
 
     final earthMat = resolveMaterial(ShukubaSurfaceRole.packedEarth);
-    final builder = GeometryBuilder();
-    for (var side = 0; side < 4; side++) {
-      final sideIndices = List<int>.filled(halfExtents.length * colsPerSide, 0);
-      var k = 0;
-      for (var r = 0; r < halfExtents.length; r++) {
-        final h = halfExtents[r];
-        final outDist = h - 88.0;
-        for (var ic = 0; ic < colsPerSide; ic++) {
-          final t = ic / segPerSide;
-          final (x, z) = sideRingPoint(side, h, t);
-          final sample = evalSample(x, z, outDist);
-          final yL = evalY(x - 1.5, z);
-          final yR = evalY(x + 1.5, z);
-          final yD = evalY(x, z - 1.5);
-          final yU = evalY(x, z + 1.5);
-          final n = Vector3(yL - yR, 3, yD - yU).normalized();
-          builder
-            ..normal(n)
-            ..color(sample.color)
-            ..texCoord(Vector2((x + 88.0) / 11.0, (z + 88.0) / 11.0));
-          sideIndices[k++] = builder.addVertex(Vector3(x, sample.y, z));
-        }
-      }
+    final apronRoot = Node(name: 'terrain_outer_apron');
+    const sectorPairs = <(String, String)>[
+      ('north_west', 'north_east'),
+      ('east_north', 'east_south'),
+      ('south_east', 'south_west'),
+      ('west_south', 'west_north'),
+    ];
+    const halfSeg = segPerSide ~/ 2;
+    const halfCols = halfSeg + 1;
 
-      for (var r = 0; r < halfExtents.length - 1; r++) {
-        final ringA = r * colsPerSide;
-        final ringB = (r + 1) * colsPerSide;
-        for (var ic = 0; ic < segPerSide; ic++) {
-          final v00 = sideIndices[ringA + ic];
-          final v01 = sideIndices[ringA + ic + 1];
-          final v10 = sideIndices[ringB + ic];
-          final v11 = sideIndices[ringB + ic + 1];
-          // Clockwise loop + outward -> (v01-v00)x(v11-v00) = +Y up normal.
-          builder
-            ..addTriangle(v00, v01, v11)
-            ..addTriangle(v00, v11, v10);
+    for (var side = 0; side < 4; side++) {
+      for (var half = 0; half < 2; half++) {
+        final colStart = half * halfSeg;
+        final sectorBuilder = GeometryBuilder();
+        final sectorIndices = List<int>.filled(
+          halfExtents.length * halfCols,
+          0,
+        );
+        var k = 0;
+        for (var r = 0; r < halfExtents.length; r++) {
+          final h = halfExtents[r];
+          final outDist = h - 88.0;
+          for (var localIc = 0; localIc < halfCols; localIc++) {
+            final ic = colStart + localIc;
+            final t = ic / segPerSide;
+            final (x, z) = sideRingPoint(side, h, t);
+            final sample = evalSample(x, z, outDist);
+            final yL = evalY(x - 1.5, z);
+            final yR = evalY(x + 1.5, z);
+            final yD = evalY(x, z - 1.5);
+            final yU = evalY(x, z + 1.5);
+            final n = Vector3(yL - yR, 3, yD - yU).normalized();
+            sectorBuilder
+              ..normal(n)
+              ..color(sample.color)
+              ..texCoord(Vector2((x + 88.0) / 11.0, (z + 88.0) / 11.0));
+            sectorIndices[k++] = sectorBuilder.addVertex(
+              Vector3(x, sample.y, z),
+            );
+          }
         }
+
+        for (var r = 0; r < halfExtents.length - 1; r++) {
+          final ringA = r * halfCols;
+          final ringB = (r + 1) * halfCols;
+          for (var localIc = 0; localIc < halfSeg; localIc++) {
+            final v00 = sectorIndices[ringA + localIc];
+            final v01 = sectorIndices[ringA + localIc + 1];
+            final v10 = sectorIndices[ringB + localIc];
+            final v11 = sectorIndices[ringB + localIc + 1];
+            // Clockwise loop + outward -> (v01-v00)x(v11-v00) = +Y up normal.
+            sectorBuilder
+              ..addTriangle(v00, v01, v11)
+              ..addTriangle(v00, v11, v10);
+          }
+        }
+
+        final sectorName = half == 0
+            ? sectorPairs[side].$1
+            : sectorPairs[side].$2;
+        apronRoot.add(
+          Node(
+            name: 'terrain_outer_apron_$sectorName',
+            mesh: Mesh(sectorBuilder.build(), earthMat),
+          )..shadowCastingMode = ShadowCastingMode.off,
+        );
       }
     }
 
-    final apronNode = Node(
-      name: 'terrain_outer_apron',
-      mesh: Mesh(builder.build(), earthMat),
-    )..shadowCastingMode = ShadowCastingMode.off;
-    return markSubtreeShadowStatic(apronNode);
+    return markSubtreeShadowStatic(apronRoot);
   }
 
   Node buildMinatoHarborWaterNode(ShukubaMaterialResolver resolveMaterial) {
@@ -1917,8 +1962,14 @@ class TerrainBuilder {
       188,
       224,
       264,
+      340,
+      440,
+      560,
     ];
     final zCoords = <double>[
+      -560,
+      -440,
+      -340,
       -264,
       -220,
       -176,
@@ -1928,6 +1979,9 @@ class TerrainBuilder {
       176,
       220,
       264,
+      340,
+      440,
+      560,
     ];
 
     final rows = zCoords.length;
@@ -2336,80 +2390,26 @@ class TerrainBuilder {
   }) {
     final root = Node();
     final roadList = roads.toList();
-    final rockBuilder = GeometryBuilder();
     final timberBuilder = GeometryBuilder();
     final shrubBuilder = GeometryBuilder();
 
-    for (final s in _gorgeShoalSpecs) {
-      final z = s.$1;
-      final x = TerrainConfig.riverCenterX(z) + s.$2;
-      if (_isClearOfRoadCorridors(x, z, math.max(s.$3, s.$5), roadList)) {
-        EdoKitBuilder.addRockBoulder(
-          rockBuilder,
-          Vector3(x, -0.68, z),
-          Vector3(s.$3, s.$4, s.$5),
-          yaw: s.$6,
-          seed: z * 0.3,
-        );
-      }
-      final sideShift = s.$2 < 0 ? 0.96 : -0.96;
-      final cx = x + sideShift * 0.55;
-      final cz = z + 1.05;
-      final cr = math.max(s.$3 * 0.56, s.$5 * 0.58);
-      if (_isClearOfRoadCorridors(cx, cz, cr, roadList)) {
-        EdoKitBuilder.addRockBoulder(
-          rockBuilder,
-          Vector3(cx, -0.78, cz),
-          Vector3(s.$3 * 0.56, s.$4 * 0.68, s.$5 * 0.58),
-          yaw: s.$6 + 1.4,
-          seed: z * 0.5 + 1.7,
-        );
-      }
-    }
-
-    for (final c in _gorgeStrataSpecs) {
-      final z = c.$1;
-      final x = TerrainConfig.riverCenterX(z) + c.$2;
-      if (!_isClearOfRoadCorridors(x, z, math.max(c.$3, c.$5), roadList)) {
+    for (final b in _gorgeBankSpecs) {
+      if (!b.$7) {
         continue;
       }
-      final gy = sampleRawTerrain(x, z);
-      EdoKitBuilder.addStratifiedCliffBlock(
-        rockBuilder,
-        Vector3(x, gy - 0.24, z),
-        Vector3(c.$3, c.$4 * 0.5, c.$5),
-        yaw: c.$6,
-        tiltX: c.$2 > 0 ? -0.10 : 0.10,
-        seed: z * 0.41 + c.$2,
-      );
-    }
-
-    for (final b in _gorgeBankSpecs) {
       final z = b.$1;
       final x = TerrainConfig.riverCenterX(z) + b.$2;
-      if (_isClearOfRoadCorridors(x, z, math.max(b.$3, b.$5), roadList)) {
-        final groundY = sampleRawTerrain(x, z);
-        EdoKitBuilder.addRockBoulder(
-          rockBuilder,
-          Vector3(x, groundY + 0.12, z),
-          Vector3(b.$3, b.$4, b.$5),
-          yaw: b.$6,
-          seed: z * 0.5 + b.$2,
+      final sx = x + (b.$2 < 0 ? -0.95 : 0.95);
+      final sz = z + 0.72;
+      if (_isClearOfRoadCorridors(sx, sz, 0.84, roadList)) {
+        final sy = sampleRawTerrain(sx, sz);
+        EdoKitBuilder.addShrubRosette(
+          shrubBuilder,
+          Vector3(sx, sy + 0.06, sz),
+          Vector3(0.84, 0.36, 0.78),
+          color: Vector4(0.80, 0.94, 0.70, 1),
+          phase: b.$6,
         );
-      }
-      if (b.$7) {
-        final sx = x + (b.$2 < 0 ? -0.95 : 0.95);
-        final sz = z + 0.72;
-        if (_isClearOfRoadCorridors(sx, sz, 0.84, roadList)) {
-          final sy = sampleRawTerrain(sx, sz);
-          EdoKitBuilder.addShrubRosette(
-            shrubBuilder,
-            Vector3(sx, sy + 0.06, sz),
-            Vector3(0.84, 0.36, 0.78),
-            color: Vector4(0.80, 0.94, 0.70, 1),
-            phase: b.$6,
-          );
-        }
       }
     }
 
@@ -2417,31 +2417,6 @@ class TerrainBuilder {
       final mx = m.$1;
       final mz = m.$2;
       final my = sampleRawTerrain(mx, mz);
-      if (_isClearOfRoadCorridors(mx, mz, math.max(m.$3, m.$5), roadList)) {
-        EdoKitBuilder.addStratifiedCliffBlock(
-          rockBuilder,
-          Vector3(mx, my - 0.14, mz),
-          Vector3(m.$3, m.$4 * 0.5, m.$5),
-          yaw: m.$6,
-          seed: mx * 0.3 + mz * 0.2,
-        );
-      }
-      final bx = mx + 1.05;
-      final bz = mz + 0.68;
-      if (_isClearOfRoadCorridors(
-        bx,
-        bz,
-        math.max(m.$3 * 0.48, m.$5 * 0.46),
-        roadList,
-      )) {
-        EdoKitBuilder.addRockBoulder(
-          rockBuilder,
-          Vector3(bx, my + 0.06, bz),
-          Vector3(m.$3 * 0.48, m.$4 * 0.46, m.$5 * 0.46),
-          yaw: m.$6 + 1.2,
-          seed: mx * 0.5 - mz * 0.4,
-        );
-      }
       final sx = mx - 0.92;
       final sz = mz + 0.58;
       if (_isClearOfRoadCorridors(sx, sz, 0.88, roadList)) {
@@ -2506,16 +2481,6 @@ class TerrainBuilder {
       }
     }
 
-    if (rockBuilder.vertexCount > 0) {
-      root.add(
-        Node(
-          mesh: Mesh(
-            rockBuilder.build(),
-            resolveMaterial(ShukubaSurfaceRole.ishigakiStone),
-          ),
-        ),
-      );
-    }
     if (timberBuilder.vertexCount > 0) {
       root.add(
         Node(
