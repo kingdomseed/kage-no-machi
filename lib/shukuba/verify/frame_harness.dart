@@ -180,7 +180,8 @@ class HarnessSummary {
 }
 
 typedef ApplyPresetCallback = Camera Function(CameraPreset preset);
-typedef CaptureUiAtlasCallback = Future<List<String>> Function(Directory uiDir);
+typedef CaptureUiAtlasCallback =
+    Future<List<String>> Function(String uiDirPath);
 
 @immutable
 class _CaptureFilter {
@@ -1098,7 +1099,7 @@ class ShukubaFrameHarness {
         final uiSw = Stopwatch()..start();
         final uiDir = Directory('${directory.path}/ui');
         await uiDir.create(recursive: true);
-        final uiSaved = await captureUiAtlas!(uiDir);
+        final uiSaved = await captureUiAtlas!(uiDir.path);
         uiSw.stop();
         ranUiAtlas = true;
         stdout.writeln(

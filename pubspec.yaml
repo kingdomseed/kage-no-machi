@@ -72,3 +72,18 @@ flutter:
         - web
   generate: true
   uses-material-design: true
+
+hooks:
+  user_defines:
+    flutter_scene:
+      lighting_features:
+        irradiance_field: false
+        rect_area_lights: false
+        parallax_reflection: false
+        point_shadows: false
+    kage_no_machi:
+      flutter_scene_lighting_features:
+        irradiance_field: false
+        rect_area_lights: false
+        parallax_reflection: false
+        point_shadows: false

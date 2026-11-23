@@ -1,6 +1,7 @@
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_scene/gpu.dart' as gpu;
 import 'package:flutter_scene/scene.dart';
 import 'package:kage_no_machi/shukuba/look/sumi_ink_pass.dart';
@@ -180,7 +181,55 @@ class EdoLookDriver implements ShukubaLookDriver {
     _setupLightingAndSky(scene);
   }
 
+  static const List<String> _productionTexturePaths = <String>[
+    'assets/textures/kawara_tile.png',
+    'assets/textures/kayabuki_thatch.png',
+    'assets/textures/kawara_tile_normal.png',
+    'assets/textures/kayabuki_thatch_normal.png',
+    'assets/textures/castle_ishigaki.png',
+    'assets/textures/castle_ishigaki_normal.png',
+    'assets/textures/meadow_moss.png',
+    'assets/textures/kaido_earth.png',
+    'assets/textures/meadow_moss_normal.png',
+    'assets/textures/kaido_earth_normal.png',
+    'assets/textures/cobblestone_edo.png',
+    'assets/textures/cobblestone_edo_normal.png',
+    'assets/textures/cedar_timber.png',
+    'assets/textures/cedar_timber_normal.png',
+    'assets/textures/shikkui_plaster.png',
+    'assets/textures/shikkui_plaster_normal.png',
+    'assets/textures/mountain_forest.png',
+    'assets/textures/mountain_forest_normal.png',
+    'assets/textures/sky_edo_dusk.png',
+    'assets/textures/foliage_maple.png',
+    'assets/textures/foliage_bamboo.png',
+    'assets/textures/foliage_pine.png',
+    'assets/textures/foliage_willow.png',
+  ];
+
+  Future<void> _preloadProductionTextures() async {
+    const batchSize = 6;
+    for (var i = 0; i < _productionTexturePaths.length; i += batchSize) {
+      final end = math.min(i + batchSize, _productionTexturePaths.length);
+      final batch = _productionTexturePaths.sublist(i, end);
+      await Future.wait([
+        for (final path in batch) _preloadTexture(path),
+      ]);
+    }
+  }
+
+  Future<void> _preloadTexture(String assetPath) async {
+    try {
+      await loadTexture(assetPath);
+    } on Object catch (_) {
+      if (!allowHeadlessFallback) {
+        rethrow;
+      }
+    }
+  }
+
   Future<void> _loadProductionMaterials() async {
+    await _preloadProductionTextures();
     for (final role in ShukubaSurfaceRole.values) {
       final fmatPath = _fmatPathForRole(role);
       final mat = await loadFmatMaterial(fmatPath);
@@ -418,13 +467,17 @@ class EdoLookDriver implements ShukubaLookDriver {
   }
 
   Future<void> _loadDecalPool(Scene scene, int epoch) async {
-    for (var i = 0; i < 12; i++) {
-      final mat = await loadFmatMaterial(
-        'assets/materials/sightcone_decal.fmat',
-      );
-      if (_attachEpoch != epoch || !identical(_scene, scene)) {
-        return;
-      }
+    final mats = await Future.wait(
+      List.generate(
+        12,
+        (_) => loadFmatMaterial('assets/materials/sightcone_decal.fmat'),
+      ),
+    );
+    if (_attachEpoch != epoch || !identical(_scene, scene)) {
+      return;
+    }
+    for (var i = 0; i < mats.length; i++) {
+      final mat = mats[i];
       _decalMaterials.add(mat);
       final decal = DecalNode(material: mat, name: 'sightcone_decal_$i')
         ..visible = false;
@@ -468,14 +521,16 @@ class EdoLookDriver implements ShukubaLookDriver {
       shadowMaxDistance: 145,
       shadowCascadeSplitLambda: 0.65,
       cascadeOverlap: 0.08,
-      shadowMapResolution: 2048,
-      shadowFilter: DirectionalShadowFilter.pcss,
+      shadowMapResolution: kIsWeb ? 1024 : 2048,
+      shadowFilter: kIsWeb
+          ? DirectionalShadowFilter.bilinearPcf
+          : DirectionalShadowFilter.pcss,
       shadowAmbientStrength: 0.28,
       // Keep contact shadows disabled (default false): fp16 linear_depth ULP at
       // 100-250 m stripes distant hills/mountains; 4-cascade 2048px PCSS +
       // bent-cone GTAO handles grounding.
       contactShadowDistance: 0.45,
-    )..shadowCascadeCount = 4;
+    )..shadowCascadeCount = kIsWeb ? 2 : 4;
 
     if (_lanternLights.isEmpty) {
       for (var i = 0; i < maxLanternPointLights; i++) {
@@ -493,6 +548,9 @@ class EdoLookDriver implements ShukubaLookDriver {
   void _setupLightingAndSky(Scene scene) {
     _ensureLightPool();
     scene.directionalLight = _keyLight;
+    if (kIsWeb) {
+      scene.renderQuality.adaptive = true;
+    }
 
     for (final node in _lanternNodes) {
       node.parent?.remove(node);
@@ -519,7 +577,9 @@ class EdoLookDriver implements ShukubaLookDriver {
       scene
         ..skybox = skyboxInstance
         ..skyEnvironment = skyEnvInstance
-        ..antiAliasingMode = AntiAliasingMode.msaa;
+        ..antiAliasingMode = kIsWeb
+            ? AntiAliasingMode.auto
+            : AntiAliasingMode.msaa;
     } on Object catch (_) {
       if (!allowHeadlessFallback) rethrow;
     }
@@ -621,9 +681,20 @@ class EdoLookDriver implements ShukubaLookDriver {
       vignetteIntensity: 0.28,
     )..fogMode = FogMode.exponential;
 
+    _applyWebEnvironmentProfile(dusk);
+    _applyWebEnvironmentProfile(night);
     _duskSettings = dusk;
     _nightSettings = night;
     scene.environmentSettings = dusk;
+  }
+
+  void _applyWebEnvironmentProfile(EnvironmentSettings settings) {
+    if (!kIsWeb) return;
+    settings
+      ..ambientOcclusionBentNormals = false
+      ..ambientOcclusionSpecularMode = SpecularAmbientOcclusionMode.simple
+      ..screenSpaceReflectionsEnabled = false
+      ..godRaysStepCount = 24;
   }
 
   @override

@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_scene/audio.dart';
 import 'package:flutter_scene/scene.dart';
@@ -10,6 +9,8 @@ import 'package:flutter_scene_soloud/flutter_scene_soloud.dart';
 import 'package:kage_no_machi/shukuba/audio/edo_wav_synth.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
 import 'package:vector_math/vector_math.dart';
+
+EdoWavBank _synthesizeEdoWavBank(void _) => EdoWavBank.synthesizeAll();
 
 class _ValleyAudioListenerFollower extends Component {
   new(this._scene);
@@ -195,7 +196,7 @@ class EdoAudioDriver implements ShukubaAudioDriver {
     }
     return _prewarmFuture ??= () async {
       try {
-        _wavBank = await Isolate.run(EdoWavBank.synthesizeAll);
+        _wavBank = await compute(_synthesizeEdoWavBank, null);
       } catch (_) {
         _prewarmFuture = null;
         rethrow;

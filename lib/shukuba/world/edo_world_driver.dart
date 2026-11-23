@@ -1651,6 +1651,33 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     return loaded;
   }
 
+  Future<bool> _preloadGlbPrototypes(
+    Iterable<String> assetPaths, {
+    required int capturedEpoch,
+    required ShowcaseRealm capturedRealm,
+    required Scene? capturedScene,
+    int batchSize = 6,
+  }) async {
+    final pending = <String>[];
+    final seen = <String>{};
+    for (final path in assetPaths) {
+      if (seen.add(path) && !_heroStructurePrototypes.containsKey(path)) {
+        pending.add(path);
+      }
+    }
+    for (var i = 0; i < pending.length; i += batchSize) {
+      final end = math.min(i + batchSize, pending.length);
+      final batch = pending.sublist(i, end);
+      await Future.wait([
+        for (final path in batch) _loadCachedGlbPrototype(path),
+      ]);
+      if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Future<void> _attachHeroGlbModels() async {
     if (_scene == null || _worldRoot == null) {
       return;
@@ -1662,6 +1689,35 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     final vistaAsset = _realm == ShowcaseRealm.minatoJo
         ? 'assets/models/minato_coastal_islands.glb'
         : 'assets/models/vista_mountains.glb';
+    final minatoPlacements = _realm == ShowcaseRealm.minatoJo
+        ? buildMinatoCastleAndHarborPlacements(sampleGroundHeight)
+        : null;
+    final heroPlacements = _realm == ShowcaseRealm.minatoJo
+        ? null
+        : buildShukubaHeroPropPlacements(sampleGroundHeight);
+    final assetsToPreload = <String>[
+      vistaAsset,
+      'assets/models/sky_cloud_dome.glb',
+      ..._heroStructureAssetPaths,
+      ..._heroAgentAssetPaths,
+      if (_realm == ShowcaseRealm.shukubaValley && !_heroBridgeAttached)
+        'assets/models/edo_arched_bridge.glb',
+      'assets/models/edo_torii_gate.glb',
+      if (minatoPlacements != null)
+        for (final item in minatoPlacements) item.assetPath,
+      if (heroPlacements != null)
+        for (final item in heroPlacements) item.assetPath,
+    ];
+    final keepLoading = await _preloadGlbPrototypes(
+      assetsToPreload,
+      capturedEpoch: capturedEpoch,
+      capturedRealm: capturedRealm,
+      capturedScene: capturedScene,
+    );
+    if (!keepLoading) {
+      return;
+    }
+
     final vistaProto = await _loadCachedGlbPrototype(vistaAsset);
     if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
       return;
@@ -1820,10 +1876,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
 
     _heroPropsNode.removeAll();
-    if (_realm == ShowcaseRealm.minatoJo) {
-      final minatoPlacements = buildMinatoCastleAndHarborPlacements(
-        sampleGroundHeight,
-      );
+    if (minatoPlacements != null) {
       for (final item in minatoPlacements) {
         final proto = await _loadCachedGlbPrototype(item.assetPath);
         if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
@@ -1838,9 +1891,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           ..add(proto.clone());
         _heroPropsNode.add(propNode);
       }
-    } else {
-      final heroPlacements = buildShukubaHeroPropPlacements(sampleGroundHeight);
-
+    } else if (heroPlacements != null) {
       for (final item in heroPlacements) {
         final proto = await _loadCachedGlbPrototype(item.assetPath);
         if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {

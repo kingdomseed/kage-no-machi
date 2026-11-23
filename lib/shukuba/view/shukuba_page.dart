@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Directory, File, exit, stderr, stdout;
 import 'dart:ui' as ui show FrameTiming, ImageByteFormat;
 
 import 'package:flutter/gestures.dart'
@@ -15,7 +14,8 @@ import 'package:flutter_scene/scene.dart' show Camera, Scene, SceneView;
 import 'package:kage_no_machi/shukuba/audio/audio.dart';
 import 'package:kage_no_machi/shukuba/look/look.dart';
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart';
-import 'package:kage_no_machi/shukuba/verify/frame_harness.dart';
+import 'package:kage_no_machi/shukuba/verify/capture_host.dart';
+import 'package:kage_no_machi/shukuba/verify/frame_harness_api.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_boot_models.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_controller.dart';
 import 'package:kage_no_machi/shukuba/view/shukuba_hud.dart';
@@ -23,6 +23,8 @@ import 'package:kage_no_machi/shukuba/view/shukuba_shell_overlays.dart';
 import 'package:kage_no_machi/shukuba/view/tactical_camera_rig.dart';
 import 'package:kage_no_machi/shukuba/world/world.dart';
 import 'package:material_ui/material_ui.dart' hide Matrix4;
+
+const bool _kProfilePerfLog = bool.fromEnvironment('FLUTTER_SCENE_PROFILE');
 
 class ShukubaPage extends StatefulWidget {
   const new({
@@ -61,6 +63,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   bool _gpuAvailable = false;
   bool _captureStarted = false;
+  double _lastPerfLogSeconds = -10;
   int _bootEpoch = 0;
   int _activeButtons = 0;
   Offset? _primaryDownPos;
@@ -111,6 +114,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
     final oldScene = _scene;
     _scene = null;
     _gpuAvailable = false;
+    _lastPerfLogSeconds = -10.0;
     if (oldScene != null || stopAudio) {
       _controller.detachFromScene();
     }
@@ -166,6 +170,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
     if (!mounted) {
       return;
     }
+    _lastPerfLogSeconds = -10.0;
     setState(() {});
   }
 
@@ -204,6 +209,18 @@ class _ShukubaPageState extends State<ShukubaPage> {
       }
       _bootReport = report;
       gpuReady = true;
+      if (_kProfilePerfLog) {
+        final stagesSummary = report.stages
+            .map((s) => '${s.stage.name}:${s.durationMs.toStringAsFixed(1)}')
+            .join(',');
+        debugPrint(
+          'SHUKUBA_PERF_BOOT realm=${_activeRealm.id} '
+          'totalMs=${report.totalMs.toStringAsFixed(1)} '
+          'tier=${scene.effectiveRenderQualityTier.name} '
+          'scale=${scene.renderScale.toStringAsFixed(2)} '
+          'stages=$stagesSummary',
+        );
+      }
     } on Object catch (error, stack) {
       if (!mounted || epoch != _bootEpoch) {
         if (scene != null) {
@@ -222,10 +239,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
             : 'ShukubaPage._bootSceneStaged failed: $error\n$stack',
       );
       if (kShukubaAutoExit || kShukubaCaptureDir.isNotEmpty) {
-        stderr.writeln('SHUKUBA_BOOT_ERROR:$error\n$stack');
+        captureWriteStderr('SHUKUBA_BOOT_ERROR:$error\n$stack');
       }
       if (kShukubaAutoExit) {
-        exit(4);
+        captureExit(4);
       }
       if (scene != null) {
         if (identical(_scene, scene)) {
@@ -284,9 +301,9 @@ class _ShukubaPageState extends State<ShukubaPage> {
     try {
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       if (bytes != null) {
-        await File(filePath).writeAsBytes(
+        await captureWriteFileBytes(
+          filePath,
           bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-          flush: true,
         );
       }
     } finally {
@@ -294,7 +311,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
     }
   }
 
-  Future<List<String>> _captureUiAtlas(Directory uiDir) async {
+  Future<List<String>> _captureUiAtlas(String uiDirPath) async {
     final saved = <String>[];
     _applyPresetForCapture(CameraPreset.duskOverview);
     if (mounted) {
@@ -319,13 +336,13 @@ class _ShukubaPageState extends State<ShukubaPage> {
       _forceRenderHudInCapture = true;
       _shellMode = ShukubaShellMode.titleMenu;
     });
-    final titlePath = '${uiDir.path}/ui_title_menu.png';
+    final titlePath = '$uiDirPath/ui_title_menu.png';
     await _saveUiPng(titlePath);
     saved.add(titlePath);
 
     _controller.selectTool(const ExploreTool());
     setState(() => _shellMode = ShukubaShellMode.inValley);
-    final calmPath = '${uiDir.path}/ui_hud_calm_default.png';
+    final calmPath = '$uiDirPath/ui_hud_calm_default.png';
     await _saveUiPng(calmPath);
     saved.add(calmPath);
 
@@ -333,13 +350,13 @@ class _ShukubaPageState extends State<ShukubaPage> {
       const StampStructureTool(kind: StructureKind.minka, variant: 1),
     );
     setState(() {});
-    final drawerPath = '${uiDir.path}/ui_hud_dwellings_drawer.png';
+    final drawerPath = '$uiDirPath/ui_hud_dwellings_drawer.png';
     await _saveUiPng(drawerPath);
     saved.add(drawerPath);
 
     _controller.selectTool(const ExploreTool());
     setState(() => _shellMode = ShukubaShellMode.pauseMenu);
-    final pausePath = '${uiDir.path}/ui_pause_menu.png';
+    final pausePath = '$uiDirPath/ui_pause_menu.png';
     await _saveUiPng(pausePath);
     saved.add(pausePath);
 
@@ -353,7 +370,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
 
   Future<void> _executeCaptureSuite(ShukubaFrameHarness harness) async {
     try {
-      stdout.writeln(
+      captureWriteStdout(
         'SHUKUBA_REALM:raw="$kShukubaRealm" active=${_activeRealm.id}',
       );
       if (kShukubaVerifyReentry) {
@@ -376,9 +393,9 @@ class _ShukubaPageState extends State<ShukubaPage> {
         horizonPresets: horizonPresets,
       );
     } on Object catch (error, stack) {
-      stderr.writeln('SHUKUBA_CAPTURE_ERROR:$error\n$stack');
+      captureWriteStderr('SHUKUBA_CAPTURE_ERROR:$error\n$stack');
       if (kShukubaAutoExit) {
-        exit(3);
+        captureExit(3);
       }
       rethrow;
     }
@@ -485,14 +502,14 @@ class _ShukubaPageState extends State<ShukubaPage> {
     );
 
     final allPassed = step1.allPassed && step2.allPassed && step3.allPassed;
-    stdout.writeln(
+    captureWriteStdout(
       'SHUKUBA_REENTRY_VERIFY:allPassed=$allPassed '
       'step1=${step1.allPassed} step2=${step2.allPassed} '
       'step3=${step3.allPassed}',
     );
-    await stdout.flush();
+    await captureFlushStdout();
     if (kShukubaAutoExit) {
-      exit(allPassed ? 0 : 2);
+      captureExit(allPassed ? 0 : 2);
     }
   }
 
@@ -512,6 +529,22 @@ class _ShukubaPageState extends State<ShukubaPage> {
   void _onSceneTick(Duration elapsed, double deltaSeconds) {
     _pollPanKeys(deltaSeconds);
     _controller.onFrameTick(elapsed, deltaSeconds);
+    final activeScene = _scene;
+    if (_kProfilePerfLog && _gpuAvailable && activeScene != null) {
+      final elapsedSeconds = elapsed.inMicroseconds / 1e6;
+      if (elapsedSeconds - _lastPerfLogSeconds >= 2.0) {
+        _lastPerfLogSeconds = elapsedSeconds;
+        debugPrint(
+          'SHUKUBA_PERF_FRAME realm=${_activeRealm.id} '
+          'fps=${_frameTimer.fps.toStringAsFixed(1)} '
+          'uiMs=${_frameTimer.uiMs.toStringAsFixed(2)} '
+          'rasterMs=${_frameTimer.rasterMs.toStringAsFixed(2)} '
+          'tier=${activeScene.effectiveRenderQualityTier.name} '
+          'scale=${activeScene.renderScale.toStringAsFixed(2)} '
+          'structures=${_controller.graph.structures.length}',
+        );
+      }
+    }
   }
 
   bool get _isSpacePressed => HardwareKeyboard.instance.logicalKeysPressed
