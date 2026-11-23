@@ -125,4 +125,6 @@ _archive/
 /captures/
 /screenshots/
 *.cap.png
+# Generated intermediate Blender textures
+tools/blender/generated_tex/
 

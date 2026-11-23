@@ -5,7 +5,7 @@ publish_to: none
 
 environment:
   sdk: ^3.14.0
-  flutter: ^3.50.0
+  flutter: ^3.50.1
 
 dependencies:
   bloc: ^9.2.1
@@ -15,12 +15,32 @@ dependencies:
   flutter_gpu_shaders: ^0.5.2
   flutter_localizations:
     sdk: flutter
-  flutter_scene: ^0.24.3
-  flutter_scene_soloud: ^0.2.0
+  flutter_scene:
+    git:
+      url: https://github.com/bdero/flutter_scene.git
+      path: packages/flutter_scene
+      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
+  flutter_scene_soloud:
+    git:
+      url: https://github.com/bdero/flutter_scene.git
+      path: packages/flutter_scene_soloud
+      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
   hooks: ^2.2.0
   intl: ^0.20.2
   material_ui: ^1.1.1
   vector_math: ^2.2.0
+
+dependency_overrides:
+  flutter_scene:
+    git:
+      url: https://github.com/bdero/flutter_scene.git
+      path: packages/flutter_scene
+      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
+  scene:
+    git:
+      url: https://github.com/bdero/flutter_scene.git
+      path: packages/scene
+      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
 
 dev_dependencies:
   bloc_lint: ^0.4.2
