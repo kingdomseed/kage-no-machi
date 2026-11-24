@@ -16,8 +16,38 @@ material {
 }
 
 fragment {
-  #include <noise.glsl>
   precision highp float;
+
+  float FastHash2(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal2(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = FastHash2(i, seed);
+    float b = FastHash2(i + vec2(1.0, 0.0), seed);
+    float c = FastHash2(i + vec2(0.0, 1.0), seed);
+    float d = FastHash2(i + vec2(1.0, 1.0), seed);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+  }
+
+  float FastFbm2_2(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.6667 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.3333;
+  }
+
+  float FastFbm2_3(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.5714 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.2857 +
+        FastVal2(p * 4.09 + 23.1, seed + 37.0) * 0.1429;
+  }
 
   vec2 EvaluateRiverSlope(
     vec2 p,
@@ -32,8 +62,8 @@ fragment {
 
     // Flow-warped organic eddies along +z (eliminates uniform straight wave bars)
     vec2 streamWarp = vec2(
-      NoiseFbm2(vec2(p.x * 0.35, p.y * 0.16 - t * 0.22 * speedGain), 307, 2, 2.0, 0.5),
-      NoiseFbm2(vec2(p.x * 0.35 + 7.1, p.y * 0.16 - t * 0.28 * speedGain), 317, 2, 2.0, 0.5)
+      FastFbm2_2(vec2(p.x * 0.35, p.y * 0.16 - t * 0.22 * speedGain), 307.0),
+      FastFbm2_2(vec2(p.x * 0.35 + 7.1, p.y * 0.16 - t * 0.28 * speedGain), 317.0)
     ) * 1.15;
     vec2 wp = p + streamWarp;
 
@@ -57,12 +87,12 @@ fragment {
     const vec2 eps = vec2(0.05, 0.0);
     vec2 ruvA = vec2(wp.x * 1.45, wp.y * 0.55 - t * 0.92 * speedGain);
     vec2 ruvB = vec2(wp.x * 2.85 + 2.3, wp.y * 1.15 - t * 1.38 * speedGain);
-    float rC = NoiseSimplex2(ruvA, 733) * 0.62 + NoiseSimplex2(ruvB, 617) * 0.38 * mipFade;
-    float rX = NoiseSimplex2(ruvA + eps.xy * 1.6, 733) * 0.62 + NoiseSimplex2(ruvB + eps.xy * 2.2, 617) * 0.38 * mipFade;
-    float rY = NoiseSimplex2(ruvA + eps.yx * 0.8, 733) * 0.62 + NoiseSimplex2(ruvB + eps.yx * 1.1, 617) * 0.38 * mipFade;
+    float rC = FastVal2(ruvA, 733.0) * 0.62 + FastVal2(ruvB, 617.0) * 0.38 * mipFade;
+    float rX = FastVal2(ruvA + eps.xy * 1.6, 733.0) * 0.62 + FastVal2(ruvB + eps.xy * 2.2, 617.0) * 0.38 * mipFade;
+    float rY = FastVal2(ruvA + eps.yx * 0.8, 733.0) * 0.62 + FastVal2(ruvB + eps.yx * 1.1, 617.0) * 0.38 * mipFade;
     vec2 rippleGrad = vec2(rX - rC, rY - rC) / eps.x;
 
-    float gustEnv = 0.55 + 0.45 * NoiseSimplex2(p * 0.14 - vec2(0.0, t * 0.55), 509);
+    float gustEnv = 0.55 + 0.45 * FastVal2(p * 0.14 - vec2(0.0, t * 0.55), 509.0);
     float capAmp = mix(0.010, 0.024, riverMask) * (0.58 + 0.42 * gust * gustEnv) * mix(0.35, 1.0, mipFade);
     grad += rippleGrad * capAmp;
     return grad;
@@ -98,15 +128,15 @@ fragment {
     float viewCosY = clamp(abs(viewDir.y) * 1.15, 0.45, 1.0);
     float preThickness = rawPreThickness * viewCosY;
 
-    float shoreWarp = NoiseSimplex2(wp.xz * 0.72, 419) * 0.14 +
-        NoiseSimplex2(wp.xz * 1.95, 431) * 0.065;
+    float shoreWarp = FastVal2(wp.xz * 0.72, 419.0) * 0.14 +
+        FastVal2(wp.xz * 1.95, 431.0) * 0.065;
     float organicPreThickness = max(0.0, preThickness + shoreWarp);
 
     float ringEnvelope = smoothstep(0.015, 0.085, organicPreThickness) *
         (1.0 - smoothstep(0.16, 0.34, organicPreThickness)) *
         smoothstep(0.04, 0.22, bankDist) *
         riverMask;
-    float ringNoise = NoiseSimplex2(wp.xz * 2.2 - vec2(0.0, t * 0.75), 202);
+    float ringNoise = FastVal2(wp.xz * 2.2 - vec2(0.0, t * 0.75), 202.0);
     float ringPhase = organicPreThickness * 28.0 - t * 3.1 + ringNoise * 2.2;
     float ringSlope = cos(ringPhase) * ringEnvelope * 0.036 * mipFade;
 
@@ -141,14 +171,8 @@ fragment {
     vec2 cUv2 = causticWorldXZ * 2.75 +
         vec2(-t * 0.16 + 3.7, -t * 0.38 * material_params.flow_speed + 1.9) -
         rippledNormal.xz * 0.34;
-    float cellA = max(
-      0.0,
-      NoiseCellular2(cUv1, 821, kNoiseCellularEuclidean, kNoiseCellularDistance2Sub, 0.88) + 1.0
-    );
-    float cellB = max(
-      0.0,
-      NoiseCellular2(cUv2, 839, kNoiseCellularEuclidean, kNoiseCellularDistance2Sub, 0.88) + 1.0
-    );
+    float cellA = abs(FastVal2(cUv1, 821.0));
+    float cellB = abs(FastVal2(cUv2, 839.0));
     float ridgeA = 1.0 - smoothstep(0.014, 0.21, cellA);
     float ridgeB = 1.0 - smoothstep(0.014, 0.21, cellB);
     float causticPattern = pow(
@@ -183,27 +207,21 @@ fragment {
         (1.0 - smoothstep(0.08, 0.28, organicThickness)) *
         riverMask;
     float midStreamRapids = smoothstep(0.45, 0.88,
-      NoiseFbm2(vec2(wp.x * 0.95, wp.z * 0.55 - t * 0.95 * material_params.flow_speed), 547, 2, 2.0, 0.5) * 0.5 + 0.5
+      FastFbm2_2(vec2(wp.x * 0.95, wp.z * 0.55 - t * 0.95 * material_params.flow_speed), 547.0) * 0.5 + 0.5
     ) * smoothstep(0.18, 0.50, organicThickness) * riverMask;
-    float flowWisp = NoiseFbm2(
+    float flowWisp = FastFbm2_3(
       vec2(wp.x * 2.4, wp.z * 0.55 - t * 1.15 * material_params.flow_speed),
-      503,
-      3,
-      2.05,
-      0.52
+      503.0
     ) * 0.5 + 0.5;
-    float fineFroth = NoiseFbm2(
+    float fineFroth = FastFbm2_2(
       vec2(wp.x * 5.2 + 1.9, wp.z * 1.8 - t * 1.45 * material_params.flow_speed),
-      521,
-      2,
-      2.1,
-      0.5
+      521.0
     ) * 0.5 + 0.5;
     float bubbleLace = smoothstep(0.46, 0.84, flowWisp * 0.65 + fineFroth * 0.35 * mipFade);
     float wakePatch = smoothstep(
       0.22,
       0.78,
-      NoiseSimplex2(vec2(wp.x * 1.65, wp.z * 1.05 - t * 0.78), 541) * 0.5 + 0.5
+      FastVal2(vec2(wp.x * 1.65, wp.z * 1.05 - t * 0.78), 541.0) * 0.5 + 0.5
     );
     float collarFoam = collarEnv *
         smoothstep(0.26, 0.74, bubbleLace * (0.58 + 0.52 * wakePatch));

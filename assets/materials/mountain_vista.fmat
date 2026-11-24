@@ -14,8 +14,27 @@ material {
 }
 
 fragment {
-  #include <noise.glsl>
   precision highp float;
+
+  float FastHash2(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal2(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = FastHash2(i, seed);
+    float b = FastHash2(i + vec2(1.0, 0.0), seed);
+    float c = FastHash2(i + vec2(0.0, 1.0), seed);
+    float d = FastHash2(i + vec2(1.0, 1.0), seed);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+  }
 
   vec3 Linearize(vec3 srgb) {
     return pow(max(srgb, vec3(0.0)), vec3(2.2));
@@ -35,7 +54,7 @@ fragment {
     // Anti-tiled dual-scale forested ridge sampling + crag canopy micro-stipple
     vec2 mUvA = uv0 * (2.25 * material_params.texture_scale);
     vec2 mUvB = (mat2(0.8, -0.6, 0.6, 0.8) * uv0) * (1.28 * material_params.texture_scale) + vec2(0.37, 0.61);
-    float tileBlend = smoothstep(0.25, 0.75, NoiseSimplex2(uv0 * 0.65, 977) * 0.5 + 0.5);
+    float tileBlend = smoothstep(0.25, 0.75, FastVal2(uv0 * 0.65, 977.0) * 0.5 + 0.5);
 
     vec3 texAlb = mix(
       Linearize(texture(mountain_albedo, mUvA).rgb),
@@ -53,9 +72,9 @@ fragment {
 
     float forestLuma = dot(texAlb, vec3(0.299, 0.587, 0.114));
     float cliffMask = 1.0 - smoothstep(0.56, 0.85, N.y);
-    float macroNoise = NoiseSimplex2(P.xz * 0.14 + P.y * 0.08, 313) * 0.5 + 0.5;
-    float canopyStipple = NoiseSimplex2(P.xz * 0.42 + P.y * 0.15, 761) * 0.5 + 0.5;
-    float cragDetail = NoiseSimplex2(P.xz * 1.35 - P.y * 0.22, 509) * 0.5 + 0.5;
+    float macroNoise = FastVal2(P.xz * 0.14 + P.y * 0.08, 313.0) * 0.5 + 0.5;
+    float canopyStipple = FastVal2(P.xz * 0.42 + P.y * 0.15, 761.0) * 0.5 + 0.5;
+    float cragDetail = FastVal2(P.xz * 1.35 - P.y * 0.22, 509.0) * 0.5 + 0.5;
     float foliageDetail = clamp(0.42 * macroNoise + 0.38 * canopyStipple + 0.20 * cragDetail, 0.0, 1.0);
 
     vec3 pineForestTint = mix(vec3(0.075, 0.145, 0.062), vec3(0.165, 0.255, 0.098), foliageDetail);

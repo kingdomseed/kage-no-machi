@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui show FrameTiming, ImageByteFormat;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart'
     show
         PointerScrollEvent,
@@ -94,6 +95,13 @@ class _ShukubaPageState extends State<ShukubaPage> {
     WidgetsBinding.instance.addTimingsCallback(_onFrameTimings);
 
     unawaited(_controller.audio.prewarm());
+    if (kIsWeb &&
+        _shellMode == ShukubaShellMode.titleMenu &&
+        kShukubaCaptureDir.isEmpty) {
+      if (_controller.look case final EdoLookDriver edoLook) {
+        unawaited(edoLook.prewarmWebAssets());
+      }
+    }
     if (_shellMode == ShukubaShellMode.titleMenu &&
         kShukubaCaptureDir.isEmpty) {
       if (_controller.audio case final EdoAudioDriver edoAudio) {
@@ -459,7 +467,7 @@ class _ShukubaPageState extends State<ShukubaPage> {
     final step2 = await step2Harness.runCaptureSuite(
       outputDir: '$kShukubaCaptureDir/step2_minato',
       autoExit: false,
-      presets: const [CameraPreset.minatoSunsetBoulevard],
+      presets: const [CameraPreset.minatoCitadelOverview],
       horizonPresets: const [],
     );
 

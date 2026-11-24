@@ -149,7 +149,7 @@ enum ShowcaseRealm {
 
   CameraPreset get defaultPreset => switch (this) {
     ShowcaseRealm.shukubaValley => CameraPreset.duskOverview,
-    ShowcaseRealm.minatoJo => CameraPreset.minatoSunsetBoulevard,
+    ShowcaseRealm.minatoJo => CameraPreset.minatoCitadelOverview,
   };
 
   List<CameraPreset> get hudPresets => switch (this) {
@@ -2461,7 +2461,7 @@ class CameraPreset {
   static const CameraPreset minatoSunsetBoulevard = CameraPreset(
     id: 'minato_sunset_boulevard',
     label: 'Sunset Boulevard',
-    eye: Vec3(-39, 15.5, 19),
+    eye: Vec3(-33, 18.5, 22),
     target: Vec3(10, 12.2, -10.5),
     timeOfDay: TimeOfDayRig(0.24),
     verticalFovDegrees: 34,
@@ -2472,10 +2472,10 @@ class CameraPreset {
   static const CameraPreset minatoCitadelOverview = CameraPreset(
     id: 'minato_citadel_overview',
     label: 'Citadel Overview',
-    eye: Vec3(-54, 48, 58),
-    target: Vec3(6, 9.5, -13),
+    eye: Vec3(58, 48, 64),
+    target: Vec3(4, 12, -14),
     timeOfDay: TimeOfDayRig.goldenDusk,
-    verticalFovDegrees: 28,
+    verticalFovDegrees: 31,
     nearMeters: 4,
     farMeters: 540,
   );
@@ -2525,8 +2525,8 @@ class CameraPreset {
   );
 
   static const List<CameraPreset> minatoVerificationPresets = [
-    minatoSunsetBoulevard,
     minatoCitadelOverview,
+    minatoSunsetBoulevard,
     minatoHarborFleet,
     minatoBlueHourPort,
     minatoOtemonApproach,

@@ -51,6 +51,89 @@ fragment {
   const float kStyleLaneThreshold = 5.25;
   const float kStyleDyedCloth = 6.0;
 
+  float FastHash2(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  vec2 FastHash22(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+  }
+
+  float FastVal2(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = FastHash2(i, seed);
+    float b = FastHash2(i + vec2(1.0, 0.0), seed);
+    float c = FastHash2(i + vec2(0.0, 1.0), seed);
+    float d = FastHash2(i + vec2(1.0, 1.0), seed);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+  }
+
+  float FastFbm2_2(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.6667 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.3333;
+  }
+
+  float FastFbm2_3(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.5714 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.2857 +
+        FastVal2(p * 4.09 + 23.1, seed + 37.0) * 0.1429;
+  }
+
+  float FastCellDist2(vec2 p, float seed) {
+    vec2 i = floor(p - 0.5);
+    vec2 f = p - i;
+    float md = 8.0;
+    for (int y = 0; y <= 1; y++) {
+      for (int x = 0; x <= 1; x++) {
+        vec2 g = vec2(float(x), float(y));
+        vec2 o = 0.22 + 0.56 * FastHash22(i + g, seed);
+        vec2 r = g + o - f;
+        md = min(md, dot(r, r));
+      }
+    }
+    return sqrt(md);
+  }
+
+  float FastHash3(vec3 p, float seed) {
+    vec3 p3 = fract(
+      p * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal3(vec3 p, float seed) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    float n000 = FastHash3(i, seed);
+    float n100 = FastHash3(i + vec3(1.0, 0.0, 0.0), seed);
+    float n010 = FastHash3(i + vec3(0.0, 1.0, 0.0), seed);
+    float n110 = FastHash3(i + vec3(1.0, 1.0, 0.0), seed);
+    float n001 = FastHash3(i + vec3(0.0, 0.0, 1.0), seed);
+    float n101 = FastHash3(i + vec3(1.0, 0.0, 1.0), seed);
+    float n011 = FastHash3(i + vec3(0.0, 1.0, 1.0), seed);
+    float n111 = FastHash3(i + vec3(1.0, 1.0, 1.0), seed);
+    float nx00 = mix(n000, n100, u.x);
+    float nx10 = mix(n010, n110, u.x);
+    float nx01 = mix(n001, n101, u.x);
+    float nx11 = mix(n011, n111, u.x);
+    return mix(mix(nx00, nx10, u.y), mix(nx01, nx11, u.y), u.z) * 2.0 - 1.0;
+  }
+
   vec3 SamplePaintedLinear(sampler2D tex, vec2 pUv) {
     vec3 srgb = texture(tex, pUv).rgb;
     return pow(max(srgb, vec3(0.0)), vec3(2.2));
@@ -62,7 +145,7 @@ fragment {
     float blend = smoothstep(
       0.25,
       0.75,
-      NoiseSimplex2(xz * (scale * 0.22), 1409) * 0.5 + 0.5
+      FastVal2(xz * (scale * 0.22), 1409.0) * 0.5 + 0.5
     );
     return mix(SamplePaintedLinear(tex, uvA), SamplePaintedLinear(tex, uvB), blend);
   }
@@ -77,7 +160,7 @@ fragment {
     float blend = smoothstep(
       0.25,
       0.75,
-      NoiseSimplex2(xz * (scale * 0.22), 1409) * 0.5 + 0.5
+      FastVal2(xz * (scale * 0.22), 1409.0) * 0.5 + 0.5
     );
     vec2 nA = DecodeTangentNormal(ntex, uvA).xy;
     vec2 nB = mat2(0.8, 0.6, -0.6, 0.8) * DecodeTangentNormal(ntex, uvB).xy;
@@ -85,12 +168,9 @@ fragment {
   }
 
   float ComputeAtmosphericGobo(vec2 worldXZ, float t) {
-    float cloudMacro = NoiseFbm2(
+    float cloudMacro = FastFbm2_3(
       worldXZ * 0.028 + vec2(t * 0.012, -t * 0.008),
-      1103,
-      3,
-      2.0,
-      0.5
+      1103.0
     ) * 0.5 + 0.5;
     float cloudClearing = smoothstep(0.28, 0.74, cloudMacro);
     float woodlandZone = clamp(
@@ -99,13 +179,13 @@ fragment {
       0.18,
       1.0
     );
-    float canopyBough = NoiseSimplex2(
+    float canopyBough = FastVal2(
       worldXZ * 0.24 + vec2(t * 0.032, t * 0.019),
-      1117
+      1117.0
     ) * 0.5 + 0.5;
-    float canopyLeafGap = NoiseSimplex2(
+    float canopyLeafGap = FastVal2(
       worldXZ * 0.62 - vec2(t * 0.048, -t * 0.026),
-      1129
+      1129.0
     ) * 0.5 + 0.5;
     float canopyDapple = smoothstep(0.26, 0.78, canopyBough * 0.64 + canopyLeafGap * 0.36);
     return mix(
@@ -152,7 +232,7 @@ fragment {
       float uEave = dot(sp, T);
       float vSlope = dot(sp, B);
       if (vColor.a <= 0.45) {
-        float reedWarp = NoiseSimplex3(sp * 3.4, 331) * 0.65;
+        float reedWarp = (sin(uEave * 4.1 + vSlope * 2.7) * 0.65 + cos(uEave * 2.3 - vSlope * 3.9) * 0.35) * 0.65;
         float reedBundle = mix(
           0.5,
           sin(uEave * 44.0 + reedWarp * 2.4) * 0.5 + 0.5,
@@ -193,7 +273,7 @@ fragment {
         float uStone = dot(sp, T);
         float vStone = abs(N.y) < 0.82 ? sp.y : dot(sp, B);
         float row = floor(vStone / 0.44);
-        float wobble = NoiseSimplex2(vec2(uStone * 0.9, vStone * 0.9), 509) * 0.14;
+        float wobble = (sin(uStone * 1.9 + vStone * 1.3) * 0.65 + cos(vStone * 2.1 - uStone * 1.1) * 0.35) * 0.14;
         float colCoord = (uStone + wobble) / 0.66 + mod(row, 2.0) * 0.47;
         float rowCoord = (vStone + wobble * 0.6) / 0.44;
         float fx = fract(colCoord);
@@ -201,20 +281,13 @@ fragment {
         float col = floor(colCoord);
         float edgeDist = min(min(fx, 1.0 - fx), min(fy, 1.0 - fy) * 0.85);
         float pillow = smoothstep(0.02, 0.20, edgeDist);
-        float stoneHash = NoiseValue2(vec2(col * 1.3, row * 1.7), 521) * 0.5 + 0.5;
-        float facet = NoiseSimplex3(sp * 2.6, 547) * 0.10 * detailWeight;
+        float stoneHash = fract(sin(col * 12.9898 + row * 78.233) * 43758.5453);
+        float facet = sin(sp.x * 4.3 + sp.y * 3.7 - sp.z * 5.1) * 0.08 * detailWeight;
         return clamp(pillow * (0.72 + 0.24 * stoneHash + facet), 0.0, 1.0);
       }
-      float strataFbm = NoiseFbm3(vec3(sp.x * 0.85, sp.y * 1.15, sp.z * 0.85), 563, 2, 2.0, 0.5);
-      vec3 rockP = sp * 1.58 + vec3(strataFbm * 0.64, 0.0, -strataFbm * 0.56);
-      float cellDist = NoiseCellular3(
-        rockP,
-        571,
-        kNoiseCellularEuclidean,
-        kNoiseCellularDistance2Sub,
-        0.94
-      );
-      float crack = 1.0 - smoothstep(0.015, 0.14, max(0.0, cellDist + 1.0));
+      float strataFbm = sin(sp.x * 1.4 + sp.y * 2.1 - sp.z * 1.3) * 0.58 + cos(sp.x * 2.9 - sp.y * 3.4 + sp.z * 2.6) * 0.34;
+      float cellDist = abs(sin(sp.x * 2.7 + sp.z * 2.3 + strataFbm * 1.9) * cos(sp.y * 3.1 - sp.x * 1.8));
+      float crack = 1.0 - smoothstep(0.02, 0.16, cellDist);
       float shelfFract = fract((sp.y * 0.76 + sp.x * 0.24 - sp.z * 0.19) + strataFbm * 0.84);
       float shelfStep = smoothstep(0.0, 0.18, shelfFract) *
           (1.0 - 0.36 * smoothstep(0.76, 0.98, shelfFract));
@@ -222,15 +295,11 @@ fragment {
     }
 
     if (style > 4.5 && style < 5.8) {
-      float clodH = NoiseSimplex2(sp.xz * 2.9, 719) * 0.5 + 0.5;
-      float scourMass = smoothstep(0.44, 0.78, NoiseSimplex2(sp.xz * 0.68, 757) * 0.5 + 0.5);
-      float cobbleDist = max(
-        0.0,
-        NoiseCellular2(sp.xz * 5.2, 787, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.88) + 1.0
-      );
-      float cobbleDome = (1.0 - smoothstep(0.06, 0.34, cobbleDist)) * scourMass * detailWeight;
+      float clodH = 0.5 + 0.5 * (sin(sp.x * 5.2 + sp.z * 3.7) * cos(sp.z * 4.9 - sp.x * 3.1));
+      float scourMass = smoothstep(0.35, 0.78, 0.5 + 0.5 * sin(sp.x * 1.4 - sp.z * 1.1) * cos(sp.z * 1.3 + sp.x * 0.9));
+      float cobbleDome = smoothstep(0.55, 0.90, 0.5 + 0.5 * sin(sp.x * 9.8 + sin(sp.z * 4.3)) * cos(sp.z * 9.5 + cos(sp.x * 4.1))) * scourMass * detailWeight;
       float wearHint = style > kStyleLaneThreshold ? 0.25 : clamp(vColor.a, 0.0, 1.0);
-      float turfPillow = smoothstep(0.24, 0.62, NoiseSimplex2(sp.xz * 0.42, 769) * 0.5 + 0.5) *
+      float turfPillow = smoothstep(0.24, 0.62, 0.5 + 0.5 * sin(sp.x * 0.9 + sp.z * 0.7)) *
           (1.0 - wearHint * 0.85);
       float groundH = clamp(0.44 + 0.24 * clodH + 0.28 * cobbleDome + 0.14 * turfPillow, 0.0, 1.0);
       if (style <= kStyleLaneThreshold) {
@@ -276,12 +345,12 @@ fragment {
     out float outSpec,
     out float outAo
   ) {
-    float macroZone = NoiseFbm2((P.xz + warp) * 0.105, 701, 3, 2.0, 0.5) * 0.5 + 0.5;
-    float soilPatch = NoiseFbm2((P.xz - warp * 0.55) * 0.34, 761, 3, 2.0, 0.5) * 0.5 + 0.5;
-    float turfMedium = NoiseFbm2((P.xz - warp * 0.38) * 0.42, 769, 2, 2.0, 0.5) * 0.5 + 0.5;
+    float macroZone = FastFbm2_3((P.xz + warp) * 0.105, 701.0) * 0.5 + 0.5;
+    float soilPatch = FastFbm2_3((P.xz - warp * 0.55) * 0.34, 761.0) * 0.5 + 0.5;
+    float turfMedium = FastFbm2_2((P.xz - warp * 0.38) * 0.42, 769.0) * 0.5 + 0.5;
     float cloverFine = mix(
       0.5,
-      NoiseSimplex2(vec2(P.x * 2.15 + P.z * 0.65, P.z * 2.15 - P.x * 0.65), 773) * 0.5 + 0.5,
+      FastVal2(vec2(P.x * 2.15 + P.z * 0.65, P.z * 2.15 - P.x * 0.65), 773.0) * 0.5 + 0.5,
       midFade
     );
     float riverBankLush = smoothstep(1.85, -0.28, P.y) * (1.0 - smoothstep(-0.30, -0.58, P.y));
@@ -292,31 +361,22 @@ fragment {
         riverBankLush * 0.22;
     float meadowTurfMask = smoothstep(0.40, 0.56, turfSignal) * (1.0 - wear * 0.86);
 
-    float soilWorley = NoiseCellular2(
-      P.xz * 2.65 + warp * 0.22,
-      743,
-      kNoiseCellularEuclidean,
-      kNoiseCellularDistance2Sub,
-      0.92
-    );
-    float crackEdge = 1.0 - smoothstep(0.012, 0.088, max(0.0, soilWorley + 1.0));
+    float soilWorley = abs(FastVal2(P.xz * 2.25 + warp * 0.22, 743.0));
+    float crackEdge = 1.0 - smoothstep(0.014, 0.105, soilWorley);
     float crackRegion = smoothstep(0.42, 0.74, soilPatch * 0.64 + wear * 0.46) *
         (1.0 - meadowTurfMask * 0.78);
-    float crackBreaker = smoothstep(0.30, 0.68, NoiseSimplex2(P.xz * 4.4, 751) * 0.5 + 0.5);
+    float crackBreaker = smoothstep(0.30, 0.68, FastVal2(P.xz * 4.4, 751.0) * 0.5 + 0.5);
     float soilCrackMask = crackEdge * crackRegion * crackBreaker * mix(0.25, 1.0, fineFade);
 
     float wetShore = smoothstep(0.08, -0.58, P.y);
     float scourMass = smoothstep(
       0.44,
       0.78,
-      NoiseFbm2(P.xz * 0.68 + warp * 0.18, 757, 2, 2.0, 0.5) * 0.5 + 0.5 +
+      FastFbm2_2(P.xz * 0.68 + warp * 0.18, 757.0) * 0.5 + 0.5 +
           wear * 0.28 +
           wetShore * 0.30
     );
-    float cobbleDist = max(
-      0.0,
-      NoiseCellular2(P.xz * 5.2, 787, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.88) + 1.0
-    );
+    float cobbleDist = FastCellDist2(P.xz * 5.2, 787.0);
     float cobbleRadius = (0.22 + 0.20 * clodCell) * scourMass;
     float cobbleMask = (1.0 - smoothstep(cobbleRadius * 0.45, max(cobbleRadius, 0.04), cobbleDist)) *
         step(0.03, cobbleRadius) *
@@ -326,7 +386,7 @@ fragment {
         step(0.05, cobbleRadius) *
         midFade;
 
-    float leafSpeck = smoothstep(0.86, 0.93, NoiseSimplex2(P.xz * 4.8, 793) * 0.5 + 0.5) *
+    float leafSpeck = smoothstep(0.86, 0.93, FastVal2(P.xz * 4.8, 793.0) * 0.5 + 0.5) *
         (1.0 - wear * 0.80) *
         fineFade;
 
@@ -361,7 +421,7 @@ fragment {
     );
     vec3 groundN = normalize(N + terrainNormalDelta * 1.48);
 
-    float fieldPuddleMask = smoothstep(0.66, 0.92, NoiseSimplex2(P.xz * 0.95, 911) * 0.5 + 0.5) *
+    float fieldPuddleMask = smoothstep(0.66, 0.92, FastVal2(P.xz * 0.95, 911.0) * 0.5 + 0.5) *
         smoothstep(0.42, 0.80, wear) *
         smoothstep(0.85, 0.99, N.y) *
         smoothstep(0.65, 0.15, P.y);
@@ -457,12 +517,9 @@ fragment {
     float scourMass = smoothstep(
       0.38,
       0.76,
-      NoiseSimplex2(P.xz * 0.82 + warp * 0.16, 757) * 0.5 + 0.5 + rutSpill * 0.35
+      FastVal2(P.xz * 0.82 + warp * 0.16, 757.0) * 0.5 + 0.5 + rutSpill * 0.35
     );
-    float cobbleDist = max(
-      0.0,
-      NoiseCellular2(P.xz * 5.6, 787, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.88) + 1.0
-    );
+    float cobbleDist = FastCellDist2(P.xz * 5.6, 787.0);
     float cobbleRadius = (0.20 + 0.20 * clodCell) * scourMass;
     float pebbleSpeck = (1.0 - smoothstep(cobbleRadius * 0.42, max(cobbleRadius, 0.04), cobbleDist)) *
         step(0.03, cobbleRadius) *
@@ -488,7 +545,7 @@ fragment {
     vec3 roadRgb = mix(rutSoil, embeddedStone, pebbleSpeck * 0.52);
     roadRgb = mix(roadRgb, vec3(0.076, 0.122, 0.044), shoulderMix * 0.46);
 
-    float puddleNoise = NoiseSimplex2(P.xz * 1.15 + warp * 0.15, 853) * 0.5 + 0.5;
+    float puddleNoise = FastVal2(P.xz * 1.15 + warp * 0.15, 853.0) * 0.5 + 0.5;
     float rutPuddleMask = smoothstep(0.42, 0.86, puddleNoise * rutPair) *
         smoothstep(0.82, 0.98, N.y);
 
@@ -545,19 +602,22 @@ fragment {
 
     vec3 P = P0;
     vec2 uv = uv0;
-    float hCenter = 1.0;
+    float h0 = baseReliefDepth > 0.001
+        ? SampleReliefHeight(P0, uv0, N, T, B, vColor, style, laneBlend, midFade)
+        : 1.0;
+    float hCenter = h0;
 
     if (activeReliefDepth > 0.001) {
       float cosVN = max(dot(viewRay, N), 0.30);
       vec2 fullOffsetTB = -vec2(dot(viewRay, T), dot(viewRay, B)) * (activeReliefDepth / cosVN);
 
       float prevLayer = 0.0;
-      float prevMap = 1.0 - SampleReliefHeight(P0, uv0, N, T, B, vColor, style, laneBlend, midFade);
+      float prevMap = 1.0 - h0;
       float currLayer = 0.0;
       float currMap = prevMap;
 
-      for (int stepIdx = 1; stepIdx <= 4; stepIdx++) {
-        currLayer = float(stepIdx) * 0.25;
+      for (int stepIdx = 1; stepIdx <= 3; stepIdx++) {
+        currLayer = float(stepIdx) * 0.3333333;
         vec2 stepTB = fullOffsetTB * currLayer;
         vec3 stepP = P0 + T * stepTB.x + B * stepTB.y;
         vec2 stepUv = uv0 + clamp(
@@ -586,8 +646,6 @@ fragment {
         vec2(0.045)
       );
       hCenter = 1.0 - finalDepth;
-    } else if (baseReliefDepth > 0.001) {
-      hCenter = SampleReliefHeight(P0, uv0, N, T, B, vColor, style, laneBlend, midFade);
     }
 
     float horizonOcc = 1.0;
@@ -633,15 +691,11 @@ fragment {
       }
     }
 
-    float pigmentFbm = NoiseFbm3(
-      P * (material_params.grain_scale * 0.24),
-      1337,
-      3,
-      2.0,
-      0.5
-    );
+    vec3 pigmentP = P * (material_params.grain_scale * 0.24);
+    float pigmentFbm = FastVal3(pigmentP, 1337.0) * 0.6667 +
+        FastVal3(pigmentP * 2.05 + vec3(5.3, -3.7, 7.1), 1361.0) * 0.3333;
     float pigment = clamp(0.5 + 0.5 * pigmentFbm, 0.0, 1.0);
-    float microBrush = mix(0.5, NoiseSimplex3(P * 9.5, 811) * 0.5 + 0.5, fineFade);
+    float microBrush = mix(0.5, FastVal3(P * 9.5, 811.0) * 0.5 + 0.5, fineFade);
     float pigmentMix = clamp(pigment * 0.52 + (microBrush - 0.5) * 0.16, 0.0, 1.0);
 
     vec3 albedo = mix(
@@ -661,11 +715,11 @@ fragment {
       float uEave = dot(P, T);
       float vSlope = dot(P, B);
       if (vColor.a <= 0.45) {
-        float reedWarp = NoiseSimplex3(P * 3.4, 331) * 0.65;
+        float reedWarp = FastVal3(P * 3.4, 331.0) * 0.65;
         float reedBundle = mix(0.5, sin(uEave * 44.0 + reedWarp * 2.4) * 0.5 + 0.5, midFade);
         float reedFine = mix(
           0.5,
-          NoiseSimplex2(vec2(uEave * 26.0, vSlope * 5.5), 337) * 0.5 + 0.5,
+          FastVal2(vec2(uEave * 26.0, vSlope * 5.5), 337.0) * 0.5 + 0.5,
           fineFade
         );
         float layerFract = fract(vSlope / 0.46 + reedWarp * 0.12);
@@ -710,10 +764,10 @@ fragment {
         float shakeSeam = (1.0 - smoothstep(0.0, 0.11, min(shakeFx, 1.0 - shakeFx))) * midFade;
         float courseUnder = 1.0 - smoothstep(0.0, 0.15, shakeFy);
         float courseShadow = 1.0 - 0.38 * courseUnder;
-        float shakeVar = NoiseValue2(vec2(shakeCol * 1.3, shakeRow * 1.7), 347) * 0.5 + 0.5;
+        float shakeVar = FastHash2(vec2(shakeCol, shakeRow), 347.0);
         float woodFiber = mix(
           0.5,
-          NoiseSimplex2(vec2(uEave * 18.0, vSlope * 6.2), 353) * 0.5 + 0.5,
+          FastVal2(vec2(uEave * 18.0, vSlope * 6.2), 353.0) * 0.5 + 0.5,
           fineFade
         );
         vec3 cedarUmber = vec3(0.22, 0.14, 0.082);
@@ -742,10 +796,10 @@ fragment {
         float courseUnder = 1.0 - smoothstep(0.0, 0.15, courseFract);
         float overlapShadow = 1.0 - 0.36 * courseUnder;
 
-        float tileVar = NoiseValue2(
+        float tileVar = FastHash2(
           vec2(floor(uEave / 0.26), floor(vSlope / 0.34)),
-          313
-        ) * 0.5 + 0.5;
+          313.0
+        );
         float mossMask = smoothstep(0.60, 0.86, pigment * 0.65 + tileVar * 0.35) *
             material_params.weathering;
 
@@ -798,10 +852,10 @@ fragment {
       float boardFract = fract(boardCoord);
       float boardId = floor(boardCoord);
       float seam = (1.0 - smoothstep(0.0, 0.09, min(boardFract, 1.0 - boardFract))) * midFade;
-      float boardTone = NoiseValue2(vec2(boardId, floor(grainCoord * 0.2)), 401) * 0.5 + 0.5;
+      float boardTone = FastHash2(vec2(boardId, floor(grainCoord * 0.2)), 401.0);
       float woodGrain = mix(
         0.5,
-        NoiseSimplex2(vec2(boardCoord * 3.5, grainCoord * 4.8), 419) * 0.5 + 0.5,
+        FastVal2(vec2(boardCoord * 3.5, grainCoord * 4.8), 419.0) * 0.5 + 0.5,
         fineFade
       );
 
@@ -841,7 +895,7 @@ fragment {
         float uStone = dot(P, T);
         float vStone = abs(N.y) < 0.82 ? P.y : dot(P, B);
         float row = floor(vStone / 0.44);
-        float wobble = NoiseSimplex2(vec2(uStone * 0.9, vStone * 0.9), 509) * 0.14;
+        float wobble = FastVal2(vec2(uStone * 0.9, vStone * 0.9), 509.0) * 0.14;
         float colCoord = (uStone + wobble) / 0.66 + mod(row, 2.0) * 0.47;
         float rowCoord = (vStone + wobble * 0.6) / 0.44;
         float fx = fract(colCoord);
@@ -852,9 +906,9 @@ fragment {
         float edgeY = min(fy, 1.0 - fy);
         float mortar = 1.0 - smoothstep(0.02, 0.11, min(edgeX, edgeY * 0.85));
         mortar *= mix(0.45, 1.0, midFade);
-        float stoneHash = NoiseValue2(vec2(col * 1.3, row * 1.7), 521) * 0.5 + 0.5;
-        float rockFacet = NoiseSimplex3(P * 2.6, 547) * midFade;
-        float rockPore = NoiseSimplex3(P * 9.4, 557) * fineFade;
+        float stoneHash = FastHash2(vec2(col, row), 521.0);
+        float rockFacet = FastVal3(P * 2.6, 547.0) * midFade;
+        float rockPore = FastVal3(P * 9.4, 557.0) * fineFade;
 
         vec3 warmGranite = albedo * vec3(1.24, 1.08, 0.90);
         vec3 coolSlate = albedo * vec3(0.78, 0.90, 1.10);
@@ -908,24 +962,10 @@ fragment {
         float rockWarp = NoiseSimplex3(P * 0.95 + vec3(3.7, -2.1, 1.9), 569);
         vec3 rockP = P * 1.58 + vec3(strataFbm * 0.64, rockWarp * 0.48, -strataFbm * 0.56);
 
-        float cellDist = NoiseCellular3(
-          rockP,
-          571,
-          kNoiseCellularEuclidean,
-          kNoiseCellularDistance2Sub,
-          0.94
-        );
-        float cellFine = NoiseCellular3(
-          rockP * 2.15 + vec3(2.4, -1.7, 1.1),
-          587,
-          kNoiseCellularEuclidean,
-          kNoiseCellularDistance2Sub,
-          0.92
-        );
+        float crackDist = abs(FastVal3(rockP * 1.25, 571.0));
+        float fineCrackDist = abs(FastVal3(rockP * 2.75 + vec3(2.4, -1.7, 1.1), 587.0));
         float crackRegion = smoothstep(0.22, 0.68, strataFbm * 0.5 + 0.52);
-        float crackBreaker = smoothstep(0.24, 0.70, NoiseSimplex3(rockP * 2.4, 599) * 0.5 + 0.5);
-        float crackDist = max(0.0, cellDist + 1.0);
-        float fineCrackDist = max(0.0, cellFine + 1.0);
+        float crackBreaker = smoothstep(0.24, 0.70, FastVal3(rockP * 2.4, 599.0) * 0.5 + 0.5);
         float fissureMask = clamp(
           (1.0 - smoothstep(0.015, 0.13, crackDist)) * (0.45 + 0.55 * crackRegion) +
               (1.0 - smoothstep(0.01, 0.08, fineCrackDist)) * 0.48 * crackBreaker * fineFade,
@@ -945,11 +985,11 @@ fragment {
 
         float totalCrevice = clamp(fissureMask * 0.75 + shelfRiser * 0.55, 0.0, 1.0);
 
-        float facetGrain = NoiseSimplex3(rockP * 1.85, 577) * midFade;
-        float facetMicro = NoiseSimplex3(P * 7.8, 593) * fineFade;
+        float facetGrain = FastVal3(rockP * 1.85, 577.0) * midFade;
+        float facetMicro = FastVal3(P * 7.8, 593.0) * fineFade;
 
-        float fissureKickT = (NoiseSimplex3(rockP + vec3(0.32, 0.0, 0.0), 571) - 0.5) * fissureMask;
-        float fissureKickB = (NoiseSimplex3(rockP + vec3(0.0, 0.32, 0.0), 573) - 0.5) * fissureMask;
+        float fissureKickT = (FastVal3(rockP + vec3(0.32, 0.0, 0.0), 571.0) - 0.5) * fissureMask;
+        float fissureKickB = (FastVal3(rockP + vec3(0.0, 0.32, 0.0), 573.0) - 0.5) * fissureMask;
         float shelfNormY = (shelfRiser * 2.0 - 1.0) * 0.28 + strata * 0.08;
 
         vec3 normalDelta = T * (fissureKickT * 0.46 + facetGrain * 0.18) +
@@ -965,7 +1005,7 @@ fragment {
         vec3 deepIndigoUmber = vec3(0.038, 0.032, 0.048);
         albedo = mix(albedo, deepIndigoUmber, totalCrevice * 0.68);
 
-        float mossNoise = NoiseSimplex3(P * 2.4 + vec3(strataFbm * 0.4), 883) * 0.5 + 0.5;
+        float mossNoise = FastVal3(P * 2.4 + vec3(strataFbm * 0.4), 883.0) * 0.5 + 0.5;
         float mossPocket = smoothstep(0.42, 0.74, mossNoise) *
             smoothstep(0.16, 0.86, crownSun) *
             (1.0 - fissureMask * 0.60) *
@@ -1015,8 +1055,8 @@ fragment {
         }
       }
     } else if (abs(style - kStyleEdoPlaster) <= 0.5) {
-      float trowel = NoiseSimplex3(vec3(P.x * 2.8, P.y * 4.6, P.z * 2.8), 601) * midFade;
-      float fineGrain = NoiseSimplex3(P * 11.0, 613) * fineFade;
+      float trowel = FastVal3(vec3(P.x * 2.8, P.y * 4.6, P.z * 2.8), 601.0) * midFade;
+      float fineGrain = FastVal3(P * 11.0, 613.0) * fineFade;
       float splashMask = clamp(1.0 - uv.y * 2.8, 0.0, 1.0) * material_params.weathering;
       albedo *= 0.94 + 0.10 * trowel + 0.04 * fineGrain;
       albedo = mix(albedo, albedo * vec3(0.54, 0.48, 0.42), splashMask * 0.68);
@@ -1043,27 +1083,21 @@ fragment {
     } else if (style > 4.5 && style < 5.8) {
       float isLane = step(kStyleLaneThreshold, style);
       vec2 warp = vec2(
-        NoiseSimplex2(P.xz * 0.10, 683),
-        NoiseSimplex2(P.xz * 0.10, 691)
+        FastVal2(P.xz * 0.10, 683.0),
+        FastVal2(P.xz * 0.10, 691.0)
       ) * 2.9;
 
       float clodCell = mix(
         0.5,
-        NoiseCellular2(
-          P.xz * 3.8,
-          719,
-          kNoiseCellularEuclidean,
-          kNoiseCellularCellValue,
-          0.75
-        ) * 0.5 + 0.5,
+        FastVal2(P.xz * 3.8, 719.0) * 0.5 + 0.5,
         midFade
       );
-      float fineGrit = NoiseSimplex2(P.xz * 9.2, 733) * fineFade;
+      float fineGrit = FastVal2(P.xz * 9.2, 733.0) * fineFade;
 
       if (isLane > 0.5) {
         bool isGardenPath = vColor.a < 0.60;
-        float breakupNoise = NoiseSimplex2(P.xz * 2.8, 947);
-        float breakupFine = NoiseSimplex2(P.xz * 6.4, 953) * fineFade;
+        float breakupNoise = FastVal2(P.xz * 2.8, 947.0);
+        float breakupFine = FastVal2(P.xz * 6.4, 953.0) * fineFade;
         float junctionEnvelope = 4.0 * laneBlend.y * (1.0 - laneBlend.y);
         float roadMix = isGardenPath
             ? smoothstep(0.0, 1.0, clamp(laneBlend.y + breakupNoise * 0.18 * junctionEnvelope, 0.0, 1.0))
@@ -1205,9 +1239,9 @@ fragment {
             P.xz,
             material_params.texture_scale * 1.65
           );
-          float patchMacro = NoiseFbm2((P.xz + warp) * 0.105, 701, 2, 2.0, 0.5) * 0.5 + 0.5;
-          float shoreHeightNoise = NoiseSimplex2(P.xz * 0.52, 613) * 0.24 +
-              NoiseSimplex2(P.xz * 1.45, 631) * 0.09;
+          float patchMacro = FastFbm2_2((P.xz + warp) * 0.105, 701.0) * 0.5 + 0.5;
+          float shoreHeightNoise = FastVal2(P.xz * 0.52, 613.0) * 0.24 +
+              FastVal2(P.xz * 1.45, 631.0) * 0.09;
           float warpedY = P.y + shoreHeightNoise;
           float submerged = smoothstep(-0.30, -0.78, warpedY);
           float dampShore = smoothstep(0.28, -0.45, warpedY);
@@ -1231,15 +1265,9 @@ fragment {
           float cobbleZone = smoothstep(0.22, -0.18, warpedY) *
               clamp(groundWear * 0.72 + dampShore * 0.58, 0.0, 1.0);
           if (cobbleZone > 0.01) {
-            float bigStoneCell = max(
-              0.0,
-              NoiseCellular2(P.xz * 3.8 + warp * 0.15, 787, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.88) + 1.0
-            );
-            float finePebbleCell = max(
-              0.0,
-              NoiseCellular2(P.xz * 8.2, 797, kNoiseCellularEuclidean, kNoiseCellularDistance, 0.86) + 1.0
-            );
-            float stoneHue = NoiseSimplex2(P.xz * 2.9, 811) * 0.5 + 0.5;
+            float bigStoneCell = FastCellDist2(P.xz * 3.8 + warp * 0.15, 787.0);
+            float finePebbleCell = FastCellDist2(P.xz * 8.2, 797.0);
+            float stoneHue = FastVal2(P.xz * 2.9, 811.0) * 0.5 + 0.5;
             vec3 stoneA = vec3(0.68, 0.62, 0.52);
             vec3 stoneB = vec3(0.46, 0.50, 0.50);
             vec3 stoneC = vec3(0.66, 0.54, 0.36);
@@ -1259,7 +1287,7 @@ fragment {
             groundPaint * vec3(0.56, 0.62, 0.58),
             submerged * 0.42 + dampShore * 0.08
           );
-          float leafNoise = NoiseSimplex2(P.xz * 3.4 + vec2(groundWear * 3.1, 0.0), 827) * 0.5 + 0.5;
+          float leafNoise = FastVal2(P.xz * 3.4 + vec2(groundWear * 3.1, 0.0), 827.0) * 0.5 + 0.5;
           float leafFleck = smoothstep(0.76, 0.92, leafNoise) * (1.0 - dampShore) * midFade;
           vec3 autumnLeafTint = mix(vec3(0.46, 0.13, 0.05), vec3(0.52, 0.32, 0.07), fract(leafNoise * 7.3));
           groundPaint = mix(groundPaint, autumnLeafTint, leafFleck * 0.32);
@@ -1293,7 +1321,7 @@ fragment {
           albedo = mix(vec3(0.82, 0.79, 0.74), vec3(0.96, 0.93, 0.88), pigment);
         }
         float stripe = sin(uv.x * 37.699) * 0.5 + 0.5;
-        float weave = NoiseSimplex2(uv * 48.0, 809) * 0.08 * fineFade;
+        float weave = FastVal2(uv * 48.0, 809.0) * 0.08 * fineFade;
         albedo *= 0.88 + 0.22 * smoothstep(0.35, 0.65, stripe) + weave;
         cavityAo = clamp(0.84 + 0.16 * stripe, 0.72, 1.0);
       } else {
@@ -1314,7 +1342,7 @@ fragment {
     albedo *= mix(vec3(0.82, 0.86, 0.94), vec3(1.0), horizonOcc);
 
     float wallDripMask = smoothstep(0.88, 0.42, abs(N.y));
-    float dripNoise = NoiseSimplex2(vec2(P.x * 1.4 + P.z * 1.4, P.y * 2.6), 42);
+    float dripNoise = FastVal2(vec2(P.x * 1.4 + P.z * 1.4, P.y * 2.6), 42.0);
     float drip = clamp(0.5 + 0.5 * dripNoise, 0.0, 1.0) * material_params.weathering * wallDripMask;
     vec3 weathered = mix(albedo, albedo * 0.78, drip * 0.28);
 

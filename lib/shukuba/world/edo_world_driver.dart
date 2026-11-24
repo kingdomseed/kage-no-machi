@@ -1,7 +1,7 @@
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
+import 'package:flutter/foundation.dart' show kIsWeb, listEquals, visibleForTesting;
 import 'package:flutter_scene/kit.dart' show Steering;
 import 'package:flutter_scene/scene.dart'
     show
@@ -424,16 +424,19 @@ class EdoWorldDriver implements ShukubaWorldDriver {
 
     stopwatch.reset();
     _rebuildFloraAtmosphereAndPreviewNodes();
+    if (_isStaleAttach(epoch, capturedRealm, scene)) {
+      return;
+    }
+    await _attachHeroGlbModels();
+    if (_isStaleAttach(epoch, capturedRealm, scene)) {
+      return;
+    }
     if (onStage != null) {
       await onStage(
         BootStageId.floraAndAir,
         stopwatch.elapsedMicroseconds / 1000.0,
       );
     }
-    if (_isStaleAttach(epoch, capturedRealm, scene)) {
-      return;
-    }
-    await _attachHeroGlbModels();
   }
 
   Future<void> switchRealm(ShowcaseRealm nextRealm) async {
@@ -1656,7 +1659,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     required int capturedEpoch,
     required ShowcaseRealm capturedRealm,
     required Scene? capturedScene,
-    int batchSize = 6,
+    int batchSize = kIsWeb ? 12 : 6,
   }) async {
     final pending = <String>[];
     final seen = <String>{};
@@ -1695,14 +1698,23 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     final heroPlacements = _realm == ShowcaseRealm.minatoJo
         ? null
         : buildShukubaHeroPropPlacements(sampleGroundHeight);
+    final activeStructureAssets = kIsWeb
+        ? <String>{
+            for (final structure in _graph.structures.values)
+              ?_heroStructureAssetFor(structure),
+          }.toList(growable: false)
+        : _heroStructureAssetPaths;
+    final hasToriiGate = _graph.structures.values.any(
+      (s) => s.kind == StructureKind.toriiGate,
+    );
     final assetsToPreload = <String>[
       vistaAsset,
       'assets/models/sky_cloud_dome.glb',
-      ..._heroStructureAssetPaths,
+      ...activeStructureAssets,
       ..._heroAgentAssetPaths,
       if (_realm == ShowcaseRealm.shukubaValley && !_heroBridgeAttached)
         'assets/models/edo_arched_bridge.glb',
-      'assets/models/edo_torii_gate.glb',
+      if (!kIsWeb || hasToriiGate) 'assets/models/edo_torii_gate.glb',
       if (minatoPlacements != null)
         for (final item in minatoPlacements) item.assetPath,
       if (heroPlacements != null)
@@ -1758,7 +1770,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _worldRoot!.add(skyCloudDome);
     }
 
-    for (final structureAsset in _heroStructureAssetPaths) {
+    for (final structureAsset in activeStructureAssets) {
       await _loadCachedGlbPrototype(structureAsset);
       if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
         return;
@@ -1811,9 +1823,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _bridgeNode.visible = _realm == ShowcaseRealm.shukubaValley;
     }
 
-    final heroToriiProto = await _loadCachedGlbPrototype(
-      'assets/models/edo_torii_gate.glb',
-    );
+    final heroToriiProto = (!kIsWeb || hasToriiGate)
+        ? await _loadCachedGlbPrototype('assets/models/edo_torii_gate.glb')
+        : null;
     if (_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
       return;
     }
@@ -1920,6 +1932,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _collectEmissiveMaterials(_heroPropsNode, hintName: 'hero_props');
     _collectEmissiveMaterials(_agentsNode, hintName: 'agents');
     syncEmissives(_lastEmissiveRig);
+    if (kIsWeb &&
+        !_isStaleAttach(capturedEpoch, capturedRealm, capturedScene)) {
+      unawaited(
+        _preloadGlbPrototypes(
+          _heroStructureAssetPaths,
+          capturedEpoch: capturedEpoch,
+          capturedRealm: capturedRealm,
+          capturedScene: capturedScene,
+        ),
+      );
+    }
   }
 
   @override

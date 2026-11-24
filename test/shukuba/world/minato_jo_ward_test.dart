@@ -94,7 +94,7 @@ void main() {
         expect(CameraPreset.minatoVerificationPresets.length, equals(6));
         expect(
           ShowcaseRealm.minatoJo.defaultPreset,
-          equals(CameraPreset.minatoSunsetBoulevard),
+          equals(CameraPreset.minatoCitadelOverview),
         );
         expect(
           ShowcaseRealm.minatoJo.hudPresets,

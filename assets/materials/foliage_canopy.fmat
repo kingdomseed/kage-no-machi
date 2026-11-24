@@ -57,16 +57,66 @@ vertex {
 }
 
 fragment {
-  #include <noise.glsl>
   precision highp float;
 
+  float FastHash2(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal2(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = FastHash2(i, seed);
+    float b = FastHash2(i + vec2(1.0, 0.0), seed);
+    float c = FastHash2(i + vec2(0.0, 1.0), seed);
+    float d = FastHash2(i + vec2(1.0, 1.0), seed);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+  }
+
+  float FastFbm2_3(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.5714 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.2857 +
+        FastVal2(p * 4.09 + 23.1, seed + 37.0) * 0.1429;
+  }
+
+  float FastHash3(vec3 p, float seed) {
+    vec3 p3 = fract(
+      p * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal3(vec3 p, float seed) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    float n000 = FastHash3(i, seed);
+    float n100 = FastHash3(i + vec3(1.0, 0.0, 0.0), seed);
+    float n010 = FastHash3(i + vec3(0.0, 1.0, 0.0), seed);
+    float n110 = FastHash3(i + vec3(1.0, 1.0, 0.0), seed);
+    float n001 = FastHash3(i + vec3(0.0, 0.0, 1.0), seed);
+    float n101 = FastHash3(i + vec3(1.0, 0.0, 1.0), seed);
+    float n011 = FastHash3(i + vec3(0.0, 1.0, 1.0), seed);
+    float n111 = FastHash3(i + vec3(1.0, 1.0, 1.0), seed);
+    float nx00 = mix(n000, n100, u.x);
+    float nx10 = mix(n010, n110, u.x);
+    float nx01 = mix(n001, n101, u.x);
+    float nx11 = mix(n011, n111, u.x);
+    return mix(mix(nx00, nx10, u.y), mix(nx01, nx11, u.y), u.z) * 2.0 - 1.0;
+  }
+
   float ComputeAtmosphericGobo(vec2 worldXZ, float t) {
-    float cloudMacro = NoiseFbm2(
+    float cloudMacro = FastFbm2_3(
       worldXZ * 0.028 + vec2(t * 0.012, -t * 0.008),
-      1103,
-      3,
-      2.0,
-      0.5
+      1103.0
     ) * 0.5 + 0.5;
     float cloudClearing = smoothstep(0.28, 0.74, cloudMacro);
     float woodlandZone = clamp(
@@ -75,13 +125,13 @@ fragment {
       0.18,
       1.0
     );
-    float canopyBough = NoiseSimplex2(
+    float canopyBough = FastVal2(
       worldXZ * 0.24 + vec2(t * 0.032, t * 0.019),
-      1117
+      1117.0
     ) * 0.5 + 0.5;
-    float canopyLeafGap = NoiseSimplex2(
+    float canopyLeafGap = FastVal2(
       worldXZ * 0.62 - vec2(t * 0.048, -t * 0.026),
-      1129
+      1129.0
     ) * 0.5 + 0.5;
     float canopyDapple = smoothstep(0.26, 0.78, canopyBough * 0.64 + canopyLeafGap * 0.36);
     return mix(
@@ -355,7 +405,7 @@ fragment {
       leafTone = clamp(dot(foliageTexRgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
     }
 
-    float clusterNoise = NoiseSimplex3(worldPos * 2.2, 77) * 0.5 + 0.5;
+    float clusterNoise = FastVal3(worldPos * 2.2, 77.0) * 0.5 + 0.5;
     float mixFactor = leafTone * 0.74 + clusterNoise * 0.26;
 
     vec3 leafColor = mix(

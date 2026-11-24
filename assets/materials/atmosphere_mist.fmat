@@ -36,7 +36,40 @@ vertex {
 }
 
 fragment {
-  #include <noise.glsl>
+  precision highp float;
+
+  float FastHash3(vec3 p, float seed) {
+    vec3 p3 = fract(
+      p * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal3(vec3 p, float seed) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    float n000 = FastHash3(i, seed);
+    float n100 = FastHash3(i + vec3(1.0, 0.0, 0.0), seed);
+    float n010 = FastHash3(i + vec3(0.0, 1.0, 0.0), seed);
+    float n110 = FastHash3(i + vec3(1.0, 1.0, 0.0), seed);
+    float n001 = FastHash3(i + vec3(0.0, 0.0, 1.0), seed);
+    float n101 = FastHash3(i + vec3(1.0, 0.0, 1.0), seed);
+    float n011 = FastHash3(i + vec3(0.0, 1.0, 1.0), seed);
+    float n111 = FastHash3(i + vec3(1.0, 1.0, 1.0), seed);
+    float nx00 = mix(n000, n100, u.x);
+    float nx10 = mix(n010, n110, u.x);
+    float nx01 = mix(n001, n101, u.x);
+    float nx11 = mix(n011, n111, u.x);
+    return mix(mix(nx00, nx10, u.y), mix(nx01, nx11, u.y), u.z) * 2.0 - 1.0;
+  }
+
+  float FastFbm3_2(vec3 p, float seed) {
+    return FastVal3(p, seed) * 0.6667 +
+        FastVal3(p * 2.05 + vec3(7.3, -4.1, 3.7), seed + 19.0) * 0.3333;
+  }
 
   void Surface(inout MaterialInputs material) {
     vec3 P = GetWorldPosition();
@@ -51,7 +84,7 @@ fragment {
     if (material_params.mist_mode > 0.5 && material_params.mist_mode < 1.5) {
       float r = length(uv - vec2(0.5)) * 2.0;
       float radial = pow(clamp(1.0 - r, 0.0, 1.0), 2.45);
-      float wisp = 0.86 + 0.14 * NoiseSimplex3(P * 1.4 - vec3(0.0, t * 0.28, 0.0), 911);
+      float wisp = 0.86 + 0.14 * FastVal3(P * 1.4 - vec3(0.0, t * 0.28, 0.0), 911.0);
       vec3 coreTint = mix(
         vec3(0.96, 0.72, 0.36),
         material_params.mist_warm.rgb,
@@ -68,7 +101,7 @@ fragment {
     if (uv.y < -0.001) {
       float riseT = clamp(-uv.y, 0.0, 1.0);
       float verticalEnv = sin(riseT * 3.14159265) * (1.0 - 0.45 * riseT);
-      float curlX = NoiseSimplex3(vec3(P.x * 1.8, P.y * 1.4 - t * 0.72, P.z * 1.8), 929);
+      float curlX = FastVal3(vec3(P.x * 1.8, P.y * 1.4 - t * 0.72, P.z * 1.8), 929.0);
       float steamWisp = smoothstep(-0.18, 0.62, curlX + 0.25 * (1.0 - riseT));
       vec3 steamTint = mix(
         vec3(0.86, 0.82, 0.76),
@@ -87,8 +120,8 @@ fragment {
     }
 
     vec3 flowCoord = vec3(P.x * 0.20, P.y * 0.52, P.z * 0.15 - t * 0.11);
-    float warp = NoiseSimplex3(flowCoord * 1.4 + vec3(0.0, -t * 0.05, -t * 0.08), 941);
-    float fbm = NoiseFbm3(flowCoord + vec3(warp * 0.45), 953, 3, 2.0, 0.5);
+    float warp = FastVal3(flowCoord * 1.4 + vec3(0.0, -t * 0.05, -t * 0.08), 941.0);
+    float fbm = FastFbm3_2(flowCoord + vec3(warp * 0.45), 953.0);
     float billow = smoothstep(0.36, 0.86, fbm * 0.5 + 0.50);
 
     float bridgeClear = 0.42 + 0.58 * smoothstep(2.2, 9.2, abs(P.z));

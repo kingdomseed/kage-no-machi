@@ -140,6 +140,26 @@ class EdoLookDriver implements ShukubaLookDriver {
     _scene = null;
   }
 
+  bool _texturesPreloaded = false;
+  Future<void>? _prewarmFuture;
+
+  Future<void> prewarmWebAssets() {
+    return _prewarmFuture ??= _runPrewarmWebAssets();
+  }
+
+  Future<void> _runPrewarmWebAssets() async {
+    try {
+      await Scene.initializeStaticResources();
+      await _preloadProductionTextures();
+      if (_materials.length < ShukubaSurfaceRole.values.length) {
+        await _loadProductionMaterials();
+      }
+    } on Object {
+      _prewarmFuture = null;
+      rethrow;
+    }
+  }
+
   @override
   Future<void> attach(Scene scene) async {
     detach();
@@ -147,7 +167,7 @@ class EdoLookDriver implements ShukubaLookDriver {
     _scene = scene;
 
     if (!allowHeadlessFallback) {
-      await Scene.initializeStaticResources();
+      await prewarmWebAssets();
       if (_attachEpoch != epoch || !identical(_scene, scene)) {
         return;
       }
@@ -161,9 +181,11 @@ class EdoLookDriver implements ShukubaLookDriver {
       if (_attachEpoch != epoch || !identical(_scene, scene)) {
         return;
       }
-      await _loadDecalPool(scene, epoch);
-      if (_attachEpoch != epoch || !identical(_scene, scene)) {
-        return;
+      if (!kIsWeb) {
+        await _loadDecalPool(scene, epoch);
+        if (_attachEpoch != epoch || !identical(_scene, scene)) {
+          return;
+        }
       }
     } else {
       try {
@@ -208,7 +230,10 @@ class EdoLookDriver implements ShukubaLookDriver {
   ];
 
   Future<void> _preloadProductionTextures() async {
-    const batchSize = 6;
+    if (_texturesPreloaded) {
+      return;
+    }
+    const batchSize = kIsWeb ? 12 : 6;
     for (var i = 0; i < _productionTexturePaths.length; i += batchSize) {
       final end = math.min(i + batchSize, _productionTexturePaths.length);
       final batch = _productionTexturePaths.sublist(i, end);
@@ -216,6 +241,7 @@ class EdoLookDriver implements ShukubaLookDriver {
         for (final path in batch) _preloadTexture(path),
       ]);
     }
+    _texturesPreloaded = true;
   }
 
   Future<void> _preloadTexture(String assetPath) async {
@@ -230,13 +256,18 @@ class EdoLookDriver implements ShukubaLookDriver {
 
   Future<void> _loadProductionMaterials() async {
     await _preloadProductionTextures();
-    for (final role in ShukubaSurfaceRole.values) {
-      final fmatPath = _fmatPathForRole(role);
-      final mat = await loadFmatMaterial(fmatPath);
-      mat.depthLayer = role.depthLayer;
-      _configureRoleParameters(role, mat);
-      await _bindRoleTextures(role, mat);
-      _materials[role] = mat;
+    final entries = await Future.wait([
+      for (final role in ShukubaSurfaceRole.values)
+        () async {
+          final mat = await loadFmatMaterial(_fmatPathForRole(role));
+          mat.depthLayer = role.depthLayer;
+          _configureRoleParameters(role, mat);
+          await _bindRoleTextures(role, mat);
+          return MapEntry(role, mat);
+        }(),
+    ]);
+    for (final entry in entries) {
+      _materials[entry.key] = entry.value;
     }
   }
 
@@ -521,16 +552,14 @@ class EdoLookDriver implements ShukubaLookDriver {
       shadowMaxDistance: 145,
       shadowCascadeSplitLambda: 0.65,
       cascadeOverlap: 0.08,
-      shadowMapResolution: kIsWeb ? 1024 : 2048,
-      shadowFilter: kIsWeb
-          ? DirectionalShadowFilter.bilinearPcf
-          : DirectionalShadowFilter.pcss,
+      shadowMapResolution: kIsWeb ? 1536 : 2048,
+      shadowFilter: DirectionalShadowFilter.pcss,
       shadowAmbientStrength: 0.28,
       // Keep contact shadows disabled (default false): fp16 linear_depth ULP at
       // 100-250 m stripes distant hills/mountains; 4-cascade 2048px PCSS +
       // bent-cone GTAO handles grounding.
       contactShadowDistance: 0.45,
-    )..shadowCascadeCount = kIsWeb ? 2 : 4;
+    )..shadowCascadeCount = 4;
 
     if (_lanternLights.isEmpty) {
       for (var i = 0; i < maxLanternPointLights; i++) {

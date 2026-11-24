@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show ChangeNotifier;
+import 'package:flutter/foundation.dart' show ChangeNotifier, kIsWeb;
 import 'package:flutter_scene/scene.dart' show Camera, RenderView, Scene;
 import 'package:kage_no_machi/shukuba/look/edo_look_driver.dart'
     show EdoLookDriver;
@@ -206,9 +206,8 @@ class ShukubaController extends ChangeNotifier {
     );
     await scene.warmUp(
       [RenderView(camera: camera)],
-      includeOffscreen: true,
-      sliceBudget: const Duration(milliseconds: 50),
-      allShadingTiers: true,
+      includeOffscreen: !kIsWeb,
+      sliceBudget: kIsWeb ? null : const Duration(milliseconds: 50),
     );
     if (epoch != _sceneEpoch) {
       return abortedReport();

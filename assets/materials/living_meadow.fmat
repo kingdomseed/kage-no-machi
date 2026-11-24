@@ -58,16 +58,38 @@ vertex {
 }
 
 fragment {
-  #include <noise.glsl>
   precision highp float;
 
+  float FastHash2(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal2(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = FastHash2(i, seed);
+    float b = FastHash2(i + vec2(1.0, 0.0), seed);
+    float c = FastHash2(i + vec2(0.0, 1.0), seed);
+    float d = FastHash2(i + vec2(1.0, 1.0), seed);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+  }
+
+  float FastFbm2_3(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.5714 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.2857 +
+        FastVal2(p * 4.09 + 23.1, seed + 37.0) * 0.1429;
+  }
+
   float ComputeAtmosphericGobo(vec2 worldXZ, float t) {
-    float cloudMacro = NoiseFbm2(
+    float cloudMacro = FastFbm2_3(
       worldXZ * 0.028 + vec2(t * 0.012, -t * 0.008),
-      1103,
-      3,
-      2.0,
-      0.5
+      1103.0
     ) * 0.5 + 0.5;
     float cloudClearing = smoothstep(0.28, 0.74, cloudMacro);
     float woodlandZone = clamp(
@@ -76,13 +98,13 @@ fragment {
       0.18,
       1.0
     );
-    float canopyBough = NoiseSimplex2(
+    float canopyBough = FastVal2(
       worldXZ * 0.24 + vec2(t * 0.032, t * 0.019),
-      1117
+      1117.0
     ) * 0.5 + 0.5;
-    float canopyLeafGap = NoiseSimplex2(
+    float canopyLeafGap = FastVal2(
       worldXZ * 0.62 - vec2(t * 0.048, -t * 0.026),
-      1129
+      1129.0
     ) * 0.5 + 0.5;
     float canopyDapple = smoothstep(0.26, 0.78, canopyBough * 0.64 + canopyLeafGap * 0.36);
     return mix(
@@ -196,7 +218,7 @@ fragment {
       vec3 sunlitOlive = vec3(0.195, 0.258, 0.082);
       vec3 autumnStraw = vec3(0.340, 0.258, 0.100);
 
-      float patchTone = 0.5 + 0.5 * NoiseSimplex2(worldPos.xz * 0.16, 193);
+      float patchTone = 0.5 + 0.5 * FastVal2(worldPos.xz * 0.16, 193.0);
       float strawMix = clamp(
         (1.0 - patchTone) * 0.44 + max(0.0, vColor.r - vColor.g) * 1.3 + (bHash - 0.5) * 0.20,
         0.0,
@@ -274,7 +296,7 @@ fragment {
       tuftOcclusion = mix(0.48, 1.0, smoothstep(0.0, 0.70, s));
     }
 
-    float patchDapple = 0.94 + 0.12 * NoiseSimplex2(worldPos.xz * 0.38, 409);
+    float patchDapple = 0.94 + 0.12 * FastVal2(worldPos.xz * 0.38, 409.0);
     material.base_color = vec4(albedo * patchDapple * goboTint, coverage);
     material.roughness = 0.96;
     material.metallic = 0.0;

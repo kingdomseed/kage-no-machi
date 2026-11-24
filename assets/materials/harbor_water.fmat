@@ -4,7 +4,7 @@ material {
   blending: alpha,
   culling: back,
   depth_write: false,
-  engine_inputs: [scene_color, scene_depth, planar_reflection],
+  engine_inputs: [scene_color, scene_depth],
   parameters: [
     { type: vec4, name: shallow_color, hint: source_color, default: [0.022, 0.088, 0.112, 0.90] },
     { type: vec4, name: deep_color, hint: source_color, default: [0.008, 0.024, 0.056, 0.98] },
@@ -16,8 +16,32 @@ material {
 }
 
 fragment {
-  #include <noise.glsl>
   precision highp float;
+
+  float FastHash2(vec2 p, float seed) {
+    vec3 p3 = fract(
+      vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973) +
+          vec3(seed * 0.0173, seed * 0.0317, seed * 0.0113)
+    );
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float FastVal2(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = FastHash2(i, seed);
+    float b = FastHash2(i + vec2(1.0, 0.0), seed);
+    float c = FastHash2(i + vec2(0.0, 1.0), seed);
+    float d = FastHash2(i + vec2(1.0, 1.0), seed);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+  }
+
+  float FastFbm2_2(vec2 p, float seed) {
+    return FastVal2(p, seed) * 0.6667 +
+        FastVal2(p * 2.03 + 11.7, seed + 19.0) * 0.3333;
+  }
 
   vec2 EvaluateHarborSwell(
     vec2 p,
@@ -27,8 +51,8 @@ fragment {
   ) {
     // Organic domain-warped swells + non-collinear cross waves (eliminates diagonal banding)
     vec2 eddyWarp = vec2(
-      NoiseFbm2(p * 0.075 + vec2(0.0, t * 0.045), 311, 2, 2.0, 0.5),
-      NoiseFbm2(p * 0.075 + vec2(11.3, -t * 0.038), 419, 2, 2.0, 0.5)
+      FastFbm2_2(p * 0.075 + vec2(0.0, t * 0.045), 311.0),
+      FastFbm2_2(p * 0.075 + vec2(11.3, -t * 0.038), 419.0)
     ) * 1.95;
     vec2 wp = p + eddyWarp;
 
@@ -42,12 +66,12 @@ fragment {
     const vec2 eps = vec2(0.08, 0.0);
     vec2 cpA = wp * 0.72 + vec2(-t * 0.42, t * 0.24);
     vec2 cpB = wp * 1.68 + vec2(t * 0.35, -t * 0.52);
-    float hC = NoiseSimplex2(cpA, 733) * 0.60 + NoiseSimplex2(cpB, 617) * 0.40 * mipFade;
-    float hX = NoiseSimplex2(cpA + eps.xy, 733) * 0.60 + NoiseSimplex2(cpB + eps.xy * 1.3, 617) * 0.40 * mipFade;
-    float hY = NoiseSimplex2(cpA + eps.yx, 733) * 0.60 + NoiseSimplex2(cpB + eps.yx * 1.3, 617) * 0.40 * mipFade;
+    float hC = FastVal2(cpA, 733.0) * 0.60 + FastVal2(cpB, 617.0) * 0.40 * mipFade;
+    float hX = FastVal2(cpA + eps.xy, 733.0) * 0.60 + FastVal2(cpB + eps.xy * 1.3, 617.0) * 0.40 * mipFade;
+    float hY = FastVal2(cpA + eps.yx, 733.0) * 0.60 + FastVal2(cpB + eps.yx * 1.3, 617.0) * 0.40 * mipFade;
     vec2 chopGrad = vec2(hX - hC, hY - hC) / eps.x;
 
-    float gustEnv = 0.62 + 0.38 * NoiseSimplex2(p * 0.045 + vec2(t * 0.06, -t * 0.04), 211);
+    float gustEnv = 0.62 + 0.38 * FastVal2(p * 0.045 + vec2(t * 0.06, -t * 0.04), 211.0);
     float chopGain = 0.032 * (0.58 + 0.42 * gust * gustEnv) * mix(0.35, 1.0, mipFade);
     grad += chopGrad * chopGain;
     return grad;
@@ -89,7 +113,7 @@ fragment {
 
     float rawThickness = validSceneDepth < 1.0e5 ? max(0.0, validSceneDepth - fragDepth) : 12.0;
     float thickness = hasSceneDepth ? clamp(rawThickness * viewCosY, 0.0, 12.0) : 3.0;
-    float shoreNoise = NoiseFbm2(wp.xz * 0.45 + vec2(t * 0.08, -t * 0.05), 577, 2, 2.0, 0.5);
+    float shoreNoise = FastFbm2_2(wp.xz * 0.45 + vec2(t * 0.08, -t * 0.05), 577.0);
     float organicThickness = max(0.0, thickness + shoreNoise * 0.16);
     float shoreFeather = hasSceneDepth ? smoothstep(0.0, 0.56, organicThickness) : 1.0;
     float glintGate = smoothstep(0.06, 0.34, organicThickness);
@@ -111,8 +135,8 @@ fragment {
         (1.0 - smoothstep(0.32, 0.92, organicThickness)) *
         smoothstep(0.24, 0.42, organicThickness) *
         smoothstep(0.15, 0.85, swashPhase);
-    float foamNoiseA = NoiseSimplex2(wp.xz * 2.2 + vec2(t * 0.32, -t * 0.22), 503) * 0.5 + 0.5;
-    float foamNoiseB = NoiseSimplex2(wp.xz * 5.6 - vec2(t * 0.48, t * 0.28), 521) * 0.5 + 0.5;
+    float foamNoiseA = FastVal2(wp.xz * 2.2 + vec2(t * 0.32, -t * 0.22), 503.0) * 0.5 + 0.5;
+    float foamNoiseB = FastVal2(wp.xz * 5.6 - vec2(t * 0.48, t * 0.28), 521.0) * 0.5 + 0.5;
     float foamPattern = smoothstep(0.32, 0.80, foamNoiseA * 0.62 + foamNoiseB * 0.38);
     float foamStrength = clamp(
       (lapMask * 0.85 + secondarySwash * 0.52) * foamPattern * glintGate,
@@ -143,12 +167,7 @@ fragment {
     vec3 nightSkyRefl = mix(vec3(0.022, 0.046, 0.098), vec3(0.18, 0.28, 0.48), horizonWarm * 0.55);
     vec3 skyReflectColor = mix(duskSkyRefl, nightSkyRefl, night);
 
-    vec4 planarRefl = GetPlanarReflection();
-    float rippleDamp = clamp(1.0 - length(waveGrad) * 4.2, 0.58, 1.0);
-    vec3 softPlanar = planarRefl.rgb / (vec3(1.0) + planarRefl.rgb * 1.15);
-    vec3 envReflection = planarRefl.a > 0.5
-        ? mix(skyReflectColor, softPlanar * rippleDamp, 0.42)
-        : skyReflectColor;
+    vec3 envReflection = skyReflectColor;
     vec3 reflectedRadiance = envReflection *
         (fresnel * mix(0.22, 0.44, night) + pow(1.0 - nDotV, 5.0) * 0.04) *
         glintGate;
@@ -156,8 +175,8 @@ fragment {
     // Crisp sun-glitter sparkle path confined to reflected sun column
     vec3 halfVec = normalize(toSun + viewDir);
     float nDotH = max(dot(rippledNormal, halfVec), 0.0);
-    float glintCellA = NoiseSimplex2(wp.xz * 1.45 + vec2(t * 0.38, -t * 0.28), 811) * 0.5 + 0.5;
-    float glintCellB = NoiseSimplex2(wp.xz * 3.60 - vec2(t * 0.52, t * 0.44), 853) * 0.5 + 0.5;
+    float glintCellA = FastVal2(wp.xz * 1.45 + vec2(t * 0.38, -t * 0.28), 811.0) * 0.5 + 0.5;
+    float glintCellB = FastVal2(wp.xz * 3.60 - vec2(t * 0.52, t * 0.44), 853.0) * 0.5 + 0.5;
     float sparkleMask = smoothstep(0.56, 0.88, glintCellA * 0.55 + glintCellB * 0.45);
     float sunGlintPin = pow(nDotH, 520.0) * (0.45 + 1.45 * sparkleMask);
     float sunGlintTight = pow(nDotH, 300.0) * (0.09 + 0.56 * sparkleMask);
