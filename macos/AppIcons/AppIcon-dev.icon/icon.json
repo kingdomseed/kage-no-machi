@@ -1,31 +1,21 @@
 {
   "fill-specializations" : [
     {
-      "value" : "automatic"
+      "value" : {
+        "solid" : "srgb:0.03922,0.06667,0.11373,1.00000"
+      }
     },
     {
       "appearance" : "dark",
-      "value" : "automatic"
+      "value" : {
+        "solid" : "srgb:0.03922,0.06667,0.11373,1.00000"
+      }
     }
   ],
   "groups" : [
     {
       "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "extended-gray:1.00000,1.00000"
-              }
-            },
-            {
-              "appearance" : "tinted",
-              "value" : {
-                "solid" : "extended-gray:1.00000,1.00000"
-              }
-            }
-          ],
           "glass" : false,
           "image-name" : "Environment.png",
           "name" : "Environment",
@@ -38,18 +28,6 @@
           }
         },
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "srgb:0.03555,0.35531,0.48885,1.00000"
-              }
-            },
-            {
-              "appearance" : "tinted",
-              "value" : "automatic"
-            }
-          ],
           "glass" : false,
           "image-name" : "Flag.png",
           "name" : "Background",
@@ -73,36 +51,21 @@
       },
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.45
       },
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+        "enabled" : false,
+        "value" : 0
       }
     },
     {
-      "blur-material" : 0.5,
       "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "extended-gray:1.00000,1.00000"
-              }
-            },
-            {
-              "appearance" : "tinted",
-              "value" : {
-                "solid" : "extended-gray:1.00000,1.00000"
-              }
-            }
-          ],
           "glass" : false,
-          "image-name" : "Logo.svg",
-          "name" : "Logo",
+          "image-name" : "AppIcon.png",
+          "name" : "AppIcon",
           "position" : {
-            "scale" : 1.8,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
@@ -111,15 +74,15 @@
         }
       ],
       "lighting" : "individual",
-      "name" : "Logo",
+      "name" : "Artwork",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
       },
       "specular" : true,
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+        "enabled" : false,
+        "value" : 0
       }
     }
   ],

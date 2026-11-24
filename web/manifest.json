@@ -1,12 +1,12 @@
 {
-    "name": "kage_no_machi",
-    "short_name": "kage_no_machi",
+    "name": "Kage no Machi",
+    "short_name": "Kage no Machi",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#0A111D",
+    "theme_color": "#0A111D",
+    "description": "Kage no Machi — an atmospheric isometric Edo post-town diorama builder.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
