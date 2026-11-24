@@ -12,6 +12,7 @@ import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
         PlacedStructure,
         RoadSpline,
         RoadStyle,
+        ShowcaseRealm,
         StreetAgentRole,
         StructureKind,
         TerraceCourse,
@@ -628,5 +629,23 @@ void main() {
       },
       skip: !impellerAvailable ? impellerSkipReason : false,
     );
+  });
+
+  group('EdoWorldDriver frame step (CPU)', () {
+    test('step advances safely for both realms without GPU attachment', () {
+      for (final realm in ShowcaseRealm.values) {
+        final driver = EdoWorldDriver(initialRealm: realm)..initSimulation();
+        expect(
+          () {
+            driver
+              ..step(0.016, rig: TimeOfDayRig.goldenDusk)
+              ..step(0.050, rig: TimeOfDayRig.blueHourNight)
+              ..step(0.033, rig: const TimeOfDayRig(0.35));
+          },
+          returnsNormally,
+        );
+        driver.dispose();
+      }
+    });
   });
 }

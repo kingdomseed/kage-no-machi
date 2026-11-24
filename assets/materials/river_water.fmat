@@ -15,6 +15,42 @@ material {
   ]
 }
 
+vertex {
+  void Vertex(inout VertexInputs vertex) {
+    float t = material_params.time_sec;
+    vec3 wp = vertex.world_position;
+    float riverMask = (1.0 - smoothstep(-0.05, 0.25, wp.y)) *
+        (1.0 - smoothstep(14.0, 20.0, abs(wp.x)));
+    if (riverMask < 0.005) {
+      return;
+    }
+    float speedGain = mix(0.45, material_params.flow_speed, riverMask);
+    const vec2 dirs[3] = vec2[3](
+      vec2(0.31, 0.95),
+      vec2(-0.56, 0.83),
+      vec2(0.78, 0.62)
+    );
+    const float ks[3] = float[3](2.8, 4.8, 7.6);
+    const float amps[3] = float[3](0.012, 0.007, 0.003);
+    const float speeds[3] = float[3](2.1, 2.9, 3.8);
+
+    float dispY = 0.0;
+    float dHx = 0.0;
+    float dHz = 0.0;
+    for (int i = 0; i < 3; i++) {
+      float a = amps[i] * riverMask;
+      float ph = dot(wp.xz, dirs[i]) * ks[i] - t * speeds[i] * speedGain;
+      dispY += a * sin(ph);
+      float ak = a * ks[i];
+      float c = cos(ph);
+      dHx += dirs[i].x * ak * c;
+      dHz += dirs[i].y * ak * c;
+    }
+    vertex.world_position = vec3(wp.x, wp.y + dispY, wp.z);
+    vertex.world_normal = normalize(vec3(-dHx, 1.0, -dHz));
+  }
+}
+
 fragment {
   precision highp float;
 
@@ -62,8 +98,8 @@ fragment {
 
     // Flow-warped organic eddies along +z (eliminates uniform straight wave bars)
     vec2 streamWarp = vec2(
-      FastFbm2_2(vec2(p.x * 0.35, p.y * 0.16 - t * 0.22 * speedGain), 307.0),
-      FastFbm2_2(vec2(p.x * 0.35 + 7.1, p.y * 0.16 - t * 0.28 * speedGain), 317.0)
+      FastFbm2_2(vec2(p.x * 0.35, p.y * 0.16 - t * 0.30 * speedGain), 307.0),
+      FastFbm2_2(vec2(p.x * 0.35 + 7.1, p.y * 0.16 - t * 0.38 * speedGain), 317.0)
     ) * 1.15;
     vec2 wp = p + streamWarp;
 
@@ -72,9 +108,9 @@ fragment {
       vec2(-0.56, 0.83),
       vec2(0.78, 0.62)
     );
-    const float kLens[3] = float[3](2.2, 3.9, 6.4);
-    const float amps[3] = float[3](0.012, 0.0085, 0.005);
-    const float speeds[3] = float[3](1.95, 2.75, 3.60);
+    const float kLens[3] = float[3](3.4, 5.8, 9.2);
+    const float amps[3] = float[3](0.016, 0.011, 0.006);
+    const float speeds[3] = float[3](2.40, 3.30, 4.20);
 
     vec2 grad = vec2(0.0);
     for (int i = 0; i < 3; i++) {
@@ -85,15 +121,15 @@ fragment {
     }
 
     const vec2 eps = vec2(0.05, 0.0);
-    vec2 ruvA = vec2(wp.x * 1.45, wp.y * 0.55 - t * 0.92 * speedGain);
-    vec2 ruvB = vec2(wp.x * 2.85 + 2.3, wp.y * 1.15 - t * 1.38 * speedGain);
+    vec2 ruvA = vec2(wp.x * 1.45, wp.y * 0.55 - t * 1.05 * speedGain);
+    vec2 ruvB = vec2(wp.x * 2.85 + 2.3, wp.y * 1.15 - t * 1.55 * speedGain);
     float rC = FastVal2(ruvA, 733.0) * 0.62 + FastVal2(ruvB, 617.0) * 0.38 * mipFade;
     float rX = FastVal2(ruvA + eps.xy * 1.6, 733.0) * 0.62 + FastVal2(ruvB + eps.xy * 2.2, 617.0) * 0.38 * mipFade;
     float rY = FastVal2(ruvA + eps.yx * 0.8, 733.0) * 0.62 + FastVal2(ruvB + eps.yx * 1.1, 617.0) * 0.38 * mipFade;
     vec2 rippleGrad = vec2(rX - rC, rY - rC) / eps.x;
 
     float gustEnv = 0.55 + 0.45 * FastVal2(p * 0.14 - vec2(0.0, t * 0.55), 509.0);
-    float capAmp = mix(0.010, 0.024, riverMask) * (0.58 + 0.42 * gust * gustEnv) * mix(0.35, 1.0, mipFade);
+    float capAmp = mix(0.022, 0.082, riverMask) * (0.58 + 0.42 * gust * gustEnv) * mix(0.35, 1.0, mipFade);
     grad += rippleGrad * capAmp;
     return grad;
   }
@@ -106,7 +142,7 @@ fragment {
     float t = material_params.time_sec > 0.0001 ? material_params.time_sec : GetTime();
 
     float footprint = clamp(length(fwidth(wp)), 0.002, 1.5);
-    float mipFade = 1.0 - smoothstep(0.04, 0.26, footprint);
+    float mipFade = 1.0 - smoothstep(0.18, 0.85, footprint);
 
     float riverMask = (1.0 - smoothstep(-0.05, 0.25, wp.y)) *
         (1.0 - smoothstep(14.0, 20.0, abs(wp.x)));
@@ -141,8 +177,9 @@ fragment {
     float ringSlope = cos(ringPhase) * ringEnvelope * 0.036 * mipFade;
 
     vec2 dampedWaveGrad = waveGrad * mix(0.45, 1.0, smoothstep(0.04, 0.45, organicPreThickness));
+    vec3 baseUp = normalize(mix(vec3(0.0, 1.0, 0.0), geomNormal, 0.35));
     vec3 rippledNormal = normalize(
-      geomNormal + vec3(dampedWaveGrad.x + ringSlope, 0.0, dampedWaveGrad.y + ringSlope * 0.75)
+      baseUp + vec3(dampedWaveGrad.x + ringSlope, 0.0, dampedWaveGrad.y + ringSlope * 0.75)
     );
 
     float refractStrength = clamp(preThickness * 0.048, 0.0, 0.018) * mix(0.32, 1.0, riverMask);
@@ -179,14 +216,14 @@ fragment {
       clamp(ridgeA * 0.58 + ridgeB * 0.58 + ridgeA * ridgeB * 0.90, 0.0, 1.35),
       1.68
     ) * mix(0.35, 1.0, mipFade);
-    float causticAtten = smoothstep(0.08, 0.34, thickness) *
-        exp(-thickness * 2.0) *
+    float causticAtten = smoothstep(0.06, 0.32, thickness) *
+        exp(-thickness * 1.85) *
         riverMask;
 
     vec3 sunTint = frag_info.has_directional_light > 0.5
         ? clamp(frag_info.directional_light_color.rgb * 0.26, vec3(0.04), vec3(1.26, 0.96, 0.52))
         : vec3(0.95, 0.74, 0.38);
-    vec3 causticRadiance = sunTint * vec3(1.0, 0.85, 0.60) * (causticPattern * causticAtten * 0.12);
+    vec3 causticRadiance = sunTint * vec3(1.0, 0.85, 0.60) * (causticPattern * causticAtten * 0.28);
 
     vec3 transmittance = exp(-vec3(2.8, 1.05, 0.85) * thickness);
     vec3 shallowClearTrans = exp(-vec3(1.15, 0.56, 0.50) * thickness);
@@ -202,31 +239,33 @@ fragment {
     vec3 calmPaddyBody = vec3(0.088, 0.195, 0.145);
     vec3 waterBodyColor = mix(calmPaddyBody, volumeColor, riverMask);
 
-    // Soft flow-elongated FBM current wisps & delicate shoreline/boulder wake collars
+    // Downstream scrolling whitewater current ribbons + pulsing boulder/bank wake collars
     float collarEnv = smoothstep(0.015, 0.06, organicThickness) *
-        (1.0 - smoothstep(0.08, 0.28, organicThickness)) *
+        (1.0 - smoothstep(0.08, 0.44, organicThickness)) *
         riverMask;
-    float midStreamRapids = smoothstep(0.45, 0.88,
-      FastFbm2_2(vec2(wp.x * 0.95, wp.z * 0.55 - t * 0.95 * material_params.flow_speed), 547.0) * 0.5 + 0.5
-    ) * smoothstep(0.18, 0.50, organicThickness) * riverMask;
+    float midStreamRapids = smoothstep(
+      0.52,
+      0.86,
+      FastFbm2_2(vec2(wp.x * 1.85, wp.z * 0.42 - t * 1.65 * material_params.flow_speed), 547.0) * 0.5 + 0.5
+    ) * smoothstep(0.14, 0.52, organicThickness) * riverMask;
     float flowWisp = FastFbm2_3(
-      vec2(wp.x * 2.4, wp.z * 0.55 - t * 1.15 * material_params.flow_speed),
+      vec2(wp.x * 2.4, wp.z * 0.48 - t * 1.35 * material_params.flow_speed),
       503.0
     ) * 0.5 + 0.5;
     float fineFroth = FastFbm2_2(
-      vec2(wp.x * 5.2 + 1.9, wp.z * 1.8 - t * 1.45 * material_params.flow_speed),
+      vec2(wp.x * 5.2 + 1.9, wp.z * 1.4 - t * 1.75 * material_params.flow_speed),
       521.0
     ) * 0.5 + 0.5;
-    float bubbleLace = smoothstep(0.46, 0.84, flowWisp * 0.65 + fineFroth * 0.35 * mipFade);
+    float bubbleLace = smoothstep(0.42, 0.82, flowWisp * 0.65 + fineFroth * 0.35 * mipFade);
     float wakePatch = smoothstep(
-      0.22,
-      0.78,
-      FastVal2(vec2(wp.x * 1.65, wp.z * 1.05 - t * 0.78), 541.0) * 0.5 + 0.5
+      0.20,
+      0.76,
+      FastVal2(vec2(wp.x * 1.65, wp.z * 0.95 - t * 0.92), 541.0) * 0.5 + 0.5
     );
     float collarFoam = collarEnv *
-        smoothstep(0.26, 0.74, bubbleLace * (0.58 + 0.52 * wakePatch));
-    float rapidStreaks = midStreamRapids * smoothstep(0.48, 0.86, bubbleLace) * 0.34;
-    float foamStrength = clamp(collarFoam * 0.78 + rapidStreaks, 0.0, 0.72);
+        smoothstep(0.22, 0.70, bubbleLace * (0.62 + 0.48 * wakePatch));
+    float rapidStreaks = midStreamRapids * smoothstep(0.42, 0.82, bubbleLace) * 0.48;
+    float foamStrength = clamp(collarFoam * 0.88 + rapidStreaks, 0.0, 0.82);
 
     vec3 rawLD = frag_info.directional_light_direction.xyz;
     float lenLD2 = dot(rawLD, rawLD);
@@ -235,8 +274,8 @@ fragment {
         : normalize(vec3(-0.58, 0.46, -0.67));
     vec3 halfVec = normalize(toSun + viewDir);
     float nDotH = max(dot(rippledNormal, halfVec), 0.0);
-    float sunSpecTight = pow(nDotH, 360.0) * 1.10;
-    float sunSpecBroad = pow(nDotH, 48.0) * 0.08;
+    float sunSpecTight = pow(nDotH, 340.0) * 0.85;
+    float sunSpecBroad = pow(nDotH, 64.0) * 0.05;
     float sunElevGate = smoothstep(-0.02, 0.16, toSun.y);
     vec3 sunGlint = sunTint *
         (sunSpecTight + sunSpecBroad) *
@@ -245,13 +284,13 @@ fragment {
         bankGlintGate;
 
     float nDotV = clamp(dot(rippledNormal, viewDir), 0.0, 1.0);
-    float fresnel = 0.02 + 0.98 * pow(1.0 - nDotV, 5.0);
+    float fresnel = 0.04 + 0.96 * pow(1.0 - nDotV, 4.2);
     vec3 reflDir = reflect(-viewDir, rippledNormal);
     float horizonWarm = pow(clamp(dot(reflDir, toSun) * 0.5 + 0.5, 0.0, 1.0), 2.4);
-    vec3 skyReflectColor = mix(vec3(0.10, 0.18, 0.28), sunTint * 0.72, horizonWarm);
+    vec3 skyReflectColor = mix(vec3(0.10, 0.20, 0.30), sunTint * 0.68, horizonWarm);
     vec3 skySheen = skyReflectColor *
-        (fresnel * 0.28 + pow(1.0 - nDotV, 4.0) * 0.08) *
-        mix(0.45, 1.0, riverMask) *
+        (fresnel * 0.30 + pow(1.0 - nDotV, 4.0) * 0.07) *
+        mix(0.55, 1.0, riverMask) *
         bankGlintGate;
 
     vec3 outBaseRgb;
@@ -266,7 +305,7 @@ fragment {
 
       vec3 transmittedBed = (sceneBedColor * warmShallowWash + causticRadiance) *
           activeTransmittance *
-          (1.0 - fresnel * 0.86) *
+          (1.0 - fresnel * 0.72) *
           (1.0 - foamStrength);
 
       vec3 inScatteredBody = waterBodyColor * (vec3(1.0) - activeTransmittance);
@@ -288,8 +327,8 @@ fragment {
     material.emissive = outEmissive;
     material.normal = rippledNormal;
     material.metallic = 0.02;
-    material.roughness = mix(0.12, mix(0.15, 0.54, foamStrength), riverMask);
-    material.specular = mix(0.68, 0.58, foamStrength);
+    material.roughness = mix(0.12, mix(0.16, 0.54, foamStrength), riverMask);
+    material.specular = mix(0.62, 0.28, foamStrength);
     material.occlusion = mix(0.92, 1.0, 1.0 - depthT * 0.25);
 
     PrepareMaterial(material);

@@ -63,6 +63,55 @@ class _AgentRig {
   final Quaternion baseUpperRot;
 }
 
+class _TreeWindRig {
+  new({
+    required this.primaryPivot,
+    required this.worldX,
+    required this.worldZ,
+    required this.localWindX,
+    required this.localWindZ,
+    required this.primaryAmp,
+    required this.phaseSeed,
+    this.secondaryPivot,
+    this.secondaryAmp = 0,
+    this.scalePivot,
+  }) : basePrimaryRot = primaryPivot.rotation.clone(),
+       baseSecondaryRot = secondaryPivot?.rotation.clone(),
+       baseScale = scalePivot?.scale.clone();
+
+  final Node primaryPivot;
+  final Quaternion basePrimaryRot;
+  final Node? secondaryPivot;
+  final Quaternion? baseSecondaryRot;
+  final Node? scalePivot;
+  final Vector3? baseScale;
+  final double worldX;
+  final double worldZ;
+  final double localWindX;
+  final double localWindZ;
+  final double primaryAmp;
+  final double secondaryAmp;
+  final double phaseSeed;
+}
+
+class _HarborVesselRig {
+  new({
+    required this.node,
+    required this.baseX,
+    required this.baseY,
+    required this.baseZ,
+    required this.baseYaw,
+    required this.isLargeShip,
+  });
+
+  final Node node;
+  final double baseX;
+  final double baseY;
+  final double baseZ;
+  final double baseYaw;
+  final bool isLargeShip;
+}
+
 class _SimAgent {
   new({
     required this.id,
@@ -213,6 +262,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   final List<_SimAgent> _simAgents = [];
   final Map<EntityId, Node> _agentNodes = {};
   final Map<EntityId, _AgentRig> _agentRigs = {};
+  final Map<EntityId, _TreeWindRig> _structureTreeRigs = {};
+  final List<_TreeWindRig> _propTreeRigs = [];
+  final List<_HarborVesselRig> _vesselRigs = [];
   AgentObstacleMap? _agentObstacles;
   double _walkTime = 0;
 
@@ -509,6 +561,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _skyCloudDomeNode = null;
     }
     _structureNodes.clear();
+    _structureTreeRigs.clear();
+    _propTreeRigs.clear();
+    _vesselRigs.clear();
     _lanternSpansNode.removeAll();
     _builtRoads = null;
     _builtTerraces = null;
@@ -1064,6 +1119,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
     for (final id in staleIds) {
       final removed = _structureNodes.remove(id)!;
+      _structureTreeRigs.remove(id);
       _structuresNode.remove(removed.node);
     }
     for (final entry in _graph.structures.entries) {
@@ -1280,11 +1336,118 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     return a + diff * t;
   }
 
+  static void _applyTreeWindPose(
+    _TreeWindRig rig,
+    double timeSec,
+    double gust,
+  ) {
+    const windDirX = 0.7808688;
+    const windDirZ = 0.6246950;
+    final wavePhase =
+        (rig.worldX * windDirX + rig.worldZ * windDirZ) * 0.095 -
+        timeSec * 0.85;
+    final gustEnv =
+        0.45 +
+        0.55 *
+            (0.5 +
+                0.5 *
+                    (0.65 * math.sin(wavePhase) +
+                        0.35 * math.sin(wavePhase * 0.47 + 1.3)));
+    final along =
+        (0.32 +
+            0.52 * math.sin(timeSec * 0.92 + wavePhase + rig.phaseSeed * 0.7) +
+            0.24 *
+                math.sin(
+                  timeSec * 1.87 - wavePhase * 0.6 + rig.phaseSeed * 2.13,
+                ) +
+            0.09 * math.sin(timeSec * 3.45 + rig.phaseSeed * 4.71)) *
+        gustEnv *
+        gust;
+    final across =
+        (0.45 * math.sin(timeSec * 1.28 + rig.phaseSeed * 1.9) +
+            0.25 * math.sin(timeSec * 3.1 + rig.phaseSeed * 3.7)) *
+        gustEnv *
+        gust *
+        0.38;
+    final leanAxis = Vector3(rig.localWindZ, 0, -rig.localWindX);
+    final crossAxis = Vector3(rig.localWindX, 0, rig.localWindZ);
+
+    rig.primaryPivot.rotation =
+        rig.basePrimaryRot *
+        Quaternion.axisAngle(leanAxis, along * rig.primaryAmp) *
+        Quaternion.axisAngle(crossAxis, across * rig.primaryAmp);
+
+    if (rig.secondaryPivot case final sec?) {
+      sec.rotation =
+          rig.baseSecondaryRot! *
+          Quaternion.axisAngle(leanAxis, along * rig.secondaryAmp) *
+          Quaternion.axisAngle(crossAxis, across * rig.secondaryAmp);
+    }
+
+    if (rig.scalePivot case final sp?) {
+      final baseS = rig.baseScale!;
+      final breath =
+          0.008 *
+          math.sin(timeSec * 1.65 + wavePhase + rig.phaseSeed * 3.1) *
+          gustEnv *
+          gust;
+      sp.scale = Vector3(
+        baseS.x * (1.0 + breath * rig.localWindX.abs()),
+        baseS.y,
+        baseS.z * (1.0 + breath * rig.localWindZ.abs()),
+      );
+    }
+  }
+
+  void _stepWindAndHarborMotion(TimeOfDayRig rig) {
+    final gust = rig.windGustStrength;
+    final timeSec = _walkTime;
+    for (final tree in _structureTreeRigs.values) {
+      _applyTreeWindPose(tree, timeSec, gust);
+    }
+    for (final shrub in _propTreeRigs) {
+      _applyTreeWindPose(shrub, timeSec, gust);
+    }
+
+    if (_vesselRigs.isEmpty) {
+      return;
+    }
+    final waterGust = gust.clamp(0.5, 1.5);
+    for (final vessel in _vesselRigs) {
+      final ph0 =
+          vessel.baseX * (-0.78) * 0.39 +
+          vessel.baseZ * (-0.62) * 0.39 -
+          timeSec * 1.35;
+      final ph1 =
+          vessel.baseX * (-0.34) * 0.60 +
+          vessel.baseZ * 0.94 * 0.60 -
+          timeSec * 1.68;
+      final heaveAmp = vessel.isLargeShip ? 0.055 : 0.075;
+      final rollAmp = vessel.isLargeShip ? 0.022 : 0.042;
+      final pitchAmp = vessel.isLargeShip ? 0.011 : 0.024;
+      final heave =
+          (math.sin(ph0) * 0.65 + math.sin(ph1) * 0.35) * heaveAmp * waterGust;
+      final roll =
+          (math.cos(ph0) * 0.65 + math.cos(ph1) * 0.35) * rollAmp * waterGust;
+      final pitch =
+          (math.sin(ph0 + 0.9) * 0.6 + math.cos(ph1) * 0.4) *
+          pitchAmp *
+          waterGust;
+      vessel.node
+        ..position = Vector3(vessel.baseX, vessel.baseY + heave, vessel.baseZ)
+        ..rotation =
+            Quaternion.axisAngle(Vector3(0, 1, 0), vessel.baseYaw) *
+            Quaternion.axisAngle(Vector3(0, 0, 1), roll) *
+            Quaternion.axisAngle(Vector3(1, 0, 0), pitch);
+    }
+  }
+
   @override
   void step(double dtSeconds, {required TimeOfDayRig rig}) {
     syncEmissives(rig);
-    if (_simAgents.isEmpty) return;
     _walkTime += dtSeconds;
+    _stepWindAndHarborMotion(rig);
+    if (_simAgents.isEmpty) return;
     final obstacles = agentObstacles;
 
     for (final agent in _simAgents) {
@@ -1575,6 +1738,91 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
   }
 
+  static Node? _findNamedNode(Node root, String name) {
+    if (root.name == name) {
+      return root;
+    }
+    for (final child in root.children) {
+      final found = _findNamedNode(child, name);
+      if (found != null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  static Node? _wrapChildWithPivot(
+    Node root,
+    String childName,
+    double pivotY,
+  ) {
+    final target = _findNamedNode(root, childName);
+    final parent = target?.parent;
+    if (target == null || parent == null) {
+      return null;
+    }
+    final origPos = target.position;
+    final pivot = Node(name: '${childName}_wind_pivot')
+      ..position = Vector3(origPos.x, origPos.y + pivotY, origPos.z);
+    parent.remove(target);
+    target.position = Vector3(0, -pivotY, 0);
+    pivot.add(target);
+    parent.add(pivot);
+    return pivot;
+  }
+
+  void _attachPropWithMotion({
+    required Node propNode,
+    required String assetPath,
+    required double x,
+    required double y,
+    required double z,
+    required double yaw,
+    required double phaseSeed,
+  }) {
+    final isVessel =
+        assetPath == 'assets/models/ship_sengokubune.glb' ||
+        assetPath == 'assets/models/boat_wasen.glb';
+    if (isVessel) {
+      markSubtreeShadowStatic(propNode, shadowStatic: false);
+      _vesselRigs.add(
+        _HarborVesselRig(
+          node: propNode,
+          baseX: x,
+          baseY: y,
+          baseZ: z,
+          baseYaw: yaw,
+          isLargeShip: assetPath == 'assets/models/ship_sengokubune.glb',
+        ),
+      );
+      return;
+    }
+
+    markSubtreeShadowStatic(propNode);
+    if (assetPath == 'assets/models/tree_shrub_cluster.glb') {
+      final canopyPivot = _wrapChildWithPivot(propNode, 'shrub_canopy', 0.15);
+      if (canopyPivot != null) {
+        markSubtreeShadowStatic(canopyPivot, shadowStatic: false);
+        const windDirX = 0.7808688;
+        const windDirZ = 0.6246950;
+        final cosY = math.cos(yaw);
+        final sinY = math.sin(yaw);
+        _propTreeRigs.add(
+          _TreeWindRig(
+            primaryPivot: canopyPivot,
+            worldX: x,
+            worldZ: z,
+            localWindX: cosY * windDirX - sinY * windDirZ,
+            localWindZ: sinY * windDirX + cosY * windDirZ,
+            primaryAmp: 0.024,
+            phaseSeed: phaseSeed,
+            scalePivot: canopyPivot,
+          ),
+        );
+      }
+    }
+  }
+
   Node _buildStructureOrHeroNode(PlacedStructure structure) {
     final assetPath = _heroStructureAssetFor(structure);
     final proto = assetPath == null
@@ -1596,7 +1844,65 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), yaw)
           ..scale = Vector3(uniformScale, heightScale, uniformScale)
           ..add(proto.clone());
-        return markSubtreeShadowStatic(wrapper);
+
+        const windDirX = 0.7808688;
+        const windDirZ = 0.6246950;
+        final cosY = math.cos(yaw);
+        final sinY = math.sin(yaw);
+        final localWindX = cosY * windDirX - sinY * windDirZ;
+        final localWindZ = sinY * windDirX + cosY * windDirZ;
+        final phaseSeed = (hash % 1000) * 0.006283185;
+
+        if (isBamboo) {
+          markSubtreeShadowStatic(wrapper, shadowStatic: false);
+          final canopyPivot = _wrapChildWithPivot(
+            wrapper,
+            'bamboo_canopy',
+            4.60,
+          );
+          if (canopyPivot != null) {
+            markSubtreeShadowStatic(canopyPivot, shadowStatic: false);
+          }
+          _structureTreeRigs[structure.id] = _TreeWindRig(
+            primaryPivot: wrapper,
+            secondaryPivot: canopyPivot,
+            secondaryAmp: canopyPivot == null ? 0 : 0.022,
+            scalePivot: canopyPivot,
+            worldX: structure.position.x,
+            worldZ: structure.position.z,
+            localWindX: localWindX,
+            localWindZ: localWindZ,
+            primaryAmp: 0.018,
+            phaseSeed: phaseSeed,
+          );
+          return wrapper;
+        }
+
+        markSubtreeShadowStatic(wrapper);
+        final canopySpec = switch (structure.kind) {
+          StructureKind.mapleCluster => ('maple_canopy', 2.60, 0.024),
+          StructureKind.pineTree => ('pine_canopy', 2.35, 0.015),
+          StructureKind.weepingWillow => ('willow_canopy', 3.55, 0.036),
+          _ => null,
+        };
+        if (canopySpec != null) {
+          final (canopyName, pivotY, amp) = canopySpec;
+          final canopyPivot = _wrapChildWithPivot(wrapper, canopyName, pivotY);
+          if (canopyPivot != null) {
+            markSubtreeShadowStatic(canopyPivot, shadowStatic: false);
+            _structureTreeRigs[structure.id] = _TreeWindRig(
+              primaryPivot: canopyPivot,
+              scalePivot: canopyPivot,
+              worldX: structure.position.x,
+              worldZ: structure.position.z,
+              localWindX: localWindX,
+              localWindZ: localWindZ,
+              primaryAmp: amp,
+              phaseSeed: phaseSeed,
+            );
+          }
+        }
+        return wrapper;
       }
       if (structure.kind == StructureKind.rockOutcrop) {
         final hash = structure.id.value.hashCode.abs();
@@ -1795,11 +2101,12 @@ class EdoWorldDriver implements ShukubaWorldDriver {
             _scene == null) {
           continue;
         }
-        final heroNode = _buildStructureOrHeroNode(structure);
         final existing = _structureNodes[structure.id];
+        _structureTreeRigs.remove(structure.id);
         if (existing != null) {
           _structuresNode.remove(existing.node);
         }
+        final heroNode = _buildStructureOrHeroNode(structure);
         _structureNodes[structure.id] = (data: structure, node: heroNode);
         _structuresNode.add(heroNode);
       }
@@ -1888,6 +2195,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
 
     _heroPropsNode.removeAll();
+    _propTreeRigs.clear();
+    _vesselRigs.clear();
     if (minatoPlacements != null) {
       for (final item in minatoPlacements) {
         final proto = await _loadCachedGlbPrototype(item.assetPath);
@@ -1901,6 +2210,15 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           ..position = Vector3(item.x, item.y, item.z)
           ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), item.yaw)
           ..add(proto.clone());
+        _attachPropWithMotion(
+          propNode: propNode,
+          assetPath: item.assetPath,
+          x: item.x,
+          y: item.y,
+          z: item.z,
+          yaw: item.yaw,
+          phaseSeed: (item.name.hashCode.abs() % 1000) * 0.006283185,
+        );
         _heroPropsNode.add(propNode);
       }
     } else if (heroPlacements != null) {
@@ -1918,12 +2236,17 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), item.yaw)
           ..scale = Vector3.all(item.scale)
           ..add(proto.clone());
+        _attachPropWithMotion(
+          propNode: propNode,
+          assetPath: item.assetPath,
+          x: item.x,
+          y: y,
+          z: item.z,
+          yaw: item.yaw,
+          phaseSeed: (item.name.hashCode.abs() % 1000) * 0.006283185,
+        );
         _heroPropsNode.add(propNode);
       }
-    }
-
-    if (_heroPropsNode.children.isNotEmpty) {
-      markSubtreeShadowStatic(_heroPropsNode);
     }
     for (final proto in _heroStructurePrototypes.entries) {
       _collectEmissiveMaterials(proto.value, hintName: proto.key);

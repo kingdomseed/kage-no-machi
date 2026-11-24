@@ -2,13 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_scene/scene.dart'
-    show
-        GeometryBuilder,
-        Mesh,
-        MeshGeometry,
-        Node,
-        PlanarReflectorComponent,
-        ShadowCastingMode;
+    show GeometryBuilder, Mesh, MeshGeometry, Node, ShadowCastingMode;
 import 'package:kage_no_machi/shukuba/model/shukuba_types.dart'
     show
         CourtyardWall,
@@ -2150,8 +2144,7 @@ class TerrainBuilder {
     final node =
         Node(name: 'minato_harbor_water', mesh: Mesh(builder.build(), waterMat))
           ..position = Vector3(0, TerrainConfig.waterSurfaceElevation, 0)
-          ..shadowCastingMode = ShadowCastingMode.off
-          ..addComponent(PlanarReflectorComponent(clipBias: 0.02));
+          ..shadowCastingMode = ShadowCastingMode.off;
     return node;
   }
 

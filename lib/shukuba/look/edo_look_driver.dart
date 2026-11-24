@@ -899,7 +899,7 @@ class EdoLookDriver implements ShukubaLookDriver {
     _setParamFloat(
       ShukubaSurfaceRole.riverMist,
       'mist_opacity',
-      rig.riverMistOpacity,
+      rig.riverMistOpacity * 0.56,
     );
     _setParamFloat(ShukubaSurfaceRole.riverMist, 'night_mix', rig.nightFactor);
     _setParamFloat(ShukubaSurfaceRole.riverMist, 'time_sec', elapsedSeconds);
@@ -1231,7 +1231,7 @@ class EdoLookDriver implements ShukubaLookDriver {
         mat.parameters
           ..setVec4('mist_cool', Vector4(0.38, 0.62, 0.72, 1))
           ..setVec4('mist_warm', Vector4(0.88, 0.68, 0.44, 1))
-          ..setFloat('mist_opacity', 0.68)
+          ..setFloat('mist_opacity', 0.38)
           ..setFloat('night_mix', 0)
           ..setFloat('mist_mode', 0)
           ..setFloat('time_sec', 0);
