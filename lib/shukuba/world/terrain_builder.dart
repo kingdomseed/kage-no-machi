@@ -3802,8 +3802,8 @@ class TerrainBuilder {
           tryAddSteppingStone(
             cx: base.x + norm.x * (halfWidth * spec.$2),
             cz: base.z + norm.z * (halfWidth * spec.$2),
-            baseLift: 0.032,
-            topLift: 0.104,
+            baseLift: 0.072,
+            topLift: 0.120,
             radiusX: spec.$3,
             radiusZ: spec.$3 * 0.84,
             yaw: m * 1.15 + 0.3,
@@ -3827,8 +3827,8 @@ class TerrainBuilder {
           tryAddSteppingStone(
             cx: base.x + norm.x * (halfWidth * spec.$2),
             cz: base.z + norm.z * (halfWidth * spec.$2),
-            baseLift: 0.032,
-            topLift: 0.104,
+            baseLift: 0.072,
+            topLift: 0.120,
             radiusX: spec.$3,
             radiusZ: spec.$3 * 0.84,
             yaw: m * 1.35 + 1.1,
@@ -3852,8 +3852,8 @@ class TerrainBuilder {
           tryAddSteppingStone(
             cx: tip.x + outTang.x * sp.$1 + norm.x * sp.$2,
             cz: tip.z + outTang.z * sp.$1 + norm.z * sp.$2,
-            baseLift: 0.030,
-            topLift: sp.$4,
+            baseLift: 0.058,
+            topLift: sp.$4 + 0.016,
             radiusX: sp.$3,
             radiusZ: sp.$3 * 0.85,
             yaw: k * 1.4 + 0.5,
@@ -3876,8 +3876,8 @@ class TerrainBuilder {
           tryAddSteppingStone(
             cx: tip.x + outTang.x * sp.$1 + norm.x * sp.$2,
             cz: tip.z + outTang.z * sp.$1 + norm.z * sp.$2,
-            baseLift: 0.030,
-            topLift: sp.$4,
+            baseLift: 0.058,
+            topLift: sp.$4 + 0.016,
             radiusX: sp.$3,
             radiusZ: sp.$3 * 0.85,
             yaw: k * 1.6 + 0.9,
@@ -3917,8 +3917,8 @@ class TerrainBuilder {
         tryAddSteppingStone(
           cx: sx,
           cz: sz,
-          baseLift: 0.032,
-          topLift: (isAccentStone ? 0.112 : 0.100) + 0.010 * h,
+          baseLift: 0.072,
+          topLift: (isAccentStone ? 0.126 : 0.114) + 0.010 * h,
           radiusX:
               (isAccentStone ? 0.30 : (0.22 + 0.05 * h)) *
               (0.75 + 0.25 * freeSmoothT),

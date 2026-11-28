@@ -35,8 +35,22 @@ class ShukubaController extends ChangeNotifier {
   int _nextEntitySeq = 1;
   double _elapsedSeconds = 0;
   int _sceneEpoch = 0;
+  bool _peekAllHouses = false;
+  final Set<EntityId> _peekedStructureIds = {};
 
   bool get isReady => _isReady;
+
+  bool get peekAllHouses => world is EdoWorldDriver
+      ? (world as EdoWorldDriver).peekAllHouses
+      : _peekAllHouses;
+
+  Set<EntityId> get peekedStructureIds => world is EdoWorldDriver
+      ? (world as EdoWorldDriver).peekedStructureIds
+      : Set<EntityId>.unmodifiable(_peekedStructureIds);
+
+  bool get hasOpenInterior => world is EdoWorldDriver
+      ? (world as EdoWorldDriver).hasOpenInterior
+      : (_peekAllHouses || _peekedStructureIds.isNotEmpty);
 
   ShowcaseRealm get activeRealm => world is EdoWorldDriver
       ? (world as EdoWorldDriver).realm
@@ -95,6 +109,8 @@ class ShukubaController extends ChangeNotifier {
     _isReady = false;
     _strokePoints.clear();
     _hoverPoint = null;
+    _peekAllHouses = false;
+    _peekedStructureIds.clear();
     _activePreview = const NoBuildPreview();
     audio.dispose();
     if (world case final EdoWorldDriver edoWorld) {
@@ -239,6 +255,8 @@ class ShukubaController extends ChangeNotifier {
     _undoStack.clear();
     _strokePoints.clear();
     _hoverPoint = null;
+    _peekAllHouses = false;
+    _peekedStructureIds.clear();
     await edoWorld.switchRealm(nextRealm);
     _timeOfDay = nextRealm.defaultPreset.timeOfDay;
     _refreshPreview();
@@ -359,6 +377,99 @@ class ShukubaController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void togglePeekAllHouses() {
+    setPeekAllHouses(!hasOpenInterior);
+  }
+
+  void setPeekAllHouses(bool enabled) {
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.setPeekAllHouses(enabled);
+    }
+    _peekAllHouses = enabled;
+    if (!enabled) {
+      _peekedStructureIds.clear();
+    }
+    _syncLookImmediate();
+    notifyListeners();
+  }
+
+  void clearPeekedHouses() {
+    if (!hasOpenInterior) {
+      return;
+    }
+    if (world case final EdoWorldDriver edoWorld) {
+      edoWorld.clearPeekedStructures();
+    }
+    _peekAllHouses = false;
+    _peekedStructureIds.clear();
+    _syncLookImmediate();
+    notifyListeners();
+  }
+
+  bool togglePeekAt(Vec3 rawWorldPoint) {
+    EntityId? hitId;
+    if (world case final EdoWorldDriver edoWorld) {
+      hitId = edoWorld.findPeekableStructureAt(rawWorldPoint);
+      if (hitId == null) {
+        return false;
+      }
+      edoWorld.togglePeekStructure(hitId);
+      _peekAllHouses = edoWorld.peekAllHouses;
+      _peekedStructureIds
+        ..clear()
+        ..addAll(edoWorld.peekedStructureIds);
+    } else {
+      for (final structure in world.graph.structures.values) {
+        if (!EdoWorldDriver.isPeekableStructureKind(structure.kind)) {
+          continue;
+        }
+        final dx = rawWorldPoint.x - structure.position.x;
+        final dz = rawWorldPoint.z - structure.position.z;
+        final cosY = math.cos(-structure.yawRadians);
+        final sinY = math.sin(-structure.yawRadians);
+        final lx = dx * cosY + dz * sinY;
+        final lz = -dx * sinY + dz * cosY;
+        if (lx.abs() <= structure.spec.footprintWidth * 0.5 + 0.45 &&
+            lz.abs() <= structure.spec.footprintDepth * 0.5 + 0.45) {
+          hitId = structure.id;
+          break;
+        }
+      }
+      if (hitId == null) {
+        return false;
+      }
+      if (_peekAllHouses) {
+        _peekAllHouses = false;
+        _peekedStructureIds
+          ..clear()
+          ..addAll(
+            world.graph.structures.values
+                .where(
+                  (s) =>
+                      EdoWorldDriver.isPeekableStructureKind(s.kind) &&
+                      s.id != hitId,
+                )
+                .map((s) => s.id),
+          );
+      } else if (!_peekedStructureIds.remove(hitId)) {
+        _peekedStructureIds.add(hitId);
+      }
+    }
+    final anchor = world.graph.structures[hitId]?.position ?? rawWorldPoint;
+    audio.playPlacementNote(
+      PlacementNoteEvent(
+        instrument: EdoInstrument.hyoshigi,
+        scale: _timeOfDay.scale,
+        scaleDegree: 2,
+        position: anchor,
+        volume: 0.30,
+      ),
+    );
+    _syncLookImmediate();
+    notifyListeners();
+    return true;
+  }
+
   void applyCameraPresetState(CameraPreset preset) {
     _strokePoints.clear();
     _hoverPoint = null;
@@ -474,7 +585,7 @@ class ShukubaController extends ChangeNotifier {
       case DemolishTool():
         _demolishAt(rawWorldPoint);
       case ExploreTool():
-        break;
+        togglePeekAt(rawWorldPoint);
       case InspectWatchTool():
         toggleMagistrateEye();
     }

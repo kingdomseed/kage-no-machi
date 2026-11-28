@@ -126,4 +126,8 @@ _archive/
 *.cap.png
 # Generated intermediate Blender textures
 tools/blender/generated_tex/
+# Isolated git worktrees
+.worktrees/
+# Asset pipeline scratch downloads, raw Tripo GLBs, and preview contact sheets
+tools/asset_pipeline/work/
 

@@ -50,7 +50,8 @@ Lookup: `getChildByName(name, {excludeAnimationPlayers})`, `getChildByNamePath`,
 
 Per-node flags: `visible` (true), `frustumCulled` (true), `layers` (`kRenderLayerDefault`, a 32-bit
 mask, NOT inherited), `castsShadows` (true, not inherited), `shadowStatic` (false), `raycastable`
-(true), `highlightColor` (`Vector4?`), `skin` (`Skin?`, set by importers).
+(true), `renderOrder` (0.0, lowest draws first within its pass after `Material.renderOrder`, NOT
+inherited), `highlightColor` (`Vector4?`), `skin` (`Skin?`, set by importers).
 
 Bounds: `combinedLocalBounds`, `combinedWorldBounds`, `markBoundsDirty()`, `isVisibleTo(camera,
 size)`. A `null` bounds means always-visible.
@@ -224,17 +225,22 @@ Attach via `LodComponent`. Shadow/depth passes always draw level 0.
 ## Materials and textures
 
 `Material` (abstract): `name`, `doubleSided` (false), `depthLayer` (0), `depthBias` (0.0),
-`setFragmentShader`, `setFragmentShaderName(name, {cubeName})`, `setRadianceCubeFragmentShader`,
+`renderOrder` (0.0), `setFragmentShader`, `setFragmentShaderName(name, {cubeName})`, `setRadianceCubeFragmentShader`,
 `isOpaque()`. `depthLayer` (-8..8) orders coplanar surfaces: a higher layer draws over a lower one
 in the same plane at any distance (an overlay on a wall or road gets 1). `depthBias` is a world-unit
 nudge toward the camera that buys fewer depth steps with distance; prefer `depthLayer`. `.fmat`
-spells the layer `depth_layer:`.
+spells the layer `depth_layer:`. `renderOrder` sorts the material's draws within their pass, lowest
+first, ahead of `Node.renderOrder` and the depth sort (`.fmat` `render_order:`); it pins which
+translucent surface blends over which.
 
 ### UnlitMaterial
 
 `UnlitMaterial({TextureSource? colorTexture})`. `baseColorTexture` (field name differs from the ctor
 arg), `baseColorTextureTransform`, `baseColorTextureTexCoord` (0), `alphaMode` (`opaque`; `mask` not
-implemented, behaves as blend), `baseColorFactor` (white), `vertexColorWeight` (1.0). Fog applies.
+implemented, behaves as blend), `baseColorFactor` (linear, white; `setBaseColor(Color)` decodes a
+Flutter color), `vertexColorWeight` (1.0), `displayReferred` (false; true composites the surface past
+exposure, tone mapping, fog and bloom so its colors reach the screen unchanged). Fog applies unless
+display-referred.
 
 ### PhysicallyBasedMaterial
 
@@ -255,6 +261,13 @@ Advanced KHR_materials_* (setting any flips onto an internal physical-variant sh
 `attenuationDistance` (inf), `attenuationColor`, `dispersion` (0.0), `iridescence` (0.0),
 `iridescenceIor` (1.3), `iridescenceThicknessMinimum` (100.0), `iridescenceThicknessMaximum` (400.0),
 `anisotropy` (0.0), `anisotropyRotation` (0.0).
+
+Parallax occlusion: `parallaxScale` (0.0, off; depth in UV units, `0.02` to `0.08` typical) marches a
+height field packed in `normalTexture`'s alpha (1 surface, 0 deepest; an opaque alpha is flat, pack
+one with `buildTextures(parallaxHeights:)`). `parallaxMaxSteps` (32, 4 to 64), `parallaxShadowStrength`
+(0.0, sun self-shadowing), `parallaxSilhouette` (null; `ParallaxSilhouette.unit`, `.bounds(min, max)`,
+`.tiles(size)` cut the outline and shadows). Its shaders load on first use, so a one-shot render awaits
+`Scene.preload(parallaxOcclusion: true)`.
 
 `isOpaque()` is false when `transmission > 0`, `alphaMode == blend`, or `baseColorFactor.a < 1.0`.
 
@@ -318,11 +331,13 @@ Custom-shader GPU barrel (`package:flutter_scene/gpu.dart`): `Shader`, `ShaderLi
 Lights (all in `light.dart`, all fields mutable):
 
 - `DirectionalLight({direction /*(-0.3,-1,-0.2)*/, color, intensity = 3.0, priority = 0, castsShadow
-  = false, cacheStaticShadows = true, shadowFadeRange = 2.0, shadowSoftness = 0.08, shadowCascadeCount
-  = 4, shadowMaxDistance = 150.0, shadowCascadeSplitLambda = 0.6, shadowMapResolution = 1024,
-  shadowDepthBias = 0.02, shadowNormalBias = 0.02, shadowAmbientStrength = 0.0, shadowFilter =
-  rotatedPoisson, shadowCasterFaces = front, contactShadows = false, contactShadowDistance = 0.3,
-  angularRadius = 0.005})`.
+  = false, shadowStrength = 1.0, cacheStaticShadows = true, shadowFadeRange = 2.0, shadowSoftness =
+  0.08, shadowCascadeCount = 4, shadowMaxDistance = 150.0, shadowCascadeSplitLambda = 0.6,
+  shadowMapResolution = 1024, shadowDepthBias = 0.02, shadowNormalBias = 0.02, shadowAmbientStrength =
+  0.0, shadowFilter = rotatedPoisson, shadowCasterFaces = front, contactShadows = false,
+  contactShadowDistance = 0.3, angularRadius = 0.005})`. Fade shadows out (dusk) by easing
+  `shadowStrength` to 0, which pauses the cascades and keeps the static cache and shader variants;
+  a zero `intensity` still renders them, and toggling `castsShadow` pops and recompiles.
 - `PointLight({color, intensity = 1.0, range = 0.0, falloffExponent = 2.0, castsShadow = false,
   shadowMapResolution = 512, shadowNear = 0.1, shadowDepthBias = 0.0, shadowNormalBias = 0.1,
   shadowSoftness = 1.0, shadowCasterFaces = front})`. Shadows render six cube faces into the shared
@@ -375,7 +390,7 @@ rayleighCoefficient = 2.0, mieCoefficient = 0.005, turbidity = 10.0, energy = 1.
 `Scene.exposure` (1.0; not 2.0), `Scene.toneMapping` (`ToneMappingMode.pbrNeutral`; also `aces`,
 `reinhard`, `linear`, `agx`), `Scene.agxWhite` (16.29), `Scene.agxContrast` (1.25). Static
 `Scene.physicalCameraExposure({required aperture, shutterSpeed, iso})` returns a multiplier to assign
-to `exposure`.
+to `exposure`. `ToneMappingMode.linear` at exposure 1.0 is identity, so unlit colors match widgets.
 
 ---
 
@@ -388,6 +403,7 @@ looks blend via `EnvironmentSettings` (snapshot/lerp of the whole look) and `Env
 | Scene field | Type | Key fields (default) | Requires |
 | --- | --- | --- | --- |
 | `ambientOcclusion` | `AmbientOcclusionSettings` | `method` (obscurance/`groundTruth`), `radius` (0.33), `intensity` (1.0), `power` (1.5), `bentNormals` (false), `halfResolution` (true), `indirectLight` (0.0 = SSGI), `specularMode` | perspective camera |
+| `globalIllumination` | `GlobalIlluminationSettings` | world-space irradiance probe field: `volumeMode` (`followCamera`/`fitScene`), `resolution` (16, 8, 16), `extents`, `intensity` (1.0), `hysteresis` (0.95), `visibility` (0.7), `probeUpdateBudget` (0 = all), `feed` (`IrradianceFeed.screenSpace`; `rayTraced` traces probe rays in compute, sees off-screen emitters and sky, falls back to screen space without compute), `emissiveGiBoost` (1.0); `Scene.bakeIrradianceField` bakes it | any camera |
 | `screenSpaceReflections` | `ScreenSpaceReflectionsSettings` | `intensity` (1.0), `maxDistance` (24.4), `thickness` (0.46), `stride` (9.0), `maxSteps` (90), `blur` (0.3), `debugView` | perspective camera |
 | `fog` | `Fog` | `mode` (`FogMode.exponential`; also none/linear/exponentialSquared), `color`, `density` (0.02), `start`/`end`, needs both `enabled` AND non-none `mode` | any camera |
 | `godRays` | `GodRaysSettings` | `intensity` (1.0), `density` (0.5), `anisotropy` (0.7), `stepCount` (24), `maxDistance` (200), `color` | shadow-casting DirectionalLight + perspective camera |
@@ -498,7 +514,10 @@ Two model-loading paths, do not conflate:
   `loadSceneSubtree`, `releaseScene`, `clearSceneTemplateCache`.
 - Runtime glTF (no hook, parses every load): `Node.fromGlbAsset(assetPath)`,
   `Node.fromGlbBytes(bytes)`, `Node.fromGltfBytes(gltfJson, {required resolveUri})`. Each synthesizes
-  a root node.
+  a root node. A GLB whose images sit beside it by relative URI needs `resolveUri` too, or they bind a
+  white placeholder. `resolveTexture: (uri, content) async => texture` hands back a finished
+  `Texture2D` instead, so one texture can be cached and shared across models; key the cache by
+  `(uri, content)`.
 
 Sibling loaders: `loadTexture` (`.fstex`), `loadFmatMaterial`/`loadFmatSky` (`.fmat`).
 

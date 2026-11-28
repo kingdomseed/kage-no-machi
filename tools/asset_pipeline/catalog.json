@@ -1,0 +1,1669 @@
+{
+  "schema_version": 1,
+  "style_bible": {
+    "name": "Style B — Warm Sunset Gouache Dusk + Luminous Blue-Hour Night",
+    "reference_corpus": [
+      "docs/references/shadow-tactics/st-01.jpg",
+      "docs/references/shadow-tactics/st-25.jpg",
+      "docs/references/midjourney/tactical_shukuba_1.png",
+      "docs/references/midjourney/tactical_minato_1.png",
+      "docs/references/midjourney/style_b_golden_dusk_1.png"
+    ],
+    "midjourney_extraction_suffix": "hand-painted stylized gouache PBR game asset, early Edo period Japan, Shadow Tactics Blades of the Shogun diorama aesthetic, warm dark cedar wood, aged plaster and weathered slate tiles, neutral soft studio overcast lighting, no cast shadows, isolated centered on solid plain light neutral grey background, full uncropped silhouette with clean margins --style raw --no text, watermark, signature, dramatic sunset shadows, ground plane, cluttered background, cropped",
+    "midjourney_character_suffix": "hand-painted stylized gouache game character turnaround sheet, front and back orthographic view, neutral A-pose with arms 30 degrees away from torso and feet shoulder-width apart, early Edo period Japan, Shadow Tactics Blades of the Shogun stylized realism proportions, neutral flat even studio lighting, plain solid light neutral grey background, full body head to sandals uncropped --ar 16:9 --style raw --no text, watermark, dramatic lighting, ground shadow, weapon overlapping torso, dynamic action pose",
+    "midjourney_interior_suffix": "isometric cutaway architectural dollhouse cross-section showing roof lifted off to reveal cozy early Edo period Japanese interior room, hand-painted stylized gouache diorama art, Shadow Tactics aesthetic, warm tatami mats, dark cedar posts, soft lantern warmth, clean readable floor plan --ar 4:3 --style raw --no text, watermark, modern appliances, electricity"
+  },
+  "cutaway_contract": {
+    "roof_prefixes": ["peek_roof", "peek_upper"],
+    "interior_prefixes": ["interior_"],
+    "exterior_prefixes": ["exterior_"],
+    "min_interior_wall_inset_m": 0.05,
+    "min_floor_inset_m": 0.06
+  },
+  "assets": [
+    {
+      "id": "edo_person_merchant",
+      "category": "people",
+      "label": "Edo Traveling Merchant",
+      "target_glb": "assets/models/edo_person_merchant.glb",
+      "dimensions_m": { "width": 0.72, "depth": 0.52, "height": 1.66 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese traveling merchant wearing indigo haori coat over ochre kimono, charcoal obi sash, straw waraji sandals, conical woven sugegasa bamboo hat, neat cloth neck wrap",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"],
+        "use_character_suffix": true
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "none",
+        "notes": "Keep rigged characters as a single whole mesh so tripo_rig_model succeeds."
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": true, "topology": "biped", "spec": null },
+      "stage5_animate": {
+        "enabled": true,
+        "clips": [
+          { "name": "idle", "motion_source": "preset", "motion_id": "preset:biped:wait" },
+          { "name": "walk", "motion_source": "preset", "motion_id": "preset:biped:walk" }
+        ]
+      }
+    },
+    {
+      "id": "edo_person_townswoman",
+      "category": "people",
+      "label": "Edo Townswoman",
+      "target_glb": "assets/models/edo_person_townswoman.glb",
+      "dimensions_m": { "width": 0.64, "depth": 0.46, "height": 1.62 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese townswoman wearing plum and crimson kimono with cream obi sash tied in back, traditional nihongami upswept hair with red kanzashi hairpin, white tabi socks and straw sandals",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"],
+        "use_character_suffix": true
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": true, "topology": "biped", "spec": null },
+      "stage5_animate": {
+        "enabled": true,
+        "clips": [
+          { "name": "idle", "motion_source": "preset", "motion_id": "preset:biped:wait" },
+          { "name": "walk", "motion_source": "preset", "motion_id": "preset:biped:walk" }
+        ]
+      }
+    },
+    {
+      "id": "edo_person_porter",
+      "category": "people",
+      "label": "Edo Dock & Highway Porter",
+      "target_glb": "assets/models/edo_person_porter.glb",
+      "dimensions_m": { "width": 0.68, "depth": 0.48, "height": 1.66 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese laborer porter wearing short indigo happi work coat, knotted cotton hachimaki headband, wrapped navy kyahan shin gaiters, straw rope belt and waraji sandals",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"],
+        "use_character_suffix": true
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": true, "topology": "biped", "spec": null },
+      "stage5_animate": {
+        "enabled": true,
+        "clips": [
+          { "name": "idle", "motion_source": "preset", "motion_id": "preset:biped:wait" },
+          { "name": "walk", "motion_source": "preset", "motion_id": "preset:biped:walk" }
+        ]
+      }
+    },
+    {
+      "id": "edo_person_watchman",
+      "category": "people",
+      "label": "Edo Night Watchman",
+      "target_glb": "assets/models/edo_person_watchman.glb",
+      "dimensions_m": { "width": 0.72, "depth": 0.56, "height": 1.66 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese town night watchman wearing crimson and navy patrol haori coat, dark lacquered jingasa conical hat, wrapped shin gaiters and straw sandals, clean empty hands ready for lantern prop",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"],
+        "use_character_suffix": true
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": true, "topology": "biped", "spec": null },
+      "stage5_animate": {
+        "enabled": true,
+        "clips": [
+          { "name": "idle", "motion_source": "preset", "motion_id": "preset:biped:wait" },
+          { "name": "walk", "motion_source": "preset", "motion_id": "preset:biped:walk" }
+        ]
+      }
+    },
+    {
+      "id": "edo_person_samurai",
+      "category": "people",
+      "label": "Edo Retainer Samurai",
+      "target_glb": "assets/models/edo_person_samurai.glb",
+      "dimensions_m": { "width": 0.74, "depth": 0.54, "height": 1.70 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese samurai retainer wearing charcoal kimono, pleated navy hakama trousers, crisp haori crest jacket, chonmage topknot hairstyle, tucked lacquered katana scabbards at left hip, waraji sandals",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"],
+        "use_character_suffix": true
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 14000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": true, "topology": "biped", "spec": null },
+      "stage5_animate": {
+        "enabled": true,
+        "clips": [
+          { "name": "idle", "motion_source": "preset", "motion_id": "preset:biped:wait" },
+          { "name": "walk", "motion_source": "preset", "motion_id": "preset:biped:walk" }
+        ]
+      }
+    },
+    {
+      "id": "edo_person_monk",
+      "category": "people",
+      "label": "Edo Wandering Monk",
+      "target_glb": "assets/models/edo_person_monk.glb",
+      "dimensions_m": { "width": 0.72, "depth": 0.52, "height": 1.68 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese Buddhist pilgrim monk wearing layered charcoal and russet robes with ochre kesa sash, deep bell-shaped woven straw ajiro-gasa hat, straw backpack, and waraji sandals",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"],
+        "use_character_suffix": true
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": true, "topology": "biped", "spec": null },
+      "stage5_animate": {
+        "enabled": true,
+        "clips": [
+          { "name": "idle", "motion_source": "preset", "motion_id": "preset:biped:wait" },
+          { "name": "walk", "motion_source": "preset", "motion_id": "preset:biped:walk" }
+        ]
+      }
+    },
+    {
+      "id": "edo_sake_barrels",
+      "category": "props",
+      "label": "Komodaru Sake Cask Cluster",
+      "target_glb": "assets/models/edo_sake_barrels.glb",
+      "dimensions_m": { "width": 1.35, "depth": 1.05, "height": 1.15 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Cluster of three stacked Edo period Japanese komodaru straw-wrapped sake casks bound in hemp rope with painted calligraphy crests resting on a low timber rack, three-quarter isometric view",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 6000,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_stone_lantern",
+      "category": "props",
+      "label": "Kasuga-doro Stone Lantern",
+      "target_glb": "assets/models/edo_stone_lantern.glb",
+      "dimensions_m": { "width": 0.78, "depth": 0.78, "height": 1.95 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Moss-flecked carved granite Japanese Kasuga-doro pedestal stone garden lantern with hexagonal fire box and upturned stone pagoda cap, front three-quarter view",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 5000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": {
+        "mode": "segment",
+        "granularity": "simple",
+        "notes": "Isolate lantern firebox core for LanternGlow emissive assignment."
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_andon_lantern",
+      "category": "props",
+      "label": "Timber Street Andon Lantern",
+      "target_glb": "assets/models/edo_andon_lantern.glb",
+      "dimensions_m": { "width": 0.62, "depth": 0.62, "height": 2.15 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese dark cedar street post andon lantern with small shingled rain roof and warm shoji paper light box atop a stone base",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 4500,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_wagasa_bench",
+      "category": "props",
+      "label": "Wagasa Tea Bench & Red Parasol",
+      "target_glb": "assets/models/edo_wagasa_bench.glb",
+      "dimensions_m": { "width": 2.10, "depth": 1.95, "height": 2.35 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Traditional Edo period Japanese roadside teahouse bench draped with crimson wool cloth beside a large open red oiled-paper wagasa umbrella parasol and wooden tea tray",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 7000,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_nobori_banner",
+      "category": "props",
+      "label": "Edo Shop Nobori Banner",
+      "target_glb": "assets/models/edo_nobori_banner.glb",
+      "dimensions_m": { "width": 0.72, "depth": 0.50, "height": 3.25 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period vertical indigo cloth shop nobori banner on a bamboo pole L-frame with stone foot weight and cream Japanese shop crest",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 4000,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_street_clutter",
+      "category": "props",
+      "label": "Edo Street Threshold Props",
+      "target_glb": "assets/models/edo_street_clutter.glb",
+      "dimensions_m": { "width": 1.65, "depth": 1.25, "height": 0.95 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Small cluster of everyday Edo period Japanese street goods: cedar wooden water buckets, straw rice sacks, stacked firewood bundle, and stoneware miso jar",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 6500,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "harbor_cargo",
+      "category": "props",
+      "label": "Port Pier Cargo Bales & Crates",
+      "target_glb": "assets/models/harbor_cargo.glb",
+      "dimensions_m": { "width": 2.10, "depth": 1.65, "height": 1.30 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo Japanese port dock cargo stack of straw tawara rice bales, cedar shipping crates, coiled hemp rope, and ceramic oil jars on wooden pallets",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 7000,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "interior_irori_hearth",
+      "category": "props",
+      "label": "Interior Irori Sunken Hearth & Kettle",
+      "target_glb": "assets/models/interior_irori_hearth.glb",
+      "dimensions_m": { "width": 1.05, "depth": 1.05, "height": 0.92 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Traditional Edo period Japanese square wooden-framed irori sunken charcoal hearth filled with ash and glowing embers, cast iron tetsubin kettle hanging from bamboo jizaikagi hook",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 5000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "interior_chabudai_set",
+      "category": "props",
+      "label": "Interior Chabudai Tea Table & Cushions",
+      "target_glb": "assets/models/interior_chabudai_set.glb",
+      "dimensions_m": { "width": 1.25, "depth": 0.95, "height": 0.48 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Low Japanese urushi lacquer chabudai tea table set with ceramic kyusu teapot, two teacups on lacquer tray, flanked by two square crimson zabuton floor cushions",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 5000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "interior_tansu_chest",
+      "category": "props",
+      "label": "Interior Merchant Tansu Chest",
+      "target_glb": "assets/models/interior_tansu_chest.glb",
+      "dimensions_m": { "width": 1.20, "depth": 0.52, "height": 1.15 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese keyaki wood merchant tansu drawer chest with decorative black iron corner brackets, drawer pulls, and sliding upper compartment",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 4500,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "interior_shop_counter",
+      "category": "props",
+      "label": "Interior Machiya Shop Counter & Ledger",
+      "target_glb": "assets/models/interior_shop_counter.glb",
+      "dimensions_m": { "width": 1.55, "depth": 0.65, "height": 0.92 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese merchant shop cedar counter desk with low wooden lattice divider, soroban abacus, stacked washi ledger books, and ceramic inkstone",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 5500,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "interior_andon_lamp",
+      "category": "props",
+      "label": "Interior Floor Andon Paper Lamp",
+      "target_glb": "assets/models/interior_andon_lamp.glb",
+      "dimensions_m": { "width": 0.34, "depth": 0.34, "height": 0.78 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese indoor square wooden-frame andon floor lamp with warm translucent washi paper shade and lacquered tray base",
+        "aspect_ratio": "1:1",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 3000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_handcart",
+      "category": "vehicles",
+      "label": "Daihachi-guruma Cargo Handcart",
+      "target_glb": "assets/models/edo_handcart.glb",
+      "dimensions_m": { "width": 1.25, "depth": 2.35, "height": 1.10 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese two-wheeled wooden daihachi-guruma cargo handcart with spoked timber wheels, long pull shafts, loaded with straw rice bales and tied rope",
+        "aspect_ratio": "16:9",
+        "views": ["front", "left", "back"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 10000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "segment",
+        "granularity": "balanced",
+        "notes": "Separate spoked wheels, timber frame, and cargo load."
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_wagon",
+      "category": "vehicles",
+      "label": "Covered Edo Merchant Ox-Wagon",
+      "target_glb": "assets/models/edo_wagon.glb",
+      "dimensions_m": { "width": 1.55, "depth": 3.45, "height": 1.95 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese covered wooden merchant transport wagon with curved cream canvas canopy over dark cedar frame, spoked heavy wooden wheels, rear storage crates and shafts",
+        "aspect_ratio": "16:9",
+        "views": ["front", "left", "back"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 14000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "segment",
+        "granularity": "balanced",
+        "notes": "Separate canvas canopy, chassis, and spoked wheels."
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": "detailed",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "boat_wasen",
+      "category": "vehicles",
+      "label": "Wasen Wooden Harbor Skiff",
+      "target_glb": "assets/models/boat_wasen.glb",
+      "dimensions_m": { "width": 1.75, "depth": 4.80, "height": 1.20 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Traditional Edo period Japanese wasen cedar wooden harbor rowboat skiff with upturned prow, slatted deck planks, single sculling oar, coiled rope and bamboo fish baskets",
+        "aspect_ratio": "16:9",
+        "views": ["front", "left", "back"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 10000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "ship_sengokubune",
+      "category": "vehicles",
+      "label": "Sengokubune Coastal Merchant Ship",
+      "target_glb": "assets/models/ship_sengokubune.glb",
+      "dimensions_m": { "width": 4.80, "depth": 14.5, "height": 11.2 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese sengokubune coastal merchant freighter ship with sweeping curved dark timber hull, cabin deckhouse with warm shoji windows, tall cedar mast and pleated vertical-ribbed cream square sail",
+        "aspect_ratio": "16:9",
+        "views": ["front", "left", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "smart_low_poly_limit": 18000,
+        "notes": "Keep hull, deckhouse cabin, sails, and mast as distinct parts."
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "harbor_crane",
+      "category": "vehicles",
+      "label": "Timber Dockside Derrick Crane",
+      "target_glb": "assets/models/harbor_crane.glb",
+      "dimensions_m": { "width": 2.80, "depth": 4.20, "height": 5.60 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese timber dockside cargo derrick crane with braced cedar A-frame, wooden hand-crank winch drum, hemp pulley rigging, and suspended wooden cargo sling",
+        "aspect_ratio": "1:1",
+        "views": ["front", "left"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "balanced" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "machiya_hero",
+      "category": "buildings",
+      "label": "Machiya Townhouse (v0 — Kawara Merchant)",
+      "target_glb": "assets/models/machiya_hero.glb",
+      "dimensions_m": { "width": 3.80, "depth": 4.80, "height": 5.50 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "machiya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Two-story Edo period Japanese machiya merchant townhouse with curved blue-slate kawara clay tile roof, dark charred cedar timber frame, lattice koshi storefront, hanging indigo noren curtains, warm shoji windows, and stone plinth",
+        "interior_prompt": "Cutaway ground floor of an Edo period Japanese machiya merchant shop: packed-earth doma entrance stepping up to warm tatami room with cedar L-shaped shop counter, wooden tansu drawers, stacked sake jars, and glowing paper andon floor lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000,
+        "canonical_part_rules": {
+          "peek_roof": ["roof", "tile", "kawara", "ridge", "gable", "eave"],
+          "peek_upper": ["upper", "second", "balcony", "loft", "attic"],
+          "exterior_shell": ["wall", "base", "stone", "plinth", "door", "noren", "awning", "hisashi", "lantern", "shoji"]
+        }
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "machiya_hero_v1",
+      "category": "buildings",
+      "label": "Machiya Townhouse (v1 — Udatsu Dyer Shop)",
+      "target_glb": "assets/models/machiya_hero_v1.glb",
+      "dimensions_m": { "width": 4.25, "depth": 4.25, "height": 5.30 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "machiya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Two-story Edo period Japanese machiya dyer townhouse with cream shikkui plaster upper walls, prominent side udatsu fire-wall wing, hipped kawara tile roof, upper wooden balcony railing, crimson noren curtains",
+        "interior_prompt": "Cutaway ground floor of an Edo Japanese cloth dyer machiya shop: tatami platform with neatly folded indigo textiles on wooden shelves, merchant desk counter, tansu drawers, and warm andon floor lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "machiya_hero_v2",
+      "category": "buildings",
+      "label": "Machiya Townhouse (v2 — Hoshidai Artisan Loft)",
+      "target_glb": "assets/models/machiya_hero_v2.glb",
+      "dimensions_m": { "width": 3.90, "depth": 4.45, "height": 5.20 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "machiya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese artisan machiya workshop house with rust-brown kawara tile roof, wooden rooftop hoshidai drying deck, low mezzanine windows, ochre noren curtains, and dark timber siding",
+        "interior_prompt": "Cutaway interior of an Edo artisan machiya workshop: timber workbench, tatami corner, wooden storage drawers, ceramic vessels, and warm paper lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "machiya_hero_v3",
+      "category": "buildings",
+      "label": "Machiya Townhouse (v3 — Nurigome Corner Apothecary)",
+      "target_glb": "assets/models/machiya_hero_v3.glb",
+      "dimensions_m": { "width": 3.85, "depth": 4.65, "height": 5.35 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "machiya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese corner apothecary machiya townhouse with mossy green-patina kawara roof, wrap-around lower rain awnings, white shikkui plaster walls, vertical wooden shop signboard, and crimson noren",
+        "interior_prompt": "Cutaway interior of an Edo Japanese apothecary shop: wall of small wooden herbal drawers, cedar preparation counter, tatami seating area, ceramic jars, and warm paper andon lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "minka_hero_v0",
+      "category": "buildings",
+      "label": "Minka Farmhouse (v0 — Kayabuki Thatch)",
+      "target_glb": "assets/models/minka_hero_v0.glb",
+      "dimensions_m": { "width": 3.80, "depth": 3.55, "height": 4.40 },
+      "foundation_skirt_m": 1.0,
+      "peekable": true,
+      "interior_archetype": "minka",
+      "stories": 1,
+      "stage0_midjourney": {
+        "subject_prompt": "Single-story Edo period Japanese countryside minka farmhouse with thick steep bell-curved golden kayabuki reed thatch roof, timber chigi ridge pole, dark weathered cedar plank walls, shoji windows, and stone foundation",
+        "interior_prompt": "Cutaway interior of an Edo Japanese minka farmhouse: warm tatami room centered around a glowing square irori sunken charcoal hearth with hanging iron kettle, zabuton cushions, low wooden tray, and rice baskets",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 14000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "minka_hero_v1",
+      "category": "buildings",
+      "label": "Minka Farmhouse (v1 — Cross-Ridge Cottage)",
+      "target_glb": "assets/models/minka_hero_v1.glb",
+      "dimensions_m": { "width": 3.55, "depth": 4.05, "height": 4.40 },
+      "foundation_skirt_m": 1.0,
+      "peekable": true,
+      "interior_archetype": "minka",
+      "stories": 1,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period rural Japanese minka cottage with longitudinal steep kayabuki reed thatch roof, side cedar lean-to entry awning, timber post-and-beam frame, shoji screens, and mossy stone plinth",
+        "interior_prompt": "Cutaway interior of a rural Edo minka cottage: sunken irori charcoal hearth with iron kettle, woven tatami floor, low dining table, cushions, and wooden storage shelf",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 14000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "teahouse_hero",
+      "category": "buildings",
+      "label": "Chaya Teahouse (v0 — Garden Pavilion)",
+      "target_glb": "assets/models/teahouse_hero.glb",
+      "dimensions_m": { "width": 4.40, "depth": 4.40, "height": 5.20 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "chaya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Two-story Edo period Japanese chaya riverside teahouse pavilion with wrap-around wooden engawa veranda, sweeping double-tier curved kawara tile roofs, glowing kumiko shoji gallery doors, red hanging chochin lanterns",
+        "interior_prompt": "Cutaway ground floor of an Edo Japanese chaya teahouse: pristine tatami tea salon with two low lacquered chabudai tea tables, crimson zabuton floor cushions, tokonoma display shelf, ceramic tea service, and glowing paper andon lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "teahouse_hero_v1",
+      "category": "buildings",
+      "label": "Chaya Teahouse (v1 — Highway Kakejaya)",
+      "target_glb": "assets/models/teahouse_hero_v1.glb",
+      "dimensions_m": { "width": 4.40, "depth": 4.40, "height": 5.20 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "chaya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Two-story Edo Japanese roadside kakejaya teahouse inn with white plaster ground story, rust-clay gabled upper roof, wrap-around cedar veranda, crimson noren curtains, and hanging paper lanterns",
+        "interior_prompt": "Cutaway ground floor of an Edo roadside teahouse: tatami lounge with low tea tables, crimson cushions, tea tray, and warm floor andon lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "teahouse_hero_v2",
+      "category": "buildings",
+      "label": "Chaya Teahouse (v2 — Riverside Lantern Inn)",
+      "target_glb": "assets/models/teahouse_hero_v2.glb",
+      "dimensions_m": { "width": 4.40, "depth": 4.40, "height": 5.35 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "chaya",
+      "stories": 2,
+      "stage0_midjourney": {
+        "subject_prompt": "Two-story Edo riverside lantern inn chaya with moss-green glazed kawara roofs, tall belvedere second floor with glowing shoji screens, indigo noren curtains, and cedar engawa veranda",
+        "interior_prompt": "Cutaway ground floor of an Edo riverside lantern inn: tatami room with two lacquer chabudai tables, cushions, sake flasks, and glowing andon lamp",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "kura_warehouse_hero",
+      "category": "buildings",
+      "label": "Kura Storehouse (v0 — Namako White Vault)",
+      "target_glb": "assets/models/kura_warehouse_hero.glb",
+      "dimensions_m": { "width": 3.60, "depth": 4.25, "height": 5.35 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "kura",
+      "stories": 1,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese fireproof kura merchant storehouse with heavy white shikkui plaster upper walls, diamond-grid namako-kabe lower skirt, recessed iron-studded double doors, high shuttered gable vent, and heavy blue-grey kawara tile roof",
+        "interior_prompt": "Cutaway interior of an Edo Japanese kura merchant storehouse: heavy cedar plank floor, stacked straw komodaru sake casks, timber storage shelves, lacquered nagamochi treasure chest with brass fittings, and warm hanging lantern",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 14000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "kura_warehouse_hero_v1",
+      "category": "buildings",
+      "label": "Kura Storehouse (v1 — Kuro-Shikkui Vault)",
+      "target_glb": "assets/models/kura_warehouse_hero_v1.glb",
+      "dimensions_m": { "width": 3.85, "depth": 3.95, "height": 5.35 },
+      "foundation_skirt_m": 1.2,
+      "peekable": true,
+      "interior_archetype": "kura",
+      "stories": 1,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese black-plaster kuro-shikkui kura harbor storehouse with rust-tiled hipped roof, timber loading canopy over iron double doors, and dressed stone foundation plinth",
+        "interior_prompt": "Cutaway interior of an Edo black-plaster kura storehouse: plank floor lined with timber racks, sake barrels, rice bales, and brass-clasped lacquer strongbox",
+        "aspect_ratio": "4:3",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "complete_parts": true,
+        "smart_low_poly_limit": 14000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "yatai_stall_v0",
+      "category": "buildings",
+      "label": "Yatai Wheeled Street Stall",
+      "target_glb": "assets/models/yatai_stall_v0.glb",
+      "dimensions_m": { "width": 2.20, "depth": 1.90, "height": 2.65 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese open wooden wheeled yatai street soba noodle stall with indigo fabric canopy, hanging red paper chochin lantern, wooden counter topped with ceramic bowls and casks",
+        "aspect_ratio": "1:1",
+        "views": ["front", "left"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 9000,
+        "quad": true,
+        "symmetry": false,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "balanced" },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "castle_tenshukaku",
+      "category": "fortifications",
+      "label": "Minato-jo 5-Tier Tenshukaku Castle Keep",
+      "target_glb": "assets/models/castle_tenshukaku.glb",
+      "dimensions_m": { "width": 16.5, "depth": 15.5, "height": 24.5 },
+      "foundation_skirt_m": 2.5,
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Grand five-tier Azuchi-Momoyama Japanese castle tenshukaku main keep inspired by Himeji and Osaka castles, sweeping upturned dark blue kawara tile roofs with karahafu and chidori-hafu gables, white shikkui plaster tiers, top belvedere gallery, golden shachihoko roof finials, and battered granite ishigaki stone base",
+        "aspect_ratio": "3:4",
+        "views": ["front", "left", "right", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "detailed",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "detailed",
+        "smart_low_poly_limit": 20000,
+        "notes": "Separate roof tiers, white plaster walls, ishigaki stone base, and golden shachihoko finials."
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "detailed",
+        "upscale_quality": "extreme",
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "castle_yagura",
+      "category": "fortifications",
+      "label": "Castle Corner Yagura Turret",
+      "target_glb": "assets/models/castle_yagura.glb",
+      "dimensions_m": { "width": 6.8, "depth": 6.8, "height": 9.5 },
+      "foundation_skirt_m": 1.8,
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Two-tier Edo Japanese castle corner yagura turret with white plaster walls, dark timber trim, curved dark slate kawara tile hip-and-gable roofs, lattice arrow-slit windows, on granite stone bastion plinth",
+        "aspect_ratio": "1:1",
+        "views": ["front", "left", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "smart_low_poly_limit": 14000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "castle_otemon_gate",
+      "category": "fortifications",
+      "label": "Otemon Fortified Castle Gatehouse",
+      "target_glb": "assets/models/castle_otemon_gate.glb",
+      "dimensions_m": { "width": 12.5, "depth": 5.2, "height": 7.8 },
+      "foundation_skirt_m": 1.5,
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Fortified Edo Japanese castle Otemon main gatehouse with massive dark cedar double gate doors open under a white plaster second-story guardhouse bridge, curved kawara tile roof, flanked by battered granite ishigaki stone walls",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back", "left"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "castle_hei_wall",
+      "category": "fortifications",
+      "label": "Modular Castle Plaster & Kawara Hei Wall",
+      "target_glb": "assets/models/castle_hei_wall.glb",
+      "dimensions_m": { "width": 8.0, "depth": 1.2, "height": 3.4 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Straight modular Edo Japanese castle defensive hei parapet wall segment with white shikkui plaster wall, small square sama loophole windows, dark timber wainscot, and overhanging blue-slate kawara clay tile roof coping",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 10000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "blender_gouache",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024,
+        "notes": "Use Kage no Machi seamless shikkui_plaster + kawara_tile maps so tiled castle walls show zero seams."
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "castle_ishigaki_wall",
+      "category": "fortifications",
+      "label": "Modular Battered Ishigaki Stone Wall",
+      "target_glb": "assets/models/castle_ishigaki_wall.glb",
+      "dimensions_m": { "width": 8.0, "depth": 3.6, "height": 6.4 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Modular Edo Japanese castle battered curved ogi-no-kobai dry-laid granite ishigaki stone retaining wall section with interlocking polygonal boulders and subtle moss in crevices",
+        "aspect_ratio": "4:3",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 12000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": false
+      },
+      "stage2_componentize": { "mode": "none" },
+      "stage3_texture": {
+        "default_strategy": "blender_gouache",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_wooden_fence_gate",
+      "category": "fortifications",
+      "label": "Edo Timber Courtyard Fence & Gate",
+      "target_glb": "assets/models/edo_wooden_fence_gate.glb",
+      "dimensions_m": { "width": 5.0, "depth": 0.9, "height": 2.4 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese weathered cedar plank courtyard fence with small roofed timber wicket gate and mossy stone post bases",
+        "aspect_ratio": "16:9",
+        "views": ["front", "back"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 8000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_arched_bridge",
+      "category": "landmarks",
+      "label": "Vermilion Arched Ran-kan Timber Bridge",
+      "target_glb": "assets/models/edo_arched_bridge.glb",
+      "dimensions_m": { "width": 11.2, "depth": 4.2, "height": 3.4 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Gracefully arched Edo period Japanese vermilion lacquer timber river bridge with curved ran-kan railings, bronze giboshi post finials, dark weathered deck planks, and sturdy timber river piers",
+        "aspect_ratio": "16:9",
+        "views": ["front", "left", "back"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": true
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_torii_gate",
+      "category": "landmarks",
+      "label": "Vermilion Sori Torii Shrine Gate",
+      "target_glb": "assets/models/edo_torii_gate.glb",
+      "dimensions_m": { "width": 4.6, "depth": 1.1, "height": 4.6 },
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Edo period Japanese vermilion lacquer Myojin torii shrine gate with sweeping upturned kasagi top lintel, black stone column plinths, central lacquered calligraphy plaque, and bronze fittings",
+        "aspect_ratio": "1:1",
+        "views": ["front", "left"]
+      },
+      "stage1_tripo": {
+        "family": "smart_mesh",
+        "model_version": "Nexus-v2.0-20260801",
+        "face_limit": 10000,
+        "quad": true,
+        "symmetry": true,
+        "texture": false,
+        "multiview": true
+      },
+      "stage2_componentize": { "mode": "segment", "granularity": "simple" },
+      "stage3_texture": {
+        "default_strategy": "tripo_then_gate",
+        "texture_quality": "standard",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 512
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    },
+    {
+      "id": "edo_distant_pagoda",
+      "category": "landmarks",
+      "label": "Five-Tier Goju-no-to Hilltop Pagoda",
+      "target_glb": "assets/models/edo_distant_pagoda.glb",
+      "dimensions_m": { "width": 7.5, "depth": 7.5, "height": 22.0 },
+      "foundation_skirt_m": 2.0,
+      "peekable": false,
+      "stage0_midjourney": {
+        "subject_prompt": "Traditional five-story Japanese Goju-no-to wooden temple pagoda with sweeping dark kawara clay tile roofs, vermilion brackets, white plaster walls, and bronze sorin spire",
+        "aspect_ratio": "2:3",
+        "views": ["front"]
+      },
+      "stage1_tripo": {
+        "family": "hd",
+        "model_version": "v3.1-20260211",
+        "geometry_quality": "detailed",
+        "texture": false,
+        "generate_parts": true,
+        "segmentation_granularity": "balanced",
+        "multiview": false
+      },
+      "stage2_componentize": {
+        "mode": "from_generation",
+        "granularity": "balanced",
+        "smart_low_poly_limit": 16000
+      },
+      "stage3_texture": {
+        "default_strategy": "tripo_hybrid",
+        "texture_quality": "detailed",
+        "upscale_quality": null,
+        "delight": true,
+        "pbr": true,
+        "max_tex_size": 1024
+      },
+      "stage4_rig": { "enabled": false },
+      "stage5_animate": { "enabled": false }
+    }
+  ]
+}

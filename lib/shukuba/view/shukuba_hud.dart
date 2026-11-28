@@ -75,6 +75,8 @@ class ShukubaHud extends StatelessWidget {
                         _WardPlaque(
                           structureCount: graph.structures.length,
                           activeRealm: controller.activeRealm,
+                          interiorsOpen: controller.hasOpenInterior,
+                          onToggleInteriors: controller.togglePeekAllHouses,
                           onSwitchRealm: onSwitchRealm,
                           onSelectPreset: onSelectPreset,
                           onOpenMenu: onOpenMenu,
@@ -131,12 +133,16 @@ class _WardPlaque extends StatefulWidget {
     required this.structureCount,
     required this.onSelectPreset,
     this.activeRealm = ShowcaseRealm.shukubaValley,
+    this.interiorsOpen = false,
+    this.onToggleInteriors,
     this.onSwitchRealm,
     this.onOpenMenu,
   });
 
   final int structureCount;
   final ShowcaseRealm activeRealm;
+  final bool interiorsOpen;
+  final VoidCallback? onToggleInteriors;
   final ValueChanged<ShowcaseRealm>? onSwitchRealm;
   final ValueChanged<CameraPreset> onSelectPreset;
   final VoidCallback? onOpenMenu;
@@ -179,107 +185,120 @@ class _WardPlaqueState extends State<_WardPlaque> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                height: 32,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      'assets/ui/urushi_crest.png',
-                      width: 22,
-                      height: 22,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 18,
-                      height: 18,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0x28D94A32),
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(
-                          color: ShukubaHud._cinnabarGlow,
-                          width: 1.1,
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  SizedBox(
+                    height: 32,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/ui/urushi_crest.png',
+                          width: 22,
+                          height: 22,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
                         ),
-                      ),
-                      child: const Text(
-                        '影',
-                        style: TextStyle(
-                          color: ShukubaHud._vermilionAccent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'serif',
-                          height: 1,
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0x28D94A32),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: ShukubaHud._cinnabarGlow,
+                              width: 1.1,
+                            ),
+                          ),
+                          child: const Text(
+                            '影',
+                            style: TextStyle(
+                              color: ShukubaHud._vermilionAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'serif',
+                              height: 1,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'KAGE NO MACHI',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: ShukubaHud._washiInk,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '· ${widget.structureCount} built',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: ShukubaHud._mutedSand,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'KAGE NO MACHI',
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: ShukubaHud._washiInk,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '· ${widget.structureCount} built',
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ShukubaHud._mutedSand,
-                        fontSize: 10.5,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (widget.onSwitchRealm != null) ...[
-                      _HudButton(
-                        label: realmButtonLabel,
-                        tooltip: 'Switch realm to ${nextRealm.displayName} (M)',
-                        active: widget.activeRealm == ShowcaseRealm.minatoJo,
-                        accent: ShukubaHud._brassBright,
-                        onTap: () {
-                          setState(() => _viewsOpen = false);
-                          widget.onSwitchRealm!(nextRealm);
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                    ],
+                  ),
+                  if (widget.onSwitchRealm != null)
                     _HudButton(
-                      label: 'Views',
-                      tooltip: 'Camera views (1–6)',
-                      trailingIcon: _viewsOpen
-                          ? Icons.arrow_drop_up
-                          : Icons.arrow_drop_down,
-                      active: _viewsOpen,
-                      filledActive: _viewsOpen,
-                      accent: ShukubaHud._amberAccent,
-                      onTap: () => setState(() => _viewsOpen = !_viewsOpen),
+                      label: realmButtonLabel,
+                      tooltip: 'Switch realm to ${nextRealm.displayName} (M)',
+                      active: widget.activeRealm == ShowcaseRealm.minatoJo,
+                      accent: ShukubaHud._brassBright,
+                      onTap: () {
+                        setState(() => _viewsOpen = false);
+                        widget.onSwitchRealm!(nextRealm);
+                      },
                     ),
-                    if (widget.onOpenMenu != null) ...[
-                      const SizedBox(width: 6),
-                      _HudButton(
-                        label: 'Menu',
-                        tooltip: 'Pause menu (Esc)',
-                        leading: const Icon(
-                          Icons.menu,
-                          size: 15,
-                          color: ShukubaHud._mutedSand,
-                        ),
-                        active: false,
-                        accent: ShukubaHud._mutedSand,
-                        onTap: widget.onOpenMenu!,
+                  _HudButton(
+                    label: 'Views',
+                    tooltip: 'Camera views (1–6)',
+                    trailingIcon: _viewsOpen
+                        ? Icons.arrow_drop_up
+                        : Icons.arrow_drop_down,
+                    active: _viewsOpen,
+                    filledActive: _viewsOpen,
+                    accent: ShukubaHud._amberAccent,
+                    onTap: () => setState(() => _viewsOpen = !_viewsOpen),
+                  ),
+                  if (widget.onToggleInteriors != null)
+                    _HudButton(
+                      label: 'Interiors',
+                      tooltip:
+                          'Peek inside houses (I) · Click any house in '
+                          'Explore mode',
+                      active: widget.interiorsOpen,
+                      filledActive: widget.interiorsOpen,
+                      accent: ShukubaHud._amberAccent,
+                      onTap: widget.onToggleInteriors!,
+                    ),
+                  if (widget.onOpenMenu != null)
+                    _HudButton(
+                      label: 'Menu',
+                      tooltip: 'Pause menu (Esc)',
+                      leading: const Icon(
+                        Icons.menu,
+                        size: 15,
+                        color: ShukubaHud._mutedSand,
                       ),
-                    ],
-                  ],
-                ),
+                      active: false,
+                      accent: ShukubaHud._mutedSand,
+                      onTap: widget.onOpenMenu!,
+                    ),
+                ],
               ),
               if (_viewsOpen) ...[
                 const SizedBox(height: 6),

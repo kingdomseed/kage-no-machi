@@ -621,6 +621,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
         _controller.selectTool(const ExploreTool());
         return KeyEventResult.handled;
       }
+      if (_controller.hasOpenInterior) {
+        _controller.clearPeekedHouses();
+        return KeyEventResult.handled;
+      }
       if (_shellMode == ShukubaShellMode.inValley) {
         setState(() => _shellMode = ShukubaShellMode.pauseMenu);
         return KeyEventResult.handled;
@@ -629,6 +633,10 @@ class _ShukubaPageState extends State<ShukubaPage> {
     }
     if (_shellMode != ShukubaShellMode.inValley) {
       return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.keyI) {
+      _controller.togglePeekAllHouses();
+      return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyQ) {
       setState(() => _cameraRig.orbitByRadians(-0.22));

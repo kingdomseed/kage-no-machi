@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show kIsWeb, listEquals, visibleForTest
 import 'package:flutter_scene/kit.dart' show Steering;
 import 'package:flutter_scene/scene.dart'
     show
+        Animation,
+        AnimationClip,
         GeometryBuilder,
         Material,
         Mesh,
@@ -50,17 +52,35 @@ import 'package:vector_math/vector_math.dart'
     show Aabb2, Quaternion, Vector2, Vector3;
 
 class _AgentRig {
-  new({required this.legL, required this.legR, required this.upper})
-    : baseLegLRot = legL?.rotation.clone() ?? Quaternion.identity(),
-      baseLegRRot = legR?.rotation.clone() ?? Quaternion.identity(),
-      baseUpperRot = upper?.rotation.clone() ?? Quaternion.identity();
+  new({
+    required this.legL,
+    required this.legR,
+    required this.upper,
+    this.walkClip,
+    this.idleClip,
+  }) : baseLegLRot = legL?.rotation.clone() ?? Quaternion.identity(),
+       baseLegRRot = legR?.rotation.clone() ?? Quaternion.identity(),
+       baseUpperRot = upper?.rotation.clone() ?? Quaternion.identity();
 
   final Node? legL;
   final Node? legR;
   final Node? upper;
+  final AnimationClip? walkClip;
+  final AnimationClip? idleClip;
   final Quaternion baseLegLRot;
   final Quaternion baseLegRRot;
   final Quaternion baseUpperRot;
+
+  bool get hasSkeletalClips => walkClip != null || idleClip != null;
+}
+
+class _BuildingPeekRig {
+  const new({required this.roofNodes, required this.interiorNodes});
+
+  final List<Node> roofNodes;
+  final List<Node> interiorNodes;
+
+  bool get isPeekable => roofNodes.isNotEmpty || interiorNodes.isNotEmpty;
 }
 
 class _TreeWindRig {
@@ -244,6 +264,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
   Node? _tanadaNode;
   Node? _mitsukeNode;
   final Map<EntityId, ({PlacedStructure data, Node node})> _structureNodes = {};
+  final Map<EntityId, _BuildingPeekRig> _buildingPeekRigs = {};
+  final Set<EntityId> _peekedStructureIds = {};
+  bool _peekAllHouses = false;
   List<RoadSpline>? _builtRoads;
   List<TerraceCourse>? _builtTerraces;
   List<CourtyardWall>? _builtWalls;
@@ -312,11 +335,185 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       )) {
         origins.add(structure.position + local.rotateY(structure.yawRadians));
       }
+      if (isStructurePeeked(structure.id) &&
+          isPeekableStructureKind(structure.kind)) {
+        origins.add(structure.position + const Vec3(0, 1.05, 0));
+      }
     }
     if (_realm == ShowcaseRealm.minatoJo) {
       origins.addAll(buildMinatoExtraLanternOrigins());
     }
     return origins;
+  }
+
+  static bool isPeekableStructureKind(StructureKind kind) => switch (kind) {
+    StructureKind.machiya ||
+    StructureKind.minka ||
+    StructureKind.chaya ||
+    StructureKind.kura => true,
+    _ => false,
+  };
+
+  @visibleForTesting
+  static bool isPeekRoofNodeName(String name) {
+    final lower = name.toLowerCase();
+    return lower.startsWith('peek_roof') || lower.startsWith('peek_upper');
+  }
+
+  @visibleForTesting
+  static bool isInteriorNodeName(String name) =>
+      name.toLowerCase().startsWith('interior_');
+
+  static void _setSubtreeVisible(Node root, bool visible) {
+    root.visible = visible;
+    for (final child in root.children) {
+      _setSubtreeVisible(child, visible);
+    }
+  }
+
+  static _BuildingPeekRig _collectPeekRig(Node root) {
+    final roofs = <Node>[];
+    final interiors = <Node>[];
+    void walk(Node node) {
+      if (isPeekRoofNodeName(node.name)) {
+        roofs.add(node);
+        return;
+      }
+      if (isInteriorNodeName(node.name)) {
+        interiors.add(node);
+        return;
+      }
+      node.children.forEach(walk);
+    }
+
+    walk(root);
+    return _BuildingPeekRig(roofNodes: roofs, interiorNodes: interiors);
+  }
+
+  static void _applyPeekStateToRig(_BuildingPeekRig rig, bool peeked) {
+    for (final roof in rig.roofNodes) {
+      _setSubtreeVisible(roof, !peeked);
+    }
+    for (final interior in rig.interiorNodes) {
+      _setSubtreeVisible(interior, peeked);
+    }
+  }
+
+  @visibleForTesting
+  static bool applyPeekStateToSubtree(Node root, {required bool peeked}) {
+    final rig = _collectPeekRig(root);
+    if (!rig.isPeekable) {
+      return false;
+    }
+    for (final roof in rig.roofNodes) {
+      markSubtreeShadowStatic(roof, shadowStatic: false);
+    }
+    for (final interior in rig.interiorNodes) {
+      markSubtreeShadowStatic(interior, shadowStatic: false);
+    }
+    _applyPeekStateToRig(rig, peeked);
+    return true;
+  }
+
+  bool get peekAllHouses => _peekAllHouses;
+
+  Set<EntityId> get peekedStructureIds =>
+      Set<EntityId>.unmodifiable(_peekedStructureIds);
+
+  bool get hasOpenInterior => _peekAllHouses || _peekedStructureIds.isNotEmpty;
+
+  bool isStructurePeeked(EntityId id) =>
+      _peekAllHouses || _peekedStructureIds.contains(id);
+
+  bool isStructurePeekable(EntityId id) {
+    if (_buildingPeekRigs.containsKey(id)) {
+      return true;
+    }
+    final structure = _graph.structures[id];
+    return structure != null && isPeekableStructureKind(structure.kind);
+  }
+
+  void _refreshAllPeekRigs() {
+    for (final entry in _buildingPeekRigs.entries) {
+      _applyPeekStateToRig(entry.value, isStructurePeeked(entry.key));
+    }
+  }
+
+  bool togglePeekStructure(EntityId id) {
+    if (!isStructurePeekable(id)) {
+      return false;
+    }
+    if (_peekAllHouses) {
+      _peekAllHouses = false;
+      _peekedStructureIds
+        ..clear()
+        ..addAll(
+          _graph.structures.values
+              .where((s) => isPeekableStructureKind(s.kind) && s.id != id)
+              .map((s) => s.id),
+        );
+      _refreshAllPeekRigs();
+      return false;
+    }
+    final nowPeeked = !_peekedStructureIds.contains(id);
+    if (nowPeeked) {
+      _peekedStructureIds.add(id);
+    } else {
+      _peekedStructureIds.remove(id);
+    }
+    final rig = _buildingPeekRigs[id];
+    if (rig != null) {
+      _applyPeekStateToRig(rig, nowPeeked);
+    }
+    return nowPeeked;
+  }
+
+  void setPeekAllHouses(bool enabled) {
+    if (_peekAllHouses == enabled &&
+        (!enabled || _peekedStructureIds.isEmpty)) {
+      return;
+    }
+    _peekAllHouses = enabled;
+    if (!enabled) {
+      _peekedStructureIds.clear();
+    }
+    _refreshAllPeekRigs();
+  }
+
+  void clearPeekedStructures() {
+    if (!_peekAllHouses && _peekedStructureIds.isEmpty) {
+      return;
+    }
+    _peekAllHouses = false;
+    _peekedStructureIds.clear();
+    _refreshAllPeekRigs();
+  }
+
+  EntityId? findPeekableStructureAt(Vec3 worldPoint) {
+    EntityId? bestId;
+    var bestDistSq = double.infinity;
+    const hitMargin = 0.45;
+    for (final structure in _graph.structures.values) {
+      if (!isPeekableStructureKind(structure.kind)) {
+        continue;
+      }
+      final dx = worldPoint.x - structure.position.x;
+      final dz = worldPoint.z - structure.position.z;
+      final cosY = math.cos(-structure.yawRadians);
+      final sinY = math.sin(-structure.yawRadians);
+      final localX = dx * cosY + dz * sinY;
+      final localZ = -dx * sinY + dz * cosY;
+      final halfW = structure.spec.footprintWidth * 0.5 + hitMargin;
+      final halfD = structure.spec.footprintDepth * 0.5 + hitMargin;
+      if (localX.abs() <= halfW && localZ.abs() <= halfD) {
+        final distSq = dx * dx + dz * dz;
+        if (distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestId = structure.id;
+        }
+      }
+    }
+    return bestId;
   }
 
   @override
@@ -400,6 +597,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     _worldRoot = null;
     _scene = null;
     _heroBridgeAttached = false;
+    _peekAllHouses = false;
+    _peekedStructureIds.clear();
     _previewNode.removeAll();
     _clearIncrementalCaches();
   }
@@ -503,6 +702,8 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
 
     _attachEpoch++;
+    _peekAllHouses = false;
+    _peekedStructureIds.clear();
     _worldRoot!.remove(_waterNode);
     _horizonRidgesNode.visible = true;
     _waterNode = _realm == ShowcaseRealm.minatoJo
@@ -561,6 +762,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       _skyCloudDomeNode = null;
     }
     _structureNodes.clear();
+    _buildingPeekRigs.clear();
     _structureTreeRigs.clear();
     _propTreeRigs.clear();
     _vesselRigs.clear();
@@ -748,6 +950,58 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     };
   }
 
+  @visibleForTesting
+  static ({Animation? walk, Animation? idle}) selectAgentAnimations(
+    List<Animation> animations,
+  ) {
+    if (animations.isEmpty) {
+      return (walk: null, idle: null);
+    }
+    Animation? walkAnim;
+    Animation? idleAnim;
+    for (final anim in animations) {
+      final lower = anim.name.toLowerCase();
+      if (walkAnim == null &&
+          (lower.contains('walk') ||
+              lower.contains('stride') ||
+              lower.contains('run'))) {
+        walkAnim = anim;
+      } else if (idleAnim == null &&
+          (lower.contains('idle') ||
+              lower.contains('wait') ||
+              lower.contains('stand'))) {
+        idleAnim = anim;
+      }
+    }
+    walkAnim ??= animations.first;
+    if (identical(idleAnim, walkAnim)) {
+      idleAnim = null;
+    }
+    return (walk: walkAnim, idle: idleAnim);
+  }
+
+  static ({AnimationClip? walkClip, AnimationClip? idleClip})
+  _bindSkeletalAgentClips(Node cloned, double phaseOffset) {
+    final selected = selectAgentAnimations(cloned.parsedAnimations);
+    if (selected.walk == null) {
+      return (walkClip: null, idleClip: null);
+    }
+    final walkClip = cloned.createAnimationClip(selected.walk!)
+      ..loop = true
+      ..weight = 1
+      ..playbackTime = phaseOffset
+      ..play();
+    AnimationClip? idleClip;
+    if (selected.idle != null) {
+      idleClip = cloned.createAnimationClip(selected.idle!)
+        ..loop = true
+        ..weight = 0
+        ..playbackTime = phaseOffset
+        ..play();
+    }
+    return (walkClip: walkClip, idleClip: idleClip);
+  }
+
   void _rebuildAgentNodes() {
     if (_scene == null) {
       return;
@@ -762,10 +1016,19 @@ class EdoWorldDriver implements ShukubaWorldDriver {
       late final Node node;
       if (proto != null) {
         final cloned = proto.clone();
+        final clips = _bindSkeletalAgentClips(cloned, agent.bobPhase * 0.25);
         _agentRigs[agent.id] = _AgentRig(
-          legL: _findNodeByName(cloned, 'person_leg_l'),
-          legR: _findNodeByName(cloned, 'person_leg_r'),
-          upper: _findNodeByName(cloned, 'person_upper'),
+          legL: clips.walkClip == null
+              ? _findNodeByName(cloned, 'person_leg_l')
+              : null,
+          legR: clips.walkClip == null
+              ? _findNodeByName(cloned, 'person_leg_r')
+              : null,
+          upper: clips.walkClip == null
+              ? _findNodeByName(cloned, 'person_upper')
+              : null,
+          walkClip: clips.walkClip,
+          idleClip: clips.idleClip,
         );
         node = Node(name: 'hero_agent_${agent.id.value}')
           ..position = agent.position.toVector3()
@@ -1119,6 +1382,10 @@ class EdoWorldDriver implements ShukubaWorldDriver {
     }
     for (final id in staleIds) {
       final removed = _structureNodes.remove(id)!;
+      _buildingPeekRigs.remove(id);
+      if (!_graph.structures.containsKey(id)) {
+        _peekedStructureIds.remove(id);
+      }
       _structureTreeRigs.remove(id);
       _structuresNode.remove(removed.node);
     }
@@ -1553,9 +1820,15 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         final speedRatio = agent.speed > 0
             ? (velLen / agent.speed).clamp(0.0, 1.0)
             : 0.0;
+        final rigState = _agentRigs[agent.id];
+        final isSkeletal = rigState?.hasSkeletalClips ?? false;
         final phase = _walkTime * 7.2 + agent.bobPhase;
-        final bob = math.sin(phase).abs() * 0.028 * speedRatio;
-        final strideRoll = math.sin(phase) * 0.036 * speedRatio;
+        final bob = isSkeletal
+            ? 0.0
+            : math.sin(phase).abs() * 0.028 * speedRatio;
+        final strideRoll = isSkeletal
+            ? 0.0
+            : math.sin(phase) * 0.036 * speedRatio;
         final yawRot = Quaternion.axisAngle(Vector3(0, 1, 0), agent.yawRadians);
         final cadenceRot = Quaternion.axisAngle(Vector3(0, 0, 1), strideRoll);
         node
@@ -1566,9 +1839,25 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           )
           ..rotation = yawRot * cadenceRot;
 
-        final rigState = _agentRigs[agent.id];
         if (rigState != null) {
-          if (speedRatio > 0.05) {
+          if (isSkeletal) {
+            final walkClip = rigState.walkClip;
+            final idleClip = rigState.idleClip;
+            if (walkClip != null) {
+              if (idleClip != null) {
+                walkClip
+                  ..weight = speedRatio
+                  ..playbackTimeScale = 0.72 + 0.52 * speedRatio;
+                idleClip.weight = 1.0 - speedRatio;
+              } else {
+                walkClip
+                  ..weight = 1
+                  ..playbackTimeScale = speedRatio > 0.05
+                      ? 0.72 + 0.52 * speedRatio
+                      : 0.0;
+              }
+            }
+          } else if (speedRatio > 0.05) {
             final legSwing = math.sin(phase) * 0.40 * speedRatio;
             rigState.legL?.rotation =
                 rigState.baseLegLRot *
@@ -1697,6 +1986,9 @@ class EdoWorldDriver implements ShukubaWorldDriver {
               combinedHint.contains('chochin') ||
               combinedHint.contains('beacon') ||
               combinedHint.contains('fire') ||
+              combinedHint.contains('hearth') ||
+              combinedHint.contains('andon') ||
+              combinedHint.contains('interior_props_glow') ||
               (mat.emissiveFactor.x > 0.70 && mat.emissiveFactor.y < 0.48) ||
               mat.emissiveStrength >= 2.2;
           if (isLantern) {
@@ -1927,7 +2219,19 @@ class EdoWorldDriver implements ShukubaWorldDriver {
         ..add(proto.clone());
       _collectEmissiveMaterials(wrapper, hintName: structure.id.value);
       syncEmissives(_lastEmissiveRig);
-      return markSubtreeShadowStatic(wrapper);
+      markSubtreeShadowStatic(wrapper);
+      final peekRig = _collectPeekRig(wrapper);
+      if (peekRig.isPeekable) {
+        for (final roof in peekRig.roofNodes) {
+          markSubtreeShadowStatic(roof, shadowStatic: false);
+        }
+        for (final interior in peekRig.interiorNodes) {
+          markSubtreeShadowStatic(interior, shadowStatic: false);
+        }
+        _buildingPeekRigs[structure.id] = peekRig;
+        _applyPeekStateToRig(peekRig, isStructurePeeked(structure.id));
+      }
+      return wrapper;
     }
     return markSubtreeShadowStatic(
       _kitBuilder.buildStructureNode(structure, _resolveMaterial),
@@ -2102,6 +2406,7 @@ class EdoWorldDriver implements ShukubaWorldDriver {
           continue;
         }
         final existing = _structureNodes[structure.id];
+        _buildingPeekRigs.remove(structure.id);
         _structureTreeRigs.remove(structure.id);
         if (existing != null) {
           _structuresNode.remove(existing.node);

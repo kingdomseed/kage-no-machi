@@ -19,12 +19,12 @@ dependencies:
     git:
       url: https://github.com/bdero/flutter_scene.git
       path: packages/flutter_scene
-      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
+      ref: d64780d44f30e3b129e2b354e8ae7bba2b799b03
   flutter_scene_soloud:
     git:
       url: https://github.com/bdero/flutter_scene.git
       path: packages/flutter_scene_soloud
-      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
+      ref: d64780d44f30e3b129e2b354e8ae7bba2b799b03
   hooks: ^2.2.0
   intl: ^0.20.2
   material_ui: ^1.1.1
@@ -35,12 +35,12 @@ dependency_overrides:
     git:
       url: https://github.com/bdero/flutter_scene.git
       path: packages/flutter_scene
-      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
+      ref: d64780d44f30e3b129e2b354e8ae7bba2b799b03
   scene:
     git:
       url: https://github.com/bdero/flutter_scene.git
       path: packages/scene
-      ref: d04d5cc53bf0b704e378e5bc5acb58b23f2b1c05
+      ref: d64780d44f30e3b129e2b354e8ae7bba2b799b03
 
 dev_dependencies:
   bloc_lint: ^0.4.2

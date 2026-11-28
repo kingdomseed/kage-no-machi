@@ -352,6 +352,31 @@ def get_materials() -> dict[str, bpy.types.Material]:
             "MountainVistaMat", "mountain_forest.png", "mountain_forest_normal.png",
             tint=(0.88, 0.90, 0.92, 1.0), roughness=1.0, specular=0.0, uv_scale=1.0,
         ),
+        "TatamiMat": _make_tex_material(
+            "TatamiMat", "kayabuki_thatch.png", "kayabuki_thatch_normal.png",
+            tint=(0.74, 0.78, 0.50, 1.0), roughness=0.88, specular=0.08, normal_strength=0.65, uv_scale=1.25,
+        ),
+        "TatamiBorder": _make_flat_material(
+            "TatamiBorder", (0.07, 0.11, 0.22, 1.0), roughness=0.88, specular=0.08,
+        ),
+        "InteriorCedarFloor": _make_tex_material(
+            "InteriorCedarFloor", "cedar_timber.png", "cedar_timber_normal.png",
+            tint=(0.66, 0.46, 0.30, 1.0), roughness=0.68, specular=0.22, normal_strength=0.80, uv_scale=0.55,
+        ),
+        "InteriorPlaster": _make_tex_material(
+            "InteriorPlaster", "shikkui_plaster.png", "shikkui_plaster_normal.png",
+            tint=(0.90, 0.85, 0.74, 1.0), roughness=0.90, specular=0.10, normal_strength=0.55, uv_scale=0.45,
+        ),
+        "LacquerWood": _make_flat_material(
+            "LacquerWood", (0.24, 0.08, 0.045, 1.0), roughness=0.38, specular=0.42,
+        ),
+        "HearthEmber": _make_flat_material(
+            "HearthEmber", (0.95, 0.34, 0.08, 1.0), roughness=0.82,
+            emissive_color=(1.0, 0.34, 0.06), emissive_strength=2.2,
+        ),
+        "FusumaPaper": _make_flat_material(
+            "FusumaPaper", (0.88, 0.82, 0.68, 1.0), roughness=0.88, specular=0.08,
+        ),
     }
 
 

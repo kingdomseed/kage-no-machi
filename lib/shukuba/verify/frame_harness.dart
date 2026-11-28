@@ -276,6 +276,17 @@ class ShukubaFrameHarness {
     CameraPreset.horizonHillsideTilt,
   ];
 
+  static const CameraPreset interiorPeekCloseup = CameraPreset(
+    id: 'interior_peek_closeup',
+    label: 'Cutaway House Interiors Close-Up',
+    eye: Vec3(-15, 17.5, 16.5),
+    target: Vec3(-15, 1, 5.7),
+    timeOfDay: TimeOfDayRig.goldenDusk,
+    verticalFovDegrees: 26,
+    nearMeters: 6,
+    farMeters: 220,
+  );
+
   static const List<CameraPreset> geometrySeamPresets = [
     CameraPreset(
       id: 'seam_stair_upper_east_foot',
@@ -794,8 +805,17 @@ class ShukubaFrameHarness {
         ? _buildTurntablePlans(filter)
         : const <_TurntableSpecimenPlan>[];
 
+    final captureInteriorPeek =
+        world is EdoWorldDriver &&
+        (world as EdoWorldDriver).realm == ShowcaseRealm.shukubaValley &&
+        filter.matchesPreset(
+          category: 'valley',
+          presetId: interiorPeekCloseup.id,
+        );
+
     final totalShots =
         valleyPresets.length +
+        (captureInteriorPeek ? 1 : 0) +
         filteredHorizonPresets.length +
         seamPresets.length +
         specimenPlans.fold<int>(0, (sum, plan) => sum + plan.angles.length);
@@ -860,6 +880,24 @@ class ShukubaFrameHarness {
         staticValleyOverlaps ??= shot.overlaps;
         elapsedSeconds += frames / 60;
         await recordShot(shot);
+      }
+
+      if (captureInteriorPeek && world is EdoWorldDriver) {
+        final edoWorld = world as EdoWorldDriver
+          ..setPeekAllHouses(true);
+        try {
+          final shot = await _capturePresetFrame(
+            preset: interiorPeekCloseup,
+            outputPath: '${directory.path}/${interiorPeekCloseup.id}.png',
+            framesToSettle: 4,
+            startElapsedSeconds: elapsedSeconds,
+            pumpCount: resolvePumpCount(interiorPeekCloseup),
+          );
+          elapsedSeconds += 4 / 60;
+          await recordShot(shot);
+        } finally {
+          edoWorld.setPeekAllHouses(false);
+        }
       }
 
       for (var i = 0; i < filteredHorizonPresets.length; i++) {
